@@ -25,10 +25,12 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
   - [x] `/api/v1/info` — height, hashrate, difficulty, mempool count
   - [x] `/api/v1/blocks` — recent block headers
   - [x] `/api/v1/block/:hash` — block detail (tx hashes only, no amounts)
-  - [~] `/api/v1/tx/:hash` — mempool resolution works; **confirmed-tx detail (ring info, ring member ages, vin/vout counts) deferred** — needs `/get_transactions` wiring + `as_json` decoding. Sub-goal added below.
+  - [x] `/api/v1/tx/:hash` — both mempool and confirmed paths. Confirmed shape: `{status, hash, block_height, confirmations, num_inputs, num_outputs, ring_size, ring_size_consistent, ring_offsets_per_input, key_images, has_view_tags, rct_type, fee}`. NEVER includes amounts or recipients.
   - [x] `/api/v1/mempool` — current mempool with fee + size per tx
   - [x] `/api/v1/fees/recommended` — Monero 4-tier fee response
-- [ ] `MoneroApi.getTransactionByHash(hash)` — wraps `/get_transactions` (the non-JSON-RPC endpoint), decodes `as_json` to surface ring offsets, vin/vout counts, ring size. Required for confirmed-tx detail page.
+- [x] `MoneroApi.getTransactionByHash(hash)` — wraps `/get_transactions` (the non-JSON-RPC endpoint), decodes `as_json` to surface ring offsets, vin/vout counts, ring size. _(iteration 4)_
+- [ ] `MoneroApi.getOuts(indices[])` → resolve global output indices to block heights, so the frontend can show "ring decoy ages" (oldest decoy / median age / newest). Currently `ring_offsets_per_input` returns the raw delta-encoded indices — frontend can lay them out without resolution but ages need this call.
+- [ ] `[~]` Mark the parent REST goal `[x]` once these sub-goals are checked. (Currently 6/6 routes work; ring-age resolution is the only remaining gap.)
 - [ ] Strip endpoints that don't apply: address balance / tx history (private), UTXO endpoints, Lightning, accelerator, mining-pool stats (keep simple miner-pool fingerprint only if easy).
 
 ### Frontend retarget
@@ -51,6 +53,12 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 ---
 
 ## Last iteration
+
+**Iteration 4 (2026-05-05):** Confirmed-tx detail. Added `MoneroApi.getTransactionsByHashes(hashes)` (and single-hash convenience wrapper) hitting `/get_transactions` with `decode_as_json=true&prune=true`, 30s cache. Wired into `/api/v1/tx/:hash` after the mempool check. Live-verified: tx `544f6fb7...` returned `ring_size: 16, ring_size_consistent: true, num_inputs: 1, num_outputs: 2, has_view_tags: true, rct_type: 6 (CLSAG+BP+), fee: 491520000`, plus the 16-element delta-encoded ring offsets.
+
+**Privacy invariant audit:** the confirmed-tx shape includes `key_images` (public), `ring_offsets_per_input` (public), `rct_type` (public), `has_view_tags` (public). It does NOT include `vout[].target.tagged_key.key` (one-time output keys — public on chain but unhelpful and potentially confusing if exposed without context), `extra` (could carry payment IDs in legacy txs), or `amount` (always 0 in RingCT but we still don't surface it). If a future iteration wants to surface output one-time keys for ring-member overlap visualisations, that's an explicit decision.
+
+---
 
 **Iteration 3 (2026-05-05):** REST surface live. Added `monero.routes.ts` (6 endpoints, mirrors upstream URL shapes) + `xmr-server.ts` (standalone Express entry that doesn't disrupt upstream's bootstrap). Verified end-to-end against the public daemon:
 
@@ -95,3 +103,4 @@ _none yet — no functional code has been written._
 - **Iteration 1 (2026-05-05):** scaffolded. Fork ✓ clone ✓ upstream remote ✓ `xmr` branch ✓ PROGRESS.md ✓ README attribution ✓. No goals checked.
 - **Iteration 2 (2026-05-05):** monerod RPC client + smoke. Checked: 1 backend goal (RPC client). Remaining: ZMQ, REST routes, frontend retarget, theme, tx-detail reveals.
 - **Iteration 3 (2026-05-05):** REST surface. Checked: 5/6 sub-bullets of the REST goal (info, blocks, block/:hash, mempool, fees/recommended) plus mempool-resolution path of tx/:hash. Confirmed-tx detail moved to its own sub-goal. Standalone xmr-server.ts boots & serves live data on :8999.
+- **Iteration 4 (2026-05-05):** Confirmed-tx detail. Checked: `getTransactionByHash` sub-goal + the confirmed-tx path of `/api/v1/tx/:hash`. Tx `544f6fb7…` shows ring size 16, view tags, CLSAG+BP+ live. All 6/6 REST routes now functionally complete; ring-age resolution (`get_outs`) deferred as a separate sub-goal.

@@ -135,14 +135,15 @@ export class MoneroRoutes {
       const pool = await this.api.getTransactionPool();
       const inMempool = pool.transactions?.find((t) => t.id_hash === hash);
       if (inMempool) {
-        res.json(this.shapeMempoolTx(inMempool));
+        res.json({ status: 'mempool', ...this.shapeMempoolTx(inMempool) });
         return;
       }
-      // Fall through: tx may be confirmed — but we haven't wired
-      // /get_transactions yet (it lives in MoneroApi as a future method).
-      // For iteration 3 we only resolve mempool txs; confirmed-tx detail
-      // lands when block-detail wiring exposes the per-tx public fields.
-      handleError(req, res, 404, 'tx not found in mempool (confirmed-tx detail not yet wired in iter 3)');
+      const confirmed = await this.api.getTransactionByHash(hash);
+      if (confirmed) {
+        res.json({ status: 'confirmed', ...this.shapeConfirmedTx(confirmed) });
+        return;
+      }
+      handleError(req, res, 404, 'tx not found');
     } catch (err) {
       logger.err(`xmr getTx failed: ${err instanceof Error ? err.message : String(err)}`);
       handleError(req, res, 502, 'monerod unreachable');
@@ -218,6 +219,66 @@ export class MoneroRoutes {
       nonce: h.nonce,
       orphan_status: h.orphan_status,
       miner_tx_hash: h.miner_tx_hash,
+    };
+  }
+
+  /**
+   * Shape a confirmed tx into public-only fields. Crucially, this includes:
+   *   - ring_size: length of vin[0].key.key_offsets (16 in modern Monero)
+   *   - num_inputs / num_outputs: counts only, never amounts
+   *   - ring_offsets_per_input: delta-encoded global output indices for
+   *     each input. Frontend can resolve these to block heights via a
+   *     follow-up call once we wire /get_outs.
+   *   - has_view_tags: derived from any vout with `target.tagged_key.view_tag`
+   *     set — a privacy/scanning-speed signal.
+   *   - rct_type: ringct version (0=none, 1=full, 2=simple, 3=bulletproof, 4=clsag, 5=bulletproof+, 6=clsag-bp+)
+   *
+   * NEVER includes amounts (vout[].amount is always 0 in RingCT post-v4
+   * anyway, but we don't even forward that field) or recipient addresses.
+   */
+  private shapeConfirmedTx(t: IMoneroApi.TransactionEntry) {
+    let parsed: IMoneroApi.TransactionJson | null = null;
+    if (t.as_json) {
+      try {
+        parsed = JSON.parse(t.as_json) as IMoneroApi.TransactionJson;
+      } catch (e) {
+        // Daemon should always return valid JSON; if not, surface what we can.
+      }
+    }
+    const numInputs = parsed?.vin?.length ?? 0;
+    const numOutputs = parsed?.vout?.length ?? 0;
+    const ringSizes = (parsed?.vin ?? [])
+      .map((v) => v.key?.key_offsets?.length ?? 0)
+      .filter((n) => n > 0);
+    const ringSize = ringSizes.length ? ringSizes[0] : null;
+    const allRingsConsistent = ringSizes.every((n) => n === ringSize);
+    const hasViewTags = (parsed?.vout ?? []).some(
+      (v) => v.target?.tagged_key?.view_tag !== undefined,
+    );
+    return {
+      hash: t.tx_hash,
+      block_height: t.block_height,
+      block_timestamp: t.block_timestamp,
+      age_s: t.block_timestamp ? Math.floor(Date.now() / 1000) - t.block_timestamp : null,
+      confirmations: t.confirmations,
+      double_spend_seen: t.double_spend_seen,
+      version: parsed?.version,
+      unlock_time: parsed?.unlock_time,
+      num_inputs: numInputs,
+      num_outputs: numOutputs,
+      ring_size: ringSize,
+      ring_size_consistent: allRingsConsistent,
+      ring_offsets_per_input: (parsed?.vin ?? [])
+        .map((v) => v.key?.key_offsets ?? [])
+        .filter((arr) => arr.length > 0),
+      key_images: (parsed?.vin ?? [])
+        .map((v) => v.key?.k_image)
+        .filter((k): k is string => typeof k === 'string'),
+      has_view_tags: hasViewTags,
+      rct_type: parsed?.rct_signatures?.type ?? null,
+      // Fee surfaces from rct_signatures.txnFee (post-RCT). For pre-RCT
+      // (now-impossible on mainnet) it'd require summing inputs - outputs.
+      fee: parsed?.rct_signatures?.txnFee ?? null,
     };
   }
 

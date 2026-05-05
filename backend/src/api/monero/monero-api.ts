@@ -83,6 +83,46 @@ export class MoneroApi {
   }
 
   /**
+   * Look up confirmed transactions by hash via `/get_transactions`. Returns
+   * the entries the daemon was able to find — callers should match by
+   * `tx_hash` since the daemon will silently omit unknowns.
+   *
+   * `decode_as_json=true` instructs the daemon to populate `as_json` on
+   * each entry: a string that JSON-parses to `{version, unlock_time, vin,
+   * vout, extra, rct_signatures}`. We pass `prune=true` so we don't pull
+   * the giant rangeproof / bulletproof blobs we have no use for.
+   *
+   * Cache window: 30s. Confirmed tx data is immutable — could be cached
+   * forever — but the wrapper response carries `confirmations`, which IS
+   * dynamic. 30s is a reasonable compromise.
+   */
+  public async getTransactionsByHashes(hashes: string[]): Promise<IMoneroApi.TransactionEntry[]> {
+    if (hashes.length === 0) {
+      return [];
+    }
+    // Cache by sorted hash list; for single-hash lookups (the common case
+    // in tx-detail views) this still hits the same key on repeated reads.
+    const cacheKey = hashes.slice().sort().join(',');
+    const cached = memoryCache.get<IMoneroApi.TransactionEntry[]>('xmr-tx', cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const resp = await this.rpc.raw<{ txs?: IMoneroApi.TransactionEntry[]; status: string }>(
+      '/get_transactions',
+      { txs_hashes: hashes, decode_as_json: true, prune: true },
+    );
+    const txs = resp.txs ?? [];
+    memoryCache.set('xmr-tx', cacheKey, txs, 30);
+    return txs;
+  }
+
+  /** Convenience wrapper for the single-hash case. Returns `null` if not found. */
+  public async getTransactionByHash(hash: string): Promise<IMoneroApi.TransactionEntry | null> {
+    const txs = await this.getTransactionsByHashes([hash]);
+    return txs.find((t) => t.tx_hash === hash) ?? null;
+  }
+
+  /**
    * Monero's 4-tier fee model. Returns the base atomic-per-byte fee plus a
    * `fees` array `[slow, normal, fast, fastest]` of multipliers — the
    * frontend uses this directly for the fee-tier color buckets.
