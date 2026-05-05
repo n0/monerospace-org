@@ -83,22 +83,13 @@
           <div class="svg-wrapper"><app-svg-images name="nav-tachometer" width="21.59" height="100%"></app-svg-images></div>
         </a>
       </li>
-      <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-home" *ngIf="network.val === '' && stateService.env.ACCELERATOR">
-        <a class="nav-link" [routerLink]="['/acceleration' | relativeUrl]" (click)="collapse()">
-          <div class="svg-wrapper"><app-svg-images name="nav-rocket" width="21.59" height="100%"></app-svg-images></div>
-        </a>
-      </li>
-      <li class="nav-item mining" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
-        <a class="nav-link" [routerLink]="['/mining' | relativeUrl]" (click)="collapse()">
-          <div class="svg-wrapper"><app-svg-images name="nav-pickaxe" width="21.59" height="100%"></app-svg-images></div>
-        </a>
-      </li>
-      <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-lightning" *ngIf="stateService.networkSupportsLightning()">
-        <a class="nav-link" [routerLink]="['/lightning' | relativeUrl]" (click)="collapse()">
-          <div class="svg-wrapper"><app-svg-images name="nav-bolt" width="21.59" height="100%"></app-svg-images></div>
-        </a>
-      </li>
-      <li class="nav-item" routerLinkActive="active" id="btn-blocks" *ngIf="!stateService.env.MINING_DASHBOARD">
+      <!-- xmr-space: pruned nav. Removed Bitcoin-only items:
+           accelerator (no fee market on XMR), mining-pool dashboard
+           (we have miner_tx_hash but no per-pool reward share), lightning
+           (no second layer), faucet (no test-net wiring), enterprise
+           (mempool's commercial brand). Kept: home, blocks list, graphs,
+           docs, about. -->
+      <li class="nav-item" routerLinkActive="active" id="btn-blocks">
         <a class="nav-link" [routerLink]="['/blocks' | relativeUrl]" (click)="collapse()">
           <div class="svg-wrapper"><app-svg-images name="nav-cubes" width="21.59" height="100%"></app-svg-images></div>
         </a>
@@ -108,19 +99,9 @@
           <div class="svg-wrapper"><app-svg-images name="nav-chart-area" width="21.59" height="100%"></app-svg-images></div>
         </a>
       </li>
-      <li class="nav-item" routerLinkActive="active" id="btn-faucet" *ngIf="stateService.isMempoolSpaceBuild && stateService.env.OFFICIAL_MEMPOOL_SPACE && stateService.network === 'testnet4'">
-        <a class="nav-link" [routerLink]="['/faucet' | relativeUrl]" (click)="collapse()">
-          <div class="svg-wrapper"><app-svg-images name="nav-faucet-drip" width="21.59" height="100%"></app-svg-images></div>
-        </a>
-      </li>
-      <li class="nav-item" routerLinkActive="active" id="btn-docs" *ngIf="!officialMempoolSpaceBuild">
+      <li class="nav-item" routerLinkActive="active" id="btn-docs">
         <a class="nav-link" [routerLink]="['/docs' | relativeUrl ]" (click)="collapse()">
           <div class="svg-wrapper"><app-svg-images name="nav-book" width="21.59" height="100%"></app-svg-images></div>
-        </a>
-      </li>
-      <li class="nav-item" routerLinkActive="active" id="btn-enterprise" *ngIf="officialMempoolSpaceBuild">
-        <a class="nav-link" [routerLink]="['/enterprise']" [queryParams]="{network: network.val.length ? network.val : null}" (click)="collapse()">
-          <div class="svg-wrapper"><app-svg-images name="nav-enterprise" width="21.59" height="100%"></app-svg-images></div>
         </a>
       </li>
       <li class="nav-item" routerLinkActive="active" id="btn-about">
