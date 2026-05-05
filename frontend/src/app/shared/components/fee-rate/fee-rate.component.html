@@ -1,10 +1,14 @@
+<!-- xmr-space: Monero has no segwit weight discount; weight == blob_size.
+     Fee unit is atomic per byte ("ɱ/B"); the sat/WU branch is unreachable
+     because we don't expose the 'wu' rate-unit option, but we keep it in
+     the template so consumers that pass `units="wu"` don't crash. -->
 <ng-container *ngIf="rateUnits$ | async as units">
   <ng-container *ngIf="fee !== undefined; else noFee">
-    <ng-container *ngIf="units !== 'wu'">{{ fee / (weight / 4) | feeRounding:rounding:dp }} <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle" i18n="shared.sat-vbyte|sat/vB">sat/vB</span></ng-container>
-    <ng-container *ngIf="units === 'wu'">{{ fee / weight | feeRounding:rounding:dp }} <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle" i18n="shared.sat-weight-units|sat/WU">sat/WU</span></ng-container>
+    <ng-container *ngIf="units !== 'wu'">{{ fee / weight | feeRounding:rounding:dp }} <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle">ɱ/B</span></ng-container>
+    <ng-container *ngIf="units === 'wu'">{{ fee / weight | feeRounding:rounding:dp }} <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle">ɱ/B</span></ng-container>
   </ng-container>
   <ng-template #noFee>
-      <ng-container *ngIf="units !== 'wu'">- <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle" i18n="shared.sat-vbyte|sat/vB">sat/vB</span></ng-container>
-      <ng-container *ngIf="units === 'wu'">- <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle" i18n="shared.sat-weight-units|sat/WU">sat/WU</span></ng-container>
+      <ng-container *ngIf="units !== 'wu'">- <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle">ɱ/B</span></ng-container>
+      <ng-container *ngIf="units === 'wu'">- <span *ngIf="showUnit" [class]="unitClass" [style]="unitStyle">ɱ/B</span></ng-container>
   </ng-template>
 </ng-container>

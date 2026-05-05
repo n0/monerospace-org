@@ -1,14 +1,22 @@
+<!-- xmr-space: amount values arriving here are Monero atomic units
+     (1 XMR = 1e12 atomic). The variable is named `satoshis` for upstream
+     compatibility but should be read as "atomic units." Default view
+     ('btc' branch in the @if) renders XMR; the alternate branch renders
+     raw atomic units.
+     Fiat conversion uses whatever the upstream conversions$ feed
+     surfaces — for now that's the {USD:1, EUR:0.92} stub the WS adapter
+     pushes; real-time XMR price feed is on the iter-N+ backlog. -->
 <ng-container *ngIf="!noFiat && ignoreViewMode === false && (viewAmountMode$ | async) === 'fiat' && (conversions$ | async) as conversions; else viewFiatVin">
   <span class="fiat" *ngIf="blockConversion; else noblockconversion">
     {{ addPlus && satoshis >= 0 ? '+' : '' }}{{
       (
         (blockConversion.price[currency] > -1 ? blockConversion.price[currency] : null) ??
         (blockConversion.price['USD']    > -1 ? blockConversion.price['USD'] * blockConversion.exchangeRates['USD' + currency] : null) ?? 0
-      ) * satoshis / 100000000 | fiatCurrency : digitsInfo : currency
+      ) * satoshis / 1000000000000 | fiatCurrency : digitsInfo : currency
     }}
   </span>
   <ng-template #noblockconversion>
-    <span class="fiat" *ngIf="!forceBlockConversion; else zeroValue">{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ (conversions[currency] > -1 ? conversions[currency] : 0) * satoshis / 100000000 | fiatCurrency : digitsInfo : currency }}
+    <span class="fiat" *ngIf="!forceBlockConversion; else zeroValue">{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ (conversions[currency] > -1 ? conversions[currency] : 0) * satoshis / 1000000000000 | fiatCurrency : digitsInfo : currency }}
     </span>
   </ng-template>
   <ng-template #zeroValue>
@@ -17,32 +25,15 @@
 </ng-container>
 
   <ng-template #viewFiatVin>
-  <ng-template [ngIf]="(network === 'liquid' || network === 'liquidtestnet') && (satoshis === undefined || satoshis === null)" [ngIfElse]="default">
-    <span i18n="shared.confidential">Confidential</span>
-  </ng-template>
-  <ng-template #default>
     @if ((viewAmountMode$ | async) === 'btc' || (viewAmountMode$ | async) === 'fiat' || ignoreViewMode === true) {
-      &lrm;{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ satoshis / 100000000 | number : digitsInfo }}
-      <span class="symbol" [style]="unitStyle">
-        <ng-container *ngTemplateOutlet="prefix"></ng-container>BTC
-      </span>
+      &lrm;{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ satoshis / 1000000000000 | number : digitsInfo }}
+      <span class="symbol" [style]="unitStyle">XMR</span>
     } @else {
       @if (digitsInfo === '1.8-8') {
         &lrm;{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ satoshis | number }}
-      } @else { 
+      } @else {
         &lrm;{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ satoshis | amountShortener : (satoshis < 1000 && satoshis > -1000 ? 0 : 1) : undefined : true }}
       }
-      <span class="symbol" [style]="unitStyle">
-        <ng-container *ngTemplateOutlet="prefix"></ng-container>sats
-      </span>
+      <span class="symbol" [style]="unitStyle">atomic</span>
     }
-  </ng-template>
-</ng-template>
-
-<ng-template #prefix>
-  <ng-template [ngIf]="network === 'liquid' && !forceBtc">L</ng-template>
-  <ng-template [ngIf]="network === 'liquidtestnet'">tL</ng-template>
-  <ng-template [ngIf]="network === 'testnet'">t</ng-template>
-  <ng-template [ngIf]="network === 'testnet4'">t</ng-template>
-  <ng-template [ngIf]="network === 'signet'">s</ng-template>
 </ng-template>
