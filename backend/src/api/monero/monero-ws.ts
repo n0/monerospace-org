@@ -41,7 +41,7 @@ interface UpstreamBlock {
     minFee?: number;
     maxFee?: number;
     feeRange?: number[];
-    pool?: { id: number; name: string; slug: string };
+    pool?: { id: number; name: string; slug: string; minerNames?: string[] };
   };
 }
 
@@ -103,6 +103,14 @@ export class MoneroWs {
 
   private handleConnection(ws: WebSocket, _req: IncomingMessage): void {
     let closed = false;
+    // Per-connection state — which projected-mempool-block (if any) the
+    // client has subscribed to. -1 = not tracking. The dashboard's
+    // mempool tile sends `{track-mempool-block: 0}` to ask for the
+    // next-block tile contents.
+    const state: { trackingMempoolBlock: number; sequence: number } = {
+      trackingMempoolBlock: -1,
+      sequence: 0,
+    };
 
     ws.on('message', (raw) => {
       let msg: Record<string, unknown> = {};
@@ -112,10 +120,6 @@ export class MoneroWs {
         return;
       }
       if (msg.action === 'init' || msg.action === 'want') {
-        // Send a full snapshot. The frontend may send `init` once on
-        // connect and then `want` to subscribe to specific feeds; for
-        // xmr-space we always push everything since we have no
-        // per-feed cost difference.
         void this.sendSnapshot(ws).catch(() => {});
         return;
       }
@@ -123,9 +127,20 @@ export class MoneroWs {
         this.safeSend(ws, { action: 'pong' });
         return;
       }
-      // track-* messages are accepted but ignored — XMR doesn't have
-      // per-address or per-tx tracking by hash from anyone except the
-      // parties. The reveal flows handle the legitimate cases.
+      if ('track-mempool-block' in msg) {
+        const block = Number(msg['track-mempool-block']);
+        if (Number.isInteger(block) && block >= 0) {
+          state.trackingMempoolBlock = block;
+          state.sequence = 0;
+          void this.sendProjectedBlockTransactions(ws, block, state).catch(() => {});
+        } else {
+          state.trackingMempoolBlock = -1;
+        }
+        return;
+      }
+      // All other track-* messages (track-tx, track-address, track-rbf,
+      // track-accelerations, etc.) accepted but ignored — they don't
+      // translate to Monero's data model.
     });
 
     ws.on('close', () => { closed = true; });
@@ -242,6 +257,75 @@ export class MoneroWs {
       broadcastPayload['mempoolInfo'] = this.shapeMempoolInfo(pool, fees);
     }
     this.broadcast(broadcastPayload);
+  }
+
+  /**
+   * Send the per-tx contents of a projected mempool block to a single
+   * subscribed client. Format: `{index, sequence, blockTransactions}`
+   * where each tx is the upstream's TransactionCompressed tuple
+   * `[txid, fee, vsize, value, rate, flags, time, acc?]`.
+   *
+   * For Monero:
+   *   - txid    : id_hash
+   *   - fee     : atomic units
+   *   - vsize   : weight (== blob_size; no segwit)
+   *   - value   : 0 (RingCT-hidden, never exposed)
+   *   - rate    : fee / weight
+   *   - flags   : 0 (Bitcoin-only flag bits — RBF, fullrbf, sigops,
+   *                  consolidation, coinjoin, data — none apply to XMR)
+   *   - time    : receive_time
+   *   - acc     : 0 (no acceleration market on XMR)
+   */
+  private async sendProjectedBlockTransactions(
+    ws: WebSocket,
+    blockIndex: number,
+    state: { sequence: number },
+  ): Promise<void> {
+    const pool = await this.api.getTransactionPool();
+    const txs = (pool.transactions ?? [])
+      .map((t) => ({
+        txid: t.id_hash,
+        weight: t.weight,
+        fee: t.fee,
+        receiveTime: t.receive_time,
+        rate: t.weight > 0 ? t.fee / t.weight : 0,
+      }))
+      .sort((a, b) => b.rate - a.rate);
+
+    // Slice to the requested block — same greedy fill as projectedMempoolBlocks.
+    const buckets: typeof txs[] = [];
+    let bucket: typeof txs = [];
+    let bucketWeight = 0;
+    for (const t of txs) {
+      if (bucketWeight + t.weight > PROJECTED_BLOCK_WEIGHT_LIMIT && bucket.length) {
+        buckets.push(bucket);
+        if (buckets.length >= 8) break;
+        bucket = [];
+        bucketWeight = 0;
+      }
+      bucket.push(t);
+      bucketWeight += t.weight;
+    }
+    if (bucket.length && buckets.length < 8) buckets.push(bucket);
+
+    const target = buckets[blockIndex] ?? [];
+    state.sequence += 1;
+
+    this.safeSend(ws, {
+      'projected-block-transactions': {
+        index: blockIndex,
+        sequence: state.sequence,
+        blockTransactions: target.map((t) => [
+          t.txid,
+          t.fee,
+          t.weight,
+          0, // value — RingCT-hidden
+          t.rate,
+          0, // flags
+          t.receiveTime || Math.floor(Date.now() / 1000),
+        ]),
+      },
+    });
   }
 
   private async broadcastMempoolUpdate(): Promise<void> {
