@@ -85,6 +85,21 @@ const RECENT_BLOCKS_TO_PUSH = 8;
 
 export class MoneroWs {
   private wss?: WebSocketServer;
+  /**
+   * Highest block height we've already broadcast to clients. Used to
+   * drop stale `block` events that lose a race against a later one —
+   * `broadcastNewBlock` is async (fetches the full block via daemon
+   * RPC) and bus events can fire 3s apart, so two in flight at once
+   * can finish out of order.
+   */
+  private lastBroadcastHeight = -1;
+  /**
+   * Serialise broadcasts behind a single promise chain. Cheap insurance
+   * against the race described above; without this the dashboard's
+   * blocks list ends up in chaotic order ([tip-2, tip, tip-3, tip-1, …])
+   * after a few tip changes.
+   */
+  private broadcastQueue: Promise<unknown> = Promise.resolve();
 
   constructor(private api: MoneroApi, private bus: MoneroEventBus) {}
 
@@ -92,12 +107,17 @@ export class MoneroWs {
     this.wss = new WebSocketServer({ server: httpServer, path });
     this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));
 
-    // Forward bus events to all connected clients.
+    // Forward bus events to all connected clients. Each broadcast is
+    // chained behind the previous one so order is deterministic.
     this.bus.on('block', (header: IMoneroApi.BlockHeader) => {
-      void this.broadcastNewBlock(header).catch(() => {});
+      this.broadcastQueue = this.broadcastQueue
+        .catch(() => undefined)
+        .then(() => this.broadcastNewBlock(header).catch(() => undefined));
     });
     this.bus.on('mempool-delta', () => {
-      void this.broadcastMempoolUpdate().catch(() => {});
+      this.broadcastQueue = this.broadcastQueue
+        .catch(() => undefined)
+        .then(() => this.broadcastMempoolUpdate().catch(() => undefined));
     });
   }
 
@@ -136,6 +156,16 @@ export class MoneroWs {
         } else {
           state.trackingMempoolBlock = -1;
         }
+        return;
+      }
+      // The frontend sends this when it detects a height skip in the
+      // block stream (e.g. tip jumped from 100 → 102 instead of 101).
+      // We re-fetch the recent-blocks list and push it as `blocks`,
+      // which causes resetBlocks() to install a fresh ordered list.
+      if ('refresh-blocks' in msg) {
+        void this.recentBlocks(RECENT_BLOCKS_TO_PUSH).then((blocks) => {
+          this.safeSend(ws, { blocks });
+        }).catch(() => undefined);
         return;
       }
       // All other track-* messages (track-tx, track-address, track-rbf,
@@ -241,10 +271,18 @@ export class MoneroWs {
     if (!this.wss || this.wss.clients.size === 0) {
       return;
     }
+    // Drop stale events. After we serialise via broadcastQueue, the
+    // event ordering at the entry point IS the daemon's wall-clock
+    // ordering — but if the daemon ever returned the same hash twice
+    // (orphan ingestion, replay) we still want to no-op.
+    if (header.height <= this.lastBroadcastHeight) {
+      return;
+    }
     const block = await this.api.getBlockByHash(header.hash).catch(() => null);
     const headerForShape = block?.block_header ?? header;
     const numTxes = block?.tx_hashes?.length ?? header.num_txes;
     const shaped = this.shapeBlock(headerForShape, numTxes);
+    this.lastBroadcastHeight = header.height;
     // Also push refreshed mempool info — confirming a block drains the pool.
     const pool = await this.api.getTransactionPool().catch(() => null);
     const broadcastPayload: Record<string, unknown> = {
@@ -359,12 +397,21 @@ export class MoneroWs {
 
   // ---- shapes ----
 
+  /**
+   * Recent N blocks in **oldest-first** order. Upstream's
+   * `StateService.resetBlocks()` does `blocks.reverse()` on receipt and
+   * then `addBlock()` (called for each new tip) `unshift`s onto the
+   * front — so the contract is: WS pushes oldest→newest, frontend
+   * stores newest→oldest. Sending newest-first here causes blocks to
+   * appear in chaotic order after a few real-time tip updates.
+   */
   private async recentBlocks(n: number): Promise<UpstreamBlock[]> {
     const tipCount = await this.api.getBlockCount();
     const tipHeight = tipCount - 1;
     const heights: number[] = [];
-    for (let i = 0; i < n && tipHeight - i >= 0; i++) {
-      heights.push(tipHeight - i);
+    for (let i = n - 1; i >= 0; i--) {
+      const h = tipHeight - i;
+      if (h >= 0) heights.push(h);
     }
     const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
     return blocks.map((b) => this.shapeBlock(b.block_header, b.tx_hashes?.length));
