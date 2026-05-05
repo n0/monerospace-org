@@ -1,3 +1,15 @@
+# xmr-space — a Monero mempool & block explorer
+
+> **Forked from [mempool/mempool](https://github.com/mempool/mempool)** — used under **AGPLv3**, see [`LICENSE`](./LICENSE) and [`COPYING.md`](./COPYING.md).
+>
+> `xmr-space` retargets the upstream UX vocabulary (mempool wall, projected blocks, confirmed-block stream, fee-tier colors) onto Monero's data model: RingCT-hidden amounts, fixed ring size 16, the 4-tier `get_fee_estimate` model, and a tx-detail page whose private fields are blurred by default with three opt-in reveal flows (view-key, tx_proof, tx_secret_key) that run client-side via `monero-ts` so keys never touch the server.
+>
+> See [`PROGRESS.md`](./PROGRESS.md) for the convergence log and current goal checklist.
+>
+> Upstream README follows below, preserved for license compliance and historical context.
+
+---
+
 # The Mempool Open Source Project® [![mempool](https://img.shields.io/endpoint?url=https://dashboard.cypress.io/badge/simple/ry4br7/master&style=flat-square)](https://dashboard.cypress.io/projects/ry4br7/runs)
 
 https://user-images.githubusercontent.com/93150691/226236121-375ea64f-b4a1-4cc0-8fad-a6fb33226840.mp4
