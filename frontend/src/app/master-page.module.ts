@@ -102,10 +102,13 @@ const routes: Routes = [
         loadChildren: () => import('@app/xmr/tx-detail/xmr-tx-detail.module').then(m => m.XmrTxDetailModule),
       },
       {
+        // xmr-space: replace upstream block.module (Bitcoin-shaped: per-tx
+        // vin/vout dissection, mining-pool charts, audit summary, RBF
+        // history). Upstream module preserved on disk; routing diverted.
         path: 'block',
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
-        loadChildren: () => import('@components/block/block.module').then(m => m.BlockModule),
+        loadChildren: () => import('@app/xmr/block-detail/xmr-block-detail.module').then(m => m.XmrBlockDetailModule),
       },
       {
         path: 'docs',

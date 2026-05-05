@@ -1,0 +1,114 @@
+:host {
+  display: block;
+  padding: 2rem 0;
+}
+
+.xmr-block-title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  color: var(--fg);
+  small {
+    color: var(--tooltip-grey);
+    font-weight: 400;
+    margin-left: 0.5rem;
+  }
+}
+
+.xmr-loading-card {
+  background: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+}
+
+.card {
+  background: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+  .card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+}
+
+.xmr-stat-card {
+  background: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.4rem;
+  padding: 1rem 1.25rem;
+  height: 100%;
+
+  .xmr-stat-label {
+    font-size: 0.78em;
+    color: var(--tooltip-grey);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.4rem;
+  }
+  .xmr-stat-value {
+    font-size: 1.45rem;
+    font-weight: 600;
+    color: #ff6600;
+    line-height: 1.1;
+  }
+  .xmr-stat-unit {
+    font-size: 0.7em;
+    color: var(--tooltip-grey);
+    font-weight: 400;
+    margin-left: 0.15rem;
+  }
+  .xmr-stat-sub {
+    font-size: 0.78em;
+    color: var(--tooltip-grey);
+    margin-top: 0.4rem;
+  }
+}
+
+.xmr-kv {
+  margin-bottom: 0;
+  th {
+    width: 200px;
+    color: var(--tooltip-grey);
+    font-weight: 500;
+    vertical-align: top;
+    padding: 0.5rem 1rem 0.5rem 0;
+  }
+  td {
+    color: var(--fg);
+    word-break: break-all;
+    padding: 0.5rem 0;
+    a {
+      color: #ff6600;
+      &:hover { color: #ffaa00; }
+    }
+  }
+}
+
+.xmr-mono-wrap {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  word-break: break-all;
+}
+
+.xmr-tx-list {
+  max-height: 420px;
+  overflow-y: auto;
+
+  .xmr-tx-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.55rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    &:last-child { border-bottom: none; }
+
+    .xmr-tx-index {
+      color: var(--tooltip-grey);
+      font-size: 0.85em;
+      min-width: 2.5em;
+      text-align: right;
+    }
+    a {
+      color: var(--fg);
+      &:hover { color: #ff6600; }
+    }
+  }
+}

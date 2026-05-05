@@ -1,0 +1,102 @@
+<div class="xmr-block-detail container-xl">
+  <h1 class="xmr-block-title">
+    Block
+    <small class="xmr-hash" *ngIf="block">#{{ block.height | number }}</small>
+  </h1>
+
+  <ng-container *ngIf="loading">
+    <div class="card xmr-loading-card">
+      <div class="card-body text-center text-muted">Loading…</div>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="!loading && error">
+    <div class="alert alert-warning">{{ error }}</div>
+  </ng-container>
+
+  <ng-container *ngIf="!loading && block as b">
+    <!-- header summary -->
+    <div class="row xmr-block-stats g-3 mb-4">
+      <div class="col-md-3">
+        <div class="xmr-stat-card">
+          <div class="xmr-stat-label">Reward</div>
+          <div class="xmr-stat-value">{{ formatXmr(b.reward) }} <span class="xmr-stat-unit">XMR</span></div>
+          <div class="xmr-stat-sub">block subsidy + tx fees (coinbase only)</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="xmr-stat-card">
+          <div class="xmr-stat-label">Transactions</div>
+          <div class="xmr-stat-value">{{ b.num_txes | number }}</div>
+          <div class="xmr-stat-sub">excluding coinbase</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="xmr-stat-card">
+          <div class="xmr-stat-label">Size</div>
+          <div class="xmr-stat-value">{{ b.block_size | number }} <span class="xmr-stat-unit">B</span></div>
+          <div class="xmr-stat-sub">weight {{ b.block_weight | number }} B</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="xmr-stat-card">
+          <div class="xmr-stat-label">Mined</div>
+          <div class="xmr-stat-value">{{ b.age_s | number:'1.0-0' }}s ago</div>
+          <div class="xmr-stat-sub">{{ b.timestamp * 1000 | date:'medium' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- chain data -->
+    <div class="card mb-4">
+      <div class="card-header"><h5 class="mb-0">Block</h5></div>
+      <div class="card-body">
+        <table class="table table-borderless xmr-kv">
+          <tbody>
+            <tr><th>Hash</th><td><code class="xmr-mono-wrap">{{ b.hash }}</code></td></tr>
+            <tr><th>Height</th><td>{{ b.height | number }}</td></tr>
+            <tr><th>Previous</th>
+              <td>
+                <a [routerLink]="['/block', b.prev_hash]"><code class="xmr-mono-wrap">{{ b.prev_hash }}</code></a>
+              </td>
+            </tr>
+            <tr><th>Depth</th><td>{{ b.depth | number }}</td></tr>
+            <tr><th>Difficulty</th>
+              <td>
+                {{ b.difficulty | number }}
+                <span class="text-muted ms-2">≈ {{ formatHashrateFromDifficulty(b.difficulty) }}</span>
+              </td>
+            </tr>
+            <tr><th>Cumulative difficulty</th><td>{{ b.cumulative_difficulty | number }}</td></tr>
+            <tr><th>Nonce</th><td>{{ b.nonce | number }}</td></tr>
+            <tr><th>Version</th><td>{{ b.major_version }} (minor {{ b.minor_version }})</td></tr>
+            <tr><th>Coinbase tx</th>
+              <td>
+                <a [routerLink]="['/tx', b.miner_tx_hash]"><code class="xmr-mono-wrap">{{ b.miner_tx_hash }}</code></a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- tx list (hashes only) -->
+    <div class="card mb-4 xmr-tx-list-card">
+      <div class="card-header">
+        <h5 class="mb-0 d-inline-block me-3">Transactions</h5>
+        <small class="text-muted">{{ b.tx_hashes.length | number }} non-coinbase tx{{ b.tx_hashes.length === 1 ? '' : 's' }} — hashes only, amounts are RingCT-hidden</small>
+      </div>
+      <div class="card-body p-0">
+        <ul class="list-unstyled xmr-tx-list mb-0">
+          <li *ngFor="let h of b.tx_hashes; let i = index" class="xmr-tx-row">
+            <span class="xmr-tx-index">{{ i + 1 }}.</span>
+            <a [routerLink]="['/tx', h]"><code class="xmr-mono-wrap">{{ h }}</code></a>
+          </li>
+          <li *ngIf="b.tx_hashes.length === 0" class="xmr-tx-row text-muted">
+            No non-coinbase transactions in this block.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </ng-container>
+</div>
