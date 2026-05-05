@@ -1,5 +1,6 @@
 import { Component, OnInit, ChangeDetectionStrategy, EventEmitter, Output, ViewChild, HostListener, ElementRef, Input } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { EventType, NavigationStart, Router } from '@angular/router';
 import { AssetsService } from '@app/services/assets.service';
 import { Env, StateService } from '@app/services/state.service';
@@ -65,7 +66,8 @@ export class SearchFormComponent implements OnInit {
     private electrsApiService: ElectrsApiService,
     private apiService: ApiService,
     private relativeUrlPipe: RelativeUrlPipe,
-    private elementRef: ElementRef
+    private elementRef: ElementRef,
+    private http: HttpClient,
   ) {
   }
 
@@ -262,51 +264,46 @@ export class SearchFormComponent implements OnInit {
   }
 
   search(result?: string): void {
+    // xmr-space: simplified search resolver. Monero has no
+    // chain-traceable address (so /address routes don't apply) and the
+    // upstream `blockhash` regex requires Bitcoin-style leading-zero
+    // hashes which Monero doesn't produce. Resolution rules:
+    //   numeric → /block/<height>      (caps at current chain tip)
+    //   64-hex  → probe /api/v1/block/:h ; if 200 → /block/:h
+    //                                    ; else fall through to /tx/:h
+    //   else    → no-op
     const searchText = result || this.searchForm.value.searchText.trim();
-    if (searchText) {
-      this.isSearching = true;
+    if (!searchText) return;
+    this.isSearching = true;
 
-      if (!this.regexTransaction.test(searchText) && this.regexAddress.test(searchText)) {
-        this.navigate('/address/', searchText);
-      } else if (this.regexBlockhash.test(searchText)) {
-        this.navigate('/block/', searchText);
-      } else if (this.regexBlockheight.test(searchText)) {
-        parseInt(searchText) <= this.stateService.latestBlockHeight ? this.navigate('/block/', searchText) : this.isSearching = false;
-      } else if (this.regexTransaction.test(searchText)) {
-        const matches = this.regexTransaction.exec(searchText);
-        if (this.network === 'liquid' || this.network === 'liquidtestnet') {
-          if (this.assets[matches[0]]) {
-            this.navigate('/assets/asset/', matches[0]);
-          }
-          this.electrsApiService.getAsset$(matches[0])
-            .subscribe(
-              () => { this.navigate('/assets/asset/', matches[0]); },
-              () => {
-                this.electrsApiService.getBlock$(matches[0])
-                  .subscribe(
-                    (block) => { this.navigate('/block/', matches[0], { state: { data: { block } } }); },
-                    () => { this.navigate('/tx/', matches[0]); });
-              }
-            );
-        } else {
-          this.navigate('/tx/', matches[0]);
-        }
-      } else if (this.regexDate.test(searchText) || this.regexUnixTimestamp.test(searchText)) {
-        let timestamp: number;
-        this.regexDate.test(searchText) ? timestamp = Math.floor(new Date(searchText).getTime() / 1000) : timestamp = searchText;
-        // Check if timestamp is too far in the future or before the genesis block
-        if (timestamp > Math.floor(Date.now() / 1000)) {
-          this.isSearching = false;
-          return;
-        }
-        this.apiService.getBlockDataFromTimestamp$(timestamp).subscribe(
-          (data) => { this.navigate('/block/', data.hash); },
-          (error) => { console.log(error); this.isSearching = false; }
-        );
+    const HEX64 = /^[a-f0-9]{64}$/i;
+    const NUMERIC = /^[0-9]+$/;
+
+    if (NUMERIC.test(searchText)) {
+      const h = parseInt(searchText, 10);
+      if (Number.isFinite(h) && h >= 0) {
+        this.navigate('/block/', String(h));
       } else {
         this.isSearching = false;
       }
+      return;
     }
+    if (HEX64.test(searchText)) {
+      // Try block first; if 404, try tx. Both target components
+      // tolerate a not-found response with their own 404 UI.
+      this.http
+        .get(`/api/v1/block/${searchText}`, { observe: 'response' })
+        .pipe(catchError(() => of(null)))
+        .subscribe((resp: any) => {
+          if (resp && resp.ok) {
+            this.navigate('/block/', searchText);
+          } else {
+            this.navigate('/tx/', searchText);
+          }
+        });
+      return;
+    }
+    this.isSearching = false;
   }
 
 
