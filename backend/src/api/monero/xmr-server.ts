@@ -20,6 +20,7 @@ import { MoneroRoutes } from './monero.routes';
 import { MoneroEventBus } from './monero-event-bus';
 import { MoneroSseRoutes } from './monero-sse.routes';
 import { MoneroWs } from './monero-ws';
+import { MoneroStats } from './monero-stats';
 
 function main(): void {
   const app = express();
@@ -63,6 +64,13 @@ function main(): void {
   });
   bus.start();
   new MoneroSseRoutes(bus).initRoutes(app);
+
+  // Rolling 1-minute mempool-stats samples for the Incoming
+  // Transactions chart. Backfills empty; chart fills over the first
+  // ~2 h of uptime — honest UX, no fake history.
+  const stats = new MoneroStats(api, bus);
+  stats.start();
+  stats.initRoutes(app);
 
   // WebSocket adapter at /api/v1/ws speaking the upstream mempool/mempool
   // protocol so the existing Angular frontend renders without retargeting
