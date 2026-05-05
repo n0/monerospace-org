@@ -91,10 +91,15 @@ const routes: Routes = [
         loadChildren: () => import('@components/trademark-policy/trademark-policy.module').then(m => m.TrademarkModule),
       },
       {
+        // xmr-space: replace upstream transaction.module (heavily UTXO-shaped:
+        // vin/vout dissection, segwit/taproot script flags, RBF history,
+        // CPFP cluster, fee-rating against block tier, accelerator) with our
+        // public-only XmrTxDetailModule. The upstream module is preserved on
+        // disk for reference but no longer routed.
         path: 'tx',
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
-        loadChildren: () => import('@components/transaction/transaction.module').then(m => m.TransactionModule),
+        loadChildren: () => import('@app/xmr/tx-detail/xmr-tx-detail.module').then(m => m.XmrTxDetailModule),
       },
       {
         path: 'block',

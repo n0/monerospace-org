@@ -255,6 +255,17 @@ export class MoneroRoutes {
     const hasViewTags = (parsed?.vout ?? []).some(
       (v) => v.target?.tagged_key?.view_tag !== undefined,
     );
+    // Tx blob size = pruned_as_hex bytes (or as_hex if not pruned). The
+    // daemon doesn't return tx_weight directly on /get_transactions, but
+    // the wire blob length is what the wallet/daemon use as "weight" for
+    // fee-per-byte calculations. /2 because hex is 2 chars per byte.
+    const blobBytes = t.pruned_as_hex
+      ? Math.floor(t.pruned_as_hex.length / 2)
+      : t.as_hex
+        ? Math.floor(t.as_hex.length / 2)
+        : 0;
+    const fee = parsed?.rct_signatures?.txnFee ?? null;
+    const feePerByte = fee && blobBytes > 0 ? Math.floor(fee / blobBytes) : 0;
     return {
       hash: t.tx_hash,
       block_height: t.block_height,
@@ -276,9 +287,10 @@ export class MoneroRoutes {
         .filter((k): k is string => typeof k === 'string'),
       has_view_tags: hasViewTags,
       rct_type: parsed?.rct_signatures?.type ?? null,
-      // Fee surfaces from rct_signatures.txnFee (post-RCT). For pre-RCT
-      // (now-impossible on mainnet) it'd require summing inputs - outputs.
-      fee: parsed?.rct_signatures?.txnFee ?? null,
+      weight: blobBytes,
+      blob_size: blobBytes,
+      fee,
+      fee_per_byte: feePerByte,
     };
   }
 

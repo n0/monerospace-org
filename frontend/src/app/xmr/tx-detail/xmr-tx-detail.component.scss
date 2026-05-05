@@ -1,0 +1,267 @@
+/* xmr-space tx detail styles. The blur card is the load-bearing UX
+ * element — it has to read as "this is hidden by design" and not
+ * "this is broken / loading." We use a hard, intentional blur with
+ * a clear messaging overlay rather than a generic skeleton shimmer. */
+
+:host {
+  display: block;
+  padding: 2rem 0;
+}
+
+.xmr-tx-title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  color: var(--fg);
+
+  small.xmr-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8em;
+    color: var(--tooltip-grey);
+    font-weight: 400;
+    margin-left: 0.5rem;
+  }
+}
+
+.xmr-loading-card {
+  background: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+}
+
+.xmr-status-row {
+  font-size: 0.95rem;
+  .badge {
+    font-size: 0.85em;
+    padding: 0.4em 0.7em;
+  }
+}
+
+.xmr-public-card,
+.xmr-blur-card,
+.xmr-reveal-card {
+  background: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+  .card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+}
+
+.xmr-kv {
+  margin-bottom: 0;
+  th {
+    width: 180px;
+    color: var(--tooltip-grey);
+    font-weight: 500;
+    vertical-align: top;
+    padding: 0.5rem 1rem 0.5rem 0;
+  }
+  td {
+    color: var(--fg);
+    word-break: break-all;
+    padding: 0.5rem 0;
+  }
+}
+
+.xmr-mono-wrap {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: var(--fg);
+  word-break: break-all;
+}
+
+.xmr-key-images li {
+  margin-bottom: 0.25rem;
+}
+
+.xmr-ring-offsets {
+  margin-bottom: 0.75rem;
+  .xmr-ring-label {
+    font-size: 0.85em;
+    color: var(--tooltip-grey);
+    margin-bottom: 0.25rem;
+  }
+  .xmr-ring-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    .xmr-ring-chip {
+      padding: 0.15rem 0.5rem;
+      background: rgba(255, 102, 0, 0.08);
+      border: 1px solid rgba(255, 102, 0, 0.25);
+      border-radius: 0.25rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78em;
+      color: var(--fg);
+    }
+  }
+}
+
+/* fee-tier badges */
+.xmr-tier-slow    { background: var(--fee-tier-slow); color: white; }
+.xmr-tier-normal  { background: var(--fee-tier-normal); color: white; }
+.xmr-tier-fast    { background: var(--fee-tier-fast); color: white; }
+.xmr-tier-fastest { background: var(--fee-tier-fastest); color: black; }
+
+/* the blur card: hard, intentional, with clear messaging */
+.xmr-blur-card {
+  position: relative;
+  overflow: hidden;
+  .card-body {
+    padding: 0;
+  }
+}
+
+.xmr-blur-overlay {
+  position: relative;
+  padding: 2.5rem 2rem;
+  min-height: 220px;
+}
+
+.xmr-blur-content {
+  filter: blur(10px);
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.4;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  color: var(--fg);
+  .xmr-blur-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    span {
+      width: 110px;
+      color: var(--tooltip-grey);
+    }
+    .xmr-blur-fill {
+      flex: 1;
+      height: 1.2em;
+      background: linear-gradient(90deg, #FF6600, #ffaa00, #FF6600);
+      background-size: 200% 100%;
+      animation: xmr-shimmer 3s linear infinite;
+      border-radius: 3px;
+      &.xmr-blur-fill-short {
+        max-width: 40%;
+      }
+    }
+  }
+}
+
+@keyframes xmr-shimmer {
+  0%   { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.xmr-blur-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+  background: linear-gradient(180deg, rgba(13, 15, 23, 0.7) 0%, rgba(13, 15, 23, 0.85) 100%);
+
+  strong {
+    color: #ff6600;
+    font-size: 1.05rem;
+    max-width: 720px;
+    line-height: 1.4;
+  }
+  p {
+    color: var(--tooltip-grey);
+    font-size: 0.95rem;
+  }
+}
+
+/* reveal grid */
+.xmr-reveal-btn {
+  text-align: left;
+  white-space: normal;
+  padding: 1rem;
+  height: 100%;
+  border-color: rgba(255, 102, 0, 0.4);
+  color: var(--fg);
+  background: rgba(255, 102, 0, 0.04);
+
+  &:hover {
+    background: rgba(255, 102, 0, 0.12);
+    border-color: rgba(255, 102, 0, 0.7);
+    color: var(--fg);
+  }
+
+  .xmr-reveal-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #ff6600;
+  }
+  .xmr-reveal-sub {
+    font-size: 0.82em;
+    color: var(--tooltip-grey);
+  }
+}
+
+.xmr-reveal-result {
+  font-size: 0.85em;
+  margin-bottom: 0;
+  word-break: break-word;
+}
+
+/* modal */
+.xmr-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 1rem;
+}
+
+.xmr-modal {
+  background: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.4rem;
+  width: 100%;
+  max-width: 540px;
+  color: var(--fg);
+
+  .xmr-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .xmr-modal-body {
+    padding: 1.25rem;
+    .form-label {
+      color: var(--tooltip-grey);
+      font-size: 0.85em;
+      margin-top: 0.5rem;
+    }
+    .form-control,
+    textarea.form-control {
+      background: var(--bg);
+      border-color: var(--border-subtle);
+      color: var(--fg);
+      &:focus {
+        border-color: #ff6600;
+        box-shadow: 0 0 0 0.2rem rgba(255, 102, 0, 0.18);
+      }
+    }
+  }
+  .xmr-modal-footer {
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+}
