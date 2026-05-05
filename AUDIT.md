@@ -1,6 +1,21 @@
 # xmr-space feature audit
 
-**Status as of commit `164364b02` (iter 15)** — written iter 16 in response to the user's correct observation that I declared "done" too early.
+**Updated to iter 24 status.** Originally written iter 16 in response to the user's correct observation that I declared "done" too early. Each row updated below; the priority list at the bottom shows what's actually shipped vs. still backlogged.
+
+## Iter 16-24 fixes summary
+
+- **iter 17:** Recent Blocks ordering fix — WS adapter now sends oldest-first, broadcasts serialized behind a single Promise chain, lastBroadcastHeight gates stale events, `refresh-blocks` request handled.
+- **iter 18:** Live updates verified end-to-end — 8-min observation produced 5 sequential new blocks pushed correctly, 88 mempool deltas.
+- **iter 19:** Incoming Transactions chart wired — `MoneroStats` records 1-minute rolling samples; `/api/v1/statistics/{2h,3d,24h,1w,1m}` serve windows.
+- **iter 20:** Stripped 16+ impossible Bitcoin-only routes (master-page + graphs).
+- **iter 21:** Rewrote `/about`, replaced upstream's 13k-line FAQ docs module with focused `XmrDocsModule`.
+- **iter 22:** Search bar now resolves Monero hashes (probe-block-then-fall-through-to-tx) and heights.
+- **iter 23:** New `XmrBlocksListModule` for `/blocks` with pagination via `/api/v1/blocks/:height`.
+- **iter 24:** Final polish + push.
+
+---
+
+**Status as of commit `164364b02` (iter 15)** — original audit text follows.
 
 This file is the source of truth for what's *implemented*, what's *feasible-but-not-yet-done*, and what's *impossible on Monero* (and therefore needs to be stripped from routing). Each row points at the upstream route or component so subsequent iterations have a target list.
 
