@@ -1,0 +1,49 @@
+<div class="container-xl xmr-blocks-list">
+  <div class="d-flex align-items-baseline justify-content-between mb-3 xmr-bl-header">
+    <h1 class="m-0">Blocks</h1>
+    <div class="xmr-bl-pager">
+      <button class="btn btn-outline-primary btn-sm" [disabled]="!hasNewerPage()" (click)="goLatest()" title="Jump to chain tip">Latest</button>
+      <button class="btn btn-outline-primary btn-sm" [disabled]="!hasNewerPage()" (click)="goNewer()" title="Newer page">Newer →</button>
+      <button class="btn btn-outline-primary btn-sm" [disabled]="!hasOlderPage()" (click)="goOlder()" title="Older page">← Older</button>
+    </div>
+  </div>
+
+  <ng-container *ngIf="loading">
+    <div class="card xmr-bl-card"><div class="card-body text-center text-muted">Loading…</div></div>
+  </ng-container>
+
+  <ng-container *ngIf="!loading && error">
+    <div class="alert alert-warning">{{ error }}</div>
+  </ng-container>
+
+  <ng-container *ngIf="!loading && !error && blocks.length">
+    <div class="card xmr-bl-card">
+      <div class="card-body p-0">
+        <table class="table table-hover xmr-bl-table mb-0">
+          <thead>
+            <tr>
+              <th>Height</th>
+              <th>Mined</th>
+              <th>TXs</th>
+              <th>Size</th>
+              <th>Reward</th>
+              <th>Difficulty</th>
+              <th class="xmr-bl-hash">Hash</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of blocks">
+              <td><a [routerLink]="['/block', b.hash]">{{ b.height | number }}</a></td>
+              <td>{{ b.age_s | number:'1.0-0' }}s ago</td>
+              <td>{{ b.num_txes | number }}</td>
+              <td>{{ b.block_size | number }} B</td>
+              <td>{{ formatXmr(b.reward) }} XMR</td>
+              <td>{{ b.difficulty | number }}</td>
+              <td class="xmr-bl-hash"><a [routerLink]="['/block', b.hash]"><code>{{ b.hash | slice:0:12 }}…{{ b.hash | slice:-6 }}</code></a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </ng-container>
+</div>

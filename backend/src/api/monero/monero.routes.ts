@@ -24,10 +24,44 @@ export class MoneroRoutes {
     app
       .get(this.prefix + 'info', (req, res) => this.getInfo(req, res))
       .get(this.prefix + 'blocks', (req, res) => this.getRecentBlocks(req, res))
+      // /api/v1/blocks/:height — N blocks ending at :height (newest
+      // first). Mirrors mempool.space's pagination style. Used by the
+      // /blocks list page.
+      .get(this.prefix + 'blocks/:height', (req, res) => this.getBlocksFromHeight(req, res))
       .get(this.prefix + 'block/:hash', (req, res) => this.getBlock(req, res))
       .get(this.prefix + 'tx/:hash', (req, res) => this.getTx(req, res))
       .get(this.prefix + 'mempool', (req, res) => this.getMempool(req, res))
       .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res));
+  }
+
+  /**
+   * GET /api/v1/blocks/:height — return up to 25 block headers ending at
+   * (and including) the requested height, newest first. If the height
+   * exceeds the chain tip we clamp to the tip. Used by the /blocks list
+   * page for pagination.
+   */
+  private async getBlocksFromHeight(req: Request, res: Response): Promise<void> {
+    const requested = Number(req.params.height);
+    if (!Number.isFinite(requested) || requested < 0) {
+      handleError(req, res, 400, 'invalid height');
+      return;
+    }
+    try {
+      const tipCount = await this.api.getBlockCount();
+      const tipHeight = tipCount - 1;
+      const startHeight = Math.min(requested, tipHeight);
+      const heights: number[] = [];
+      for (let i = 0; i < MAX_RECENT_BLOCKS; i++) {
+        const h = startHeight - i;
+        if (h < 0) break;
+        heights.push(h);
+      }
+      const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
+      res.json(blocks.map((b) => this.shapeBlockHeader(b.block_header, b.tx_hashes?.length)));
+    } catch (err) {
+      logger.err(`xmr getBlocksFromHeight failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
   }
 
   /** GET /api/v1/info — height, difficulty, mempool count, nettype. */

@@ -47,6 +47,12 @@ const routes: Routes = [
         loadChildren: () => import('@components/about/about.module').then(m => m.AboutModule),
       },
       {
+        // xmr-space: paginated blocks list. Replaces upstream BlocksList
+        // (which expected pool + fee-range extras we don't surface).
+        path: 'blocks',
+        loadChildren: () => import('@app/xmr/blocks-list/xmr-blocks-list.module').then(m => m.XmrBlocksListModule),
+      },
+      {
         path: 'txs',
         component: RecentTransactionsList,
       },
