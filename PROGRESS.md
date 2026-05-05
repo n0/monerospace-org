@@ -19,7 +19,7 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 ## Goals
 
 ### Backend retarget
-- [ ] Replace bitcoind RPC client with monerod RPC client. Implement `getInfo`, `getBlockCount`, `getBlock`, `getTransactionPool`, `getFeeEstimate` against the daemon's JSON-RPC. Cache 5–10s server-side.
+- [x] Replace bitcoind RPC client with monerod RPC client. Implement `getInfo`, `getBlockCount`, `getBlock`, `getTransactionPool`, `getFeeEstimate` against the daemon's JSON-RPC. Cache 5–10s server-side. _(iteration 2; live-verified against `https://xmr-node.cakewallet.com:18081` — height 3,667,656, fees `[20000, 80000, 320000, 4000000]`.)_
 - [ ] ZMQ subscriber for new blocks + new mempool txs. Push events into the existing event bus / websocket layer.
 - [ ] REST API surface — keep upstream URL shapes (`/api/v1/*`), retarget data:
   - [ ] `/api/v1/info` — height, hashrate, difficulty, mempool count
@@ -51,9 +51,17 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 
 ## Last iteration
 
-**Iteration 1 (2026-05-05):** Scaffolding. Forked `mempool/mempool` → `n0/xmr-space`, cloned to `~/dev/xmr-space`, added `upstream` remote, created `xmr` branch, wrote PROGRESS.md, prepended xmr-space attribution to README. No code changes to upstream sources yet.
+**Iteration 2 (2026-05-05):** monerod RPC client. Added `backend/src/api/monero/` (parallel to `backend/src/api/bitcoin/`):
 
-**What's left:** every goal above. The next iteration should pick the highest-priority backend goal — the monerod RPC client — since the frontend can't render anything until the backend speaks Monero.
+- `monero-api.interface.ts` — `IMoneroApi` namespace with `Info`, `BlockHeader`, `Block`, `MempoolEntry`, `TransactionPool`, `FeeEstimate`, `TransactionEntry` types matching real daemon shape.
+- `monero-rpc.ts` — axios-based transport: `jsonRpc(method, params)` for `/json_rpc` and `raw(path, body)` for non-JSON-RPC endpoints (`/get_transaction_pool`, `/get_transactions`).
+- `monero-api.ts` — `MoneroApi` class with per-call caching via the existing `memoryCache`. Windows: `getInfo` 5s, `getBlockCount` 5s, `getBlockByHash`/`getBlockByHeight` 60s, `getTransactionPool` 5s, `getFeeEstimate` 10s. Factory `moneroApiFromEnv` reads `MONEROD_RPC_URL`/`MONEROD_RPC_USER`/`MONEROD_RPC_PASSWORD`/`MONEROD_RPC_TIMEOUT_MS`.
+- `__tests__/monero-api.smoke.ts` — runnable smoke probe; printed live values for height, fees, mempool, head block.
+- `.env.sample` at repo root documenting the Monero env vars.
+
+`tsc --noEmit -p backend/tsconfig.json` clean (0 errors). Smoke test verified against live daemon.
+
+**What's left:** wire these calls into the existing websocket/SSE event bus and surface them via `/api/v1/*` Express routes. ZMQ subscriber comes after — many public daemons don't expose ZMQ, so the route layer needs to work standalone first (poll-driven) before we add push.
 
 ---
 
@@ -66,3 +74,4 @@ _none yet — no functional code has been written._
 ## Convergence
 
 - **Iteration 1 (2026-05-05):** scaffolded. Fork ✓ clone ✓ upstream remote ✓ `xmr` branch ✓ PROGRESS.md ✓ README attribution ✓. No goals checked.
+- **Iteration 2 (2026-05-05):** monerod RPC client + smoke. Checked: 1 backend goal (RPC client). Remaining: ZMQ, REST routes, frontend retarget, theme, tx-detail reveals.
