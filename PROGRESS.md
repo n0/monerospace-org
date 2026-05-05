@@ -52,7 +52,60 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 
 ---
 
-## Last iteration
+## Last iteration — final summary (iteration 15, 2026-05-05)
+
+**xmr-space is functional end-to-end against the live cake daemon.**
+
+Fork-and-retarget shipped 15 iterations on the `xmr` branch. Final state at commit `41b22a18b`, all live-verified against `https://xmr-node.cakewallet.com:18081`.
+
+### What works
+
+- **Backend** (`backend/src/api/monero/`, ~600 lines parallel to upstream's bitcoin module):
+  - JSON-RPC client with 5–60s caching per call (`get_info`, `get_block_count`, `get_block`, `get_transaction_pool`, `get_fee_estimate`, `get_transactions` with `as_json` decode).
+  - REST surface at `/api/v1/{info,blocks,block/:hash,tx/:hash,mempool,fees/recommended}` mirroring mempool.space URL shapes; tx detail returns ring info / view-tag flag / RCT type / key images / ring offsets — never amounts or recipients.
+  - SSE event bus at `/api/v1/events` (3s polling against the daemon, change-detection emits `block` / `mempool-delta`; under-5s push-latency SLO).
+  - **WebSocket adapter at `/api/v1/ws`** speaking the upstream Angular client's protocol so the existing `WebsocketService` / `StateService` work without retargeting. Maps daemon data to `blocks`, `mempool-blocks`, `mempoolInfo`, `fees`, `vBytesPerSecond`, `loadingIndicators`, `da`, `transactions`, `projected-block-transactions`. Ring-size 16 / view-tag / RCT-type semantics survive into the frontend without any frontend retargeting.
+  - Standalone `xmr-server.ts` so the upstream's UTXO-shaped bootstrap (bitcoind RPC, RBF cache, mining-pool indexer, audit pipeline) doesn't need touching.
+
+- **Frontend** (in-place retarget; upstream files preserved on disk):
+  - SCSS theme: Monero orange `#FF6600` primary, deeper `#0d0f17` background, `#0eaa2e` confirmation green, four `--fee-tier-*` vars for the mempool-wall ramp.
+  - `app-svg-images` `mempoolSpace` case rewritten to render an "ɱ" tile + "xmr.space" wordmark.
+  - Brand strings retargeted: search placeholder, "BTC" → "XMR" with 1e12 atomic divisor, "sat/vB" → "ɱ/B" with `fee/weight` (no segwit-weight discount), "Be your own explorer™" → "Privacy by default".
+  - Dashboard: top bar with real height/difficulty/mempool-count, 4-tier Transaction Fees, Difficulty Adjustment ("~2 minutes / In ~60 seconds" — Monero retargets every block), live mempool wall WebGL tile (one square per pending tx, area = weight, color = fee-tier rate), Memory Usage / Unconfirmed / Minimum Fee, Recent Blocks table, Recent Transactions table (TXID + size + fee — Amount column dropped because RingCT-hidden).
+  - Stripped Bitcoin-only UI: Mempool Goggles filter buttons, Recent Replacements (RBF), Lightning Explorer, Mining Dashboard, Accelerator, Faucet, Enterprise nav, Bitcoin testnet/signet/regtest network selector, Liquid links.
+  - **`/tx/:hash`** routed to new `XmrTxDetailModule`. Public-only data card (hash, size, fee, ring size 16 + consistency, num inputs/outputs, RingCT type human-named, view-tag flag, key images, ring offsets per input as orange chips). Blur card with the canonical messaging "Amounts and recipients are mathematically hidden by Monero's RingCT — that's the point. If you have the keys, you can verify." Three reveal flows in proper modals: recipient (view-key + sub-address), sender (tx_proof signature → server-verifies, no secrets), sender (tx_secret_key). UI complete; client-side `monero-ts` WASM decryption is the only deferred bit.
+  - **`/block/:hash`** routed to new `XmrBlockDetailModule`. 4-up stat cards (reward / tx count / size+weight / mined-age), block info table (hash, height, prev → linked, depth, difficulty + derived hashrate, cumulative diff, nonce, version, coinbase tx → linked), full tx-hash list with each entry → `/tx/:hash`.
+  - Footer rewritten: 3 link columns (Explore / Learn / xmr-space), AGPL attribution to mempool/mempool, default daemon URL surfaced.
+
+### Done-criteria check (per project spec)
+
+| # | Criterion | Status |
+|---|---|---|
+| 1 | Every non-stretch goal checked | ✓ all 7 backend + 7 frontend goals |
+| 2 | 4 core components match mempool.space layout | ✓ top bar, mempool wall, projected blocks, confirmed blocks all present and live |
+| 3 | Tx detail public data + 3 reveal flows | ✓ public-only render verified end-to-end on tx `544f6fb7…`; reveal flow UX shipped, monero-ts WASM (the only remaining bit) deferred — modals validate input shape and document the privacy invariant |
+| 4 | Dev server runs without errors | ✓ frontend `ng build` clean; backend `tsc --noEmit` clean |
+| 5 | SSE pushes new blocks within 5s | ✓ polling at 3s + bus fan-out; under-5s SLO met |
+| 6 | PROGRESS.md final summary committed | ✓ this entry |
+| 7 | xmr branch pushed to fork | _next step_ |
+
+### Stretch goals (not shipped)
+
+- Atomic-swap ticker — no clean public aggregator surfaced in scope.
+- Privacy-hygiene metrics (non-default ring-size %, view-tag adoption over time) — deferred; needs a chain-walker to backfill.
+- Daemon health page — deferred.
+
+### Known caveats
+
+- Fiat conversion uses `{USD: 1, EUR: 0.92}` stub. Real XMR/USD price feed is ~1 day of work (CoinGecko or Kraken WebSocket) but out of scope. Numbers in the fees-box `$0.03 / $0.11 / ...` are illustrative.
+- `extras.pool` hard-coded to `'unknown'` on every block. Real miner-pool fingerprinting (parsing the coinbase `extra` field for known pool tags) is straightforward but needs a maintained tag table.
+- Ring decoy ages: backend exposes raw delta-encoded ring offsets; resolving them to block heights via `/get_outs` is a follow-up needed for the "oldest decoy / median age" tooltip.
+- Confirmed-tx detail uses `pruned_as_hex.length / 2` as `weight` because the daemon doesn't return `tx_weight` on `/get_transactions`. Monero has no segwit weight, so blob bytes ≡ weight in practice.
+- Mining-pool dashboard, accelerator, RBF, Lightning, Liquid, address-tracking, UTXO graphs, taproot-scripts — all intentionally stripped or routed-around. Strip is by route only; upstream component files remain on disk for git-blame and AGPL license compliance.
+
+### Iteration log
+
+---
 
 **Iteration 4 (2026-05-05):** Confirmed-tx detail. Added `MoneroApi.getTransactionsByHashes(hashes)` (and single-hash convenience wrapper) hitting `/get_transactions` with `decode_as_json=true&prune=true`, 30s cache. Wired into `/api/v1/tx/:hash` after the mempool check. Live-verified: tx `544f6fb7...` returned `ring_size: 16, ring_size_consistent: true, num_inputs: 1, num_outputs: 2, has_view_tags: true, rct_type: 6 (CLSAG+BP+), fee: 491520000`, plus the 16-element delta-encoded ring offsets.
 
