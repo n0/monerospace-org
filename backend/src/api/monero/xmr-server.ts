@@ -16,6 +16,8 @@
 import express, { Request, Response } from 'express';
 import { moneroApiFromEnv } from './monero-api';
 import { MoneroRoutes } from './monero.routes';
+import { MoneroEventBus } from './monero-event-bus';
+import { MoneroSseRoutes } from './monero-sse.routes';
 
 function main(): void {
   const app = express();
@@ -42,6 +44,23 @@ function main(): void {
 
   const api = moneroApiFromEnv();
   new MoneroRoutes(api).initRoutes(app);
+
+  const rpcUrl = process.env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081';
+  const bus = new MoneroEventBus(
+    {
+      rpcUrl,
+      rpcUser: process.env.MONEROD_RPC_USER,
+      rpcPassword: process.env.MONEROD_RPC_PASSWORD,
+      timeoutMs: Number(process.env.MONEROD_RPC_TIMEOUT_MS ?? 10_000),
+    },
+    Number(process.env.XMR_POLL_MS ?? 3000),
+  );
+  bus.on('error', (err) => {
+    // eslint-disable-next-line no-console
+    console.error('[xmr-space] event bus error:', err instanceof Error ? err.message : err);
+  });
+  bus.start();
+  new MoneroSseRoutes(bus).initRoutes(app);
 
   app.listen(port, host, () => {
     // eslint-disable-next-line no-console

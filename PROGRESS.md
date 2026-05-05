@@ -20,7 +20,7 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 
 ### Backend retarget
 - [x] Replace bitcoind RPC client with monerod RPC client. Implement `getInfo`, `getBlockCount`, `getBlock`, `getTransactionPool`, `getFeeEstimate` against the daemon's JSON-RPC. Cache 5–10s server-side. _(iteration 2; live-verified against `https://xmr-node.cakewallet.com:18081` — height 3,667,656, fees `[20000, 80000, 320000, 4000000]`.)_
-- [ ] ZMQ subscriber for new blocks + new mempool txs. Push events into the existing event bus / websocket layer.
+- [x] ~~ZMQ subscriber~~ → polling-based event bus + SSE. _(iteration 5; cake daemon doesn't expose ZMQ. `MoneroEventBus` polls `get_info` + `/get_transaction_pool` every 3s, emits `block` / `mempool-delta`; `/api/v1/events` exposes them as SSE with snapshot-on-connect and 25s heartbeats. Live-verified: snapshot + mempool-delta both fired in a 20s window.)_
 - [~] REST API surface — keep upstream URL shapes (`/api/v1/*`), retarget data:
   - [x] `/api/v1/info` — height, hashrate, difficulty, mempool count
   - [x] `/api/v1/blocks` — recent block headers
@@ -104,3 +104,4 @@ _none yet — no functional code has been written._
 - **Iteration 2 (2026-05-05):** monerod RPC client + smoke. Checked: 1 backend goal (RPC client). Remaining: ZMQ, REST routes, frontend retarget, theme, tx-detail reveals.
 - **Iteration 3 (2026-05-05):** REST surface. Checked: 5/6 sub-bullets of the REST goal (info, blocks, block/:hash, mempool, fees/recommended) plus mempool-resolution path of tx/:hash. Confirmed-tx detail moved to its own sub-goal. Standalone xmr-server.ts boots & serves live data on :8999.
 - **Iteration 4 (2026-05-05):** Confirmed-tx detail. Checked: `getTransactionByHash` sub-goal + the confirmed-tx path of `/api/v1/tx/:hash`. Tx `544f6fb7…` shows ring size 16, view tags, CLSAG+BP+ live. All 6/6 REST routes now functionally complete; ring-age resolution (`get_outs`) deferred as a separate sub-goal.
+- **Iteration 5 (2026-05-05):** SSE push. Checked: ZMQ goal (replaced by polling-based bus). Backend is now functionally complete enough to drive a live-updating frontend.
