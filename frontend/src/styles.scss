@@ -1,12 +1,21 @@
 @use "sass:color";
 
-/* Theme */
-$bg: #11131f;
+/* xmr-space theme — Monero orange on near-black, green for confirmations.
+ * Retargeted from upstream's Bitcoin-blue palette. The canonical Monero
+ * orange is #FF6600; we use it for primary, links, title, and the brand
+ * accent on every interactive surface.
+ *
+ * Theme variables that describe other Bitcoin networks (testnet, signet,
+ * liquid, mainnet-alt) are kept as-is — those network selectors are being
+ * stripped by route, not by SCSS, so leaving the vars wired avoids dead
+ * `var(--testnet)` references in components we haven't deleted yet.
+ */
+$bg: #0d0f17;          /* slightly darker than upstream so orange punches harder */
 $active-bg: #000000;
-$hover-bg: #12131e;
+$hover-bg: #14161f;
 $fg: #fff;
 $nav-bg: $bg;
-$title-fg: #2055e3;
+$title-fg: #ff6600;    /* Monero orange (was Bitcoin blue #2055e3) */
 
 $taproot: #eba814;
 $taproot-light: #d5a90a;
@@ -20,11 +29,11 @@ $gray-700: $fg;
 
 $nav-tabs-link-active-bg: $active-bg;
 
-$primary: #007cfa;
-$secondary: #272f4e;
-$tertiary: #6225b2;
-$success: #0aab2f;
-$info: #00ddff;
+$primary: #ff6600;     /* Monero orange (was #007cfa Bitcoin blue) */
+$secondary: #2a1e16;   /* warm-tinted dark for orange context (was #272f4e) */
+$tertiary: #4d2a87;    /* keep purple as accent for fee tiers / charts */
+$success: #0eaa2e;     /* green confirmations */
+$info: #ffb380;        /* soft orange for info chips, not blue */
 
 $h5-font-size: 1.15rem !default;
 
@@ -147,13 +156,22 @@ $dropdown-link-active-bg: $active-bg;
   --taproot-light: #d5a90a;
   --taproot-dark: #9d7c05;
 
-  --green: #83fd00;
+  --green: #0eaa2e;       /* confirmations */
   --red: #ff3d00;
-  --yellow: #fff000;
+  --yellow: #ffd000;
   --grey: #7e7e7e;
   --tooltip-grey: #b1b1b1;
-  --orange: #ff9f00;
+  --orange: #ff6600;      /* Monero brand */
   --pink: #e83e8c;
+
+  /* Fee-tier ramp — used by the mempool-wall tile colors. Goes from
+   * Monero orange (slow / cheap) through hotter shades to a fast bright
+   * yellow. Frontend's tier-bucket logic maps fee_per_byte ranges to
+   * one of these four values. */
+  --fee-tier-slow: #5e3211;
+  --fee-tier-normal: #b85019;
+  --fee-tier-fast: #ff6600;
+  --fee-tier-fastest: #ffaa00;
 
   --search-button: #4d2d77;
   --search-button-border: #472a6e;

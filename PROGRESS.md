@@ -43,7 +43,7 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
   - [ ] "I received this tx" — view-key + sub-address, decrypt client-side via `monero-ts`.
   - [ ] "I sent this tx — verify payment" — `tx_proof_signature` server-side verify (no secrets).
   - [ ] "I have the tx_secret_key" — sender-side decryption, client-side.
-- [ ] Theme — dark + Monero orange. Update SCSS variables.
+- [~] Theme — dark + Monero orange. Update SCSS variables. _(iteration 6: SCSS variables retargeted in `frontend/src/styles.scss` — `$primary: #ff6600`, `$title-fg: #ff6600`, `--orange: #ff6600`, `--green: #0eaa2e`, $bg darkened to `#0d0f17`, four `--fee-tier-*` vars added for the mempool-wall tile ramp. Sass compile clean. Per-component visual verification deferred until those components render against the new theme.)_
 
 ### Stretch (only after non-stretch goals checked)
 - [ ] Atomic-swap ticker (Haveno / Serai / COMIT aggregators).
@@ -105,3 +105,4 @@ _none yet — no functional code has been written._
 - **Iteration 3 (2026-05-05):** REST surface. Checked: 5/6 sub-bullets of the REST goal (info, blocks, block/:hash, mempool, fees/recommended) plus mempool-resolution path of tx/:hash. Confirmed-tx detail moved to its own sub-goal. Standalone xmr-server.ts boots & serves live data on :8999.
 - **Iteration 4 (2026-05-05):** Confirmed-tx detail. Checked: `getTransactionByHash` sub-goal + the confirmed-tx path of `/api/v1/tx/:hash`. Tx `544f6fb7…` shows ring size 16, view tags, CLSAG+BP+ live. All 6/6 REST routes now functionally complete; ring-age resolution (`get_outs`) deferred as a separate sub-goal.
 - **Iteration 5 (2026-05-05):** SSE push. Checked: ZMQ goal (replaced by polling-based bus). Backend is now functionally complete enough to drive a live-updating frontend.
+- **Iteration 6 (2026-05-05):** Theme retarget. Checked: `[~]` theme partially (variables done; per-component visual verification deferred until components render). Frontend `npm install` completed (one-time, ~150MB). Decision locked: in-place retarget.
