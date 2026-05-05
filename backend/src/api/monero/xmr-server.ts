@@ -14,10 +14,12 @@
  * this file gives the frontend something to talk to.
  */
 import express, { Request, Response } from 'express';
+import { createServer } from 'http';
 import { moneroApiFromEnv } from './monero-api';
 import { MoneroRoutes } from './monero.routes';
 import { MoneroEventBus } from './monero-event-bus';
 import { MoneroSseRoutes } from './monero-sse.routes';
+import { MoneroWs } from './monero-ws';
 
 function main(): void {
   const app = express();
@@ -62,7 +64,13 @@ function main(): void {
   bus.start();
   new MoneroSseRoutes(bus).initRoutes(app);
 
-  app.listen(port, host, () => {
+  // WebSocket adapter at /api/v1/ws speaking the upstream mempool/mempool
+  // protocol so the existing Angular frontend renders without retargeting
+  // its WebsocketService / StateService.
+  const httpServer = createServer(app);
+  new MoneroWs(api, bus).attach(httpServer, '/api/v1/ws');
+
+  httpServer.listen(port, host, () => {
     // eslint-disable-next-line no-console
     console.log(`[xmr-space] listening on http://${host}:${port}`);
     // eslint-disable-next-line no-console
