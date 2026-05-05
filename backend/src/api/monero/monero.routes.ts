@@ -127,10 +127,21 @@ export class MoneroRoutes {
     }
     try {
       const block = await this.api.getBlockByHash(hash);
+      const fees = block.tx_hashes?.length
+        ? await this.api.getBlockFeeStats(block.block_header.hash, block.tx_hashes).catch(() => null)
+        : null;
       res.json({
         ...this.shapeBlockHeader(block.block_header, block.tx_hashes?.length),
         miner_tx_hash: block.miner_tx_hash,
         tx_hashes: block.tx_hashes ?? [],
+        // Aggregated fee stats — sum of tx fees, median/min/max in
+        // atomic units per byte, and a 7-bucket fee-range used by the
+        // frontend's tile-color ramp.
+        total_fees: fees?.totalFees ?? 0,
+        median_fee: fees?.medianFee ?? 0,
+        min_fee: fees?.minFee ?? 0,
+        max_fee: fees?.maxFee ?? 0,
+        fee_range: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

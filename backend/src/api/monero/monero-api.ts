@@ -123,6 +123,84 @@ export class MoneroApi {
   }
 
   /**
+   * Compute aggregated public fee statistics for a confirmed block:
+   * totalFees, medianFee (atomic/byte), minFee, maxFee, and a 7-bucket
+   * feeRange [p0, p20, p40, p50, p60, p80, p100] used by the dashboard's
+   * block tile to render the fee-tier color span.
+   *
+   * Cache forever-within-process: confirmed-block fees are immutable. The
+   * cost without cache is proportional to (#txs × 1 daemon round trip)
+   * because /get_transactions accepts the full list in one call up to
+   * its server-configured batch limit (usually ~256 hashes). For typical
+   * Monero blocks (10-200 txs) one call is enough.
+   */
+  public async getBlockFeeStats(blockHash: string, txHashes: string[]): Promise<{
+    totalFees: number;
+    medianFee: number;
+    minFee: number;
+    maxFee: number;
+    feeRange: number[];
+    nTx: number;
+  }> {
+    if (txHashes.length === 0) {
+      return { totalFees: 0, medianFee: 0, minFee: 0, maxFee: 0, feeRange: [0, 0, 0, 0, 0, 0, 0], nTx: 0 };
+    }
+    const cached = memoryCache.get<{
+      totalFees: number; medianFee: number; minFee: number; maxFee: number; feeRange: number[]; nTx: number;
+    }>('xmr-block-fees', blockHash);
+    if (cached) {
+      return cached;
+    }
+    // /get_transactions has a server-side batch limit; chunk to be safe.
+    const CHUNK = 100;
+    const chunks: string[][] = [];
+    for (let i = 0; i < txHashes.length; i += CHUNK) {
+      chunks.push(txHashes.slice(i, i + CHUNK));
+    }
+    const allTxs: IMoneroApi.TransactionEntry[] = [];
+    for (const chunk of chunks) {
+      const got = await this.getTransactionsByHashes(chunk);
+      allTxs.push(...got);
+    }
+    // Per-tx fee/byte rate. Each tx's wire blob length (pruned_as_hex
+    // when present, else as_hex) gives bytes; rct_signatures.txnFee
+    // gives fee. Skip the few entries that fail to JSON-parse.
+    const rates: number[] = [];
+    let totalFees = 0;
+    for (const t of allTxs) {
+      let fee = 0;
+      try {
+        const parsed = t.as_json ? JSON.parse(t.as_json) as IMoneroApi.TransactionJson : null;
+        fee = parsed?.rct_signatures?.txnFee ?? 0;
+      } catch {
+        fee = 0;
+      }
+      const blobBytes = t.pruned_as_hex
+        ? Math.floor(t.pruned_as_hex.length / 2)
+        : t.as_hex
+          ? Math.floor(t.as_hex.length / 2)
+          : 0;
+      if (blobBytes > 0 && fee > 0) {
+        rates.push(fee / blobBytes);
+      }
+      totalFees += fee;
+    }
+    rates.sort((a, b) => a - b);
+    const median = rates.length ? rates[Math.floor(rates.length / 2)] : 0;
+    const minFee = rates.length ? rates[0] : 0;
+    const maxFee = rates.length ? rates[rates.length - 1] : 0;
+    const feeRange = rates.length
+      ? [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1].map((p) => rates[Math.min(rates.length - 1, Math.floor(p * (rates.length - 1)))])
+      : [0, 0, 0, 0, 0, 0, 0];
+    const result = { totalFees, medianFee: median, minFee, maxFee, feeRange, nTx: allTxs.length };
+    // 24h cache — block fees never change but we don't want unbounded
+    // memory growth across many days of uptime; the block-by-hash cache
+    // already shares this lifecycle.
+    memoryCache.set('xmr-block-fees', blockHash, result, 86_400);
+    return result;
+  }
+
+  /**
    * Monero's 4-tier fee model. Returns the base atomic-per-byte fee plus a
    * `fees` array `[slow, normal, fast, fastest]` of multipliers — the
    * frontend uses this directly for the fee-tier color buckets.

@@ -281,7 +281,10 @@ export class MoneroWs {
     const block = await this.api.getBlockByHash(header.hash).catch(() => null);
     const headerForShape = block?.block_header ?? header;
     const numTxes = block?.tx_hashes?.length ?? header.num_txes;
-    const shaped = this.shapeBlock(headerForShape, numTxes);
+    const fees = block?.tx_hashes?.length
+      ? await this.api.getBlockFeeStats(header.hash, block.tx_hashes).catch(() => null)
+      : null;
+    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined);
     this.lastBroadcastHeight = header.height;
     // Also push refreshed mempool info — confirming a block drains the pool.
     const pool = await this.api.getTransactionPool().catch(() => null);
@@ -414,10 +417,22 @@ export class MoneroWs {
       if (h >= 0) heights.push(h);
     }
     const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
-    return blocks.map((b) => this.shapeBlock(b.block_header, b.tx_hashes?.length));
+    // Resolve each block's fee stats in parallel. The per-block call is
+    // cached for 24h after first compute, so repeated snapshots after
+    // boot are nearly free.
+    const shapes = await Promise.all(blocks.map(async (b) => {
+      const fees = await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes ?? [])
+        .catch(() => null);
+      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined);
+    }));
+    return shapes;
   }
 
-  private shapeBlock(h: IMoneroApi.BlockHeader, numTxes?: number): UpstreamBlock {
+  private shapeBlock(
+    h: IMoneroApi.BlockHeader,
+    numTxes?: number,
+    fees?: { totalFees: number; medianFee: number; minFee: number; maxFee: number; feeRange: number[] },
+  ): UpstreamBlock {
     return {
       id: h.hash,
       height: h.height,
@@ -439,14 +454,14 @@ export class MoneroWs {
       previousblockhash: h.prev_hash,
       extras: {
         reward: h.reward,
-        // Total fees of confirmed txs aren't returned cheaply — would
-        // require fetching every tx in the block. Skipped in iter 8;
-        // block-detail page can opt into a full fee total later.
-        totalFees: 0,
-        medianFee: 0,
-        minFee: 0,
-        maxFee: 0,
-        feeRange: [0, 0, 0, 0, 0, 0, 0],
+        // Real fee aggregates resolved per-block via getBlockFeeStats.
+        // Caller passes them in (or omits for the rare path that
+        // wants a header-only shape).
+        totalFees: fees?.totalFees ?? 0,
+        medianFee: fees?.medianFee ?? 0,
+        minFee: fees?.minFee ?? 0,
+        maxFee: fees?.maxFee ?? 0,
+        feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
         // Frontend's block / blockchain-blocks templates dereference
         // `block.extras.pool.slug` unconditionally — without a non-null
         // pool the dashboard's blockchain row throws and stops rendering
