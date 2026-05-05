@@ -78,13 +78,17 @@ const routes: Routes = [
         loadChildren: () => import('@app/xmr/block-detail/xmr-block-detail.module').then(m => m.XmrBlockDetailModule),
       },
       {
+        // xmr-space: replace upstream DocsModule (loaded a 13k-line
+        // Bitcoin FAQ + REST/WebSocket/Electrum docs file) with a
+        // focused XmrDocsModule covering only the docs that apply to
+        // this fork. Upstream module preserved on disk.
         path: 'docs',
-        loadChildren: () => import('@app/docs/docs.module').then(m => m.DocsModule),
+        loadChildren: () => import('@app/xmr/docs/xmr-docs.module').then(m => m.XmrDocsModule),
         data: { preload: true },
       },
       {
         path: 'api',
-        loadChildren: () => import('@app/docs/docs.module').then(m => m.DocsModule)
+        loadChildren: () => import('@app/xmr/docs/xmr-docs.module').then(m => m.XmrDocsModule),
       },
     ],
   }

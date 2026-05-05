@@ -1,0 +1,95 @@
+<div class="container-xl xmr-docs">
+  <h1>xmr-space documentation</h1>
+
+  <nav class="xmr-docs-toc">
+    <a href="#faq">FAQ</a>
+    <a href="#rest">REST API</a>
+    <a href="#ws">WebSocket</a>
+    <a href="#sse">SSE</a>
+    <a href="#privacy">Privacy & limitations</a>
+  </nav>
+
+  <section id="faq">
+    <h2>FAQ</h2>
+
+    <h4>What is xmr-space?</h4>
+    <p>A block & mempool explorer for <a href="https://www.getmonero.org" target="_blank" rel="noopener">Monero</a>, forked from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>. It surfaces what the Monero chain alone proves and never claims to know more than that.</p>
+
+    <h4>What is a mempool?</h4>
+    <p>The set of transactions a node knows about that haven't been confirmed in a block yet. Each Monero node maintains its own; ours is whatever <code>monerod</code>'s <code>get_transaction_pool</code> returns at poll time.</p>
+
+    <h4>Why are tx amounts shown as hidden?</h4>
+    <p>Because they <em>are</em> hidden. Monero uses RingCT (Ring Confidential Transactions); the on-chain value of every tx output is a Pedersen commitment that only the recipient (with their view key) and the sender (with the per-tx secret key or a generated <code>tx_proof</code>) can decrypt. xmr-space surfaces only what the chain proves to everyone.</p>
+
+    <h4>What's the ring size?</h4>
+    <p>Sixteen, since the August 2022 hard fork. Every input is signed against a ring of 16 outputs (1 real + 15 decoys) chosen from the chain's history. Older txs may have ring size 11, 7, 5, or 3. xmr-space flags inconsistent ring sizes within a tx as a privacy red flag.</p>
+
+    <h4>How does the four-tier fee model work?</h4>
+    <p><code>monerod</code>'s <code>get_fee_estimate</code> returns four per-byte rates: slow / normal / fast / fastest. Wallets multiply by the tx weight to get the total fee. The mempool wall on the dashboard color-codes pending txs by which tier they fall into.</p>
+
+    <h4>Why is there no address page?</h4>
+    <p>Because Monero addresses can't be tracked from chain data alone. Outputs to an address are encrypted; only someone with the recipient's view key can scan the chain for them. The <a [routerLink]="['/tx']">tx-detail page</a>'s "I received this tx" reveal flow is the legitimate path for a recipient who wants to see what landed at their address.</p>
+
+    <h4>Why no Lightning, accelerator, or RBF?</h4>
+    <p>None apply to Monero. Lightning is a Bitcoin L2 with no equivalent. There's no fee market accelerator on Monero. Replace-by-fee is a Bitcoin policy choice; Monero txs aren't mempool-replaceable in the same way.</p>
+
+    <h4>What daemon do you talk to?</h4>
+    <p>By default <code>https://xmr-node.cakewallet.com:18081</code> — Cake Wallet's public node. Operators can point at any monerod via the <code>MONEROD_RPC_URL</code> environment variable.</p>
+
+    <h4>How current is the data?</h4>
+    <p>The backend polls the daemon every 3 seconds. New blocks and mempool deltas are pushed over WebSocket within ~5s of the daemon publishing them. Historical mempool stats are sampled at 1-minute intervals; on a fresh boot the chart fills over the first ~2 hours.</p>
+  </section>
+
+  <section id="rest">
+    <h2>REST API</h2>
+    <p>All endpoints under <code>/api/v1/</code>. JSON responses; no auth.</p>
+    <table class="xmr-api-table">
+      <thead><tr><th>Method</th><th>Path</th><th>Returns</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/info</code></td><td>height, difficulty, hashrate, mempool count</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/blocks?count=N</code></td><td>last N block headers (max 25)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/block/:hash</code></td><td>block detail (header + tx hashes)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/tx/:hash</code></td><td>public tx fields (size, fee, ring info, RCT type, …)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mempool</code></td><td>full mempool snapshot (sorted by fee)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/fees/recommended</code></td><td>4-tier fee model</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/statistics/2h</code> (24h, 1w, 1m)</td><td>mempool stats time series</td></tr>
+        <tr><td>GET</td><td><code>/healthz</code></td><td>liveness</td></tr>
+      </tbody>
+    </table>
+    <p>Tx-detail responses NEVER include amounts, recipient addresses, or output one-time keys — RingCT-hidden by design.</p>
+  </section>
+
+  <section id="ws">
+    <h2>WebSocket</h2>
+    <p><code>ws://&lt;host&gt;/api/v1/ws</code> — speaks the upstream mempool/mempool protocol so existing clients work. Send <code>&#123;"action":"init"&#125;</code> to get a snapshot, then receive pushes:</p>
+    <ul>
+      <li><code>blocks</code> on connect — recent block headers (oldest-first; client reverses)</li>
+      <li><code>block</code> on every new tip</li>
+      <li><code>mempool-blocks</code> on every mempool change</li>
+      <li><code>mempoolInfo</code>, <code>fees</code>, <code>vBytesPerSecond</code>, <code>transactions</code></li>
+      <li><code>projected-block-transactions</code> when subscribed via <code>&#123;"track-mempool-block": 0&#125;</code></li>
+    </ul>
+  </section>
+
+  <section id="sse">
+    <h2>Server-Sent Events</h2>
+    <p><code>/api/v1/events</code> — text/event-stream. Easier to consume than WebSocket if you only need read-only updates.</p>
+    <ul>
+      <li><code>event: snapshot</code> on connect — current info + mempool hashes</li>
+      <li><code>event: block</code> on every new tip — full <code>BlockHeader</code></li>
+      <li><code>event: mempool-delta</code> — <code>&#123;added: [hashes], removed: [hashes]&#125;</code></li>
+    </ul>
+    <p>25-second comment heartbeats keep connections alive across proxy idle timeouts.</p>
+  </section>
+
+  <section id="privacy">
+    <h2>Privacy &amp; limitations</h2>
+    <ul>
+      <li>Tx-detail reveal flows: keys never touch the server. Recipient (view key) and sender (tx_secret_key) decryption runs locally; only tx_proof verification crosses the wire, and tx_proof signatures are non-secret by design.</li>
+      <li>Fiat conversion: stub today. Real XMR/USD price feed is on the backlog; numbers in the fees-box are illustrative until then.</li>
+      <li>Mining-pool fingerprinting: stub (every block reads "unknown"). Parsing the coinbase <code>extra</code> field for known pool tags is a future iteration.</li>
+      <li>Ring decoy ages: the chain exposes raw delta-encoded global output indices on /tx/:hash. Resolving those to block heights via <code>/get_outs</code> for a "median decoy age" tooltip is on the backlog.</li>
+      <li>This explorer cannot tell you if you sent or received a tx unless you supply the keys. That's the whole point of Monero.</li>
+    </ul>
+  </section>
+</div>
