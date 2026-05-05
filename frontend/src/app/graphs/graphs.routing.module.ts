@@ -1,29 +1,11 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { BlockHealthGraphComponent } from '@components/block-health-graph/block-health-graph.component';
-import { BlockFeeRatesGraphComponent } from '@components/block-fee-rates-graph/block-fee-rates-graph.component';
-import { BlockFeesGraphComponent } from '@components/block-fees-graph/block-fees-graph.component';
-import { BlockFeesSubsidyGraphComponent } from '@components/block-fees-subsidy-graph/block-fees-subsidy-graph.component';
-import { BlockRewardsGraphComponent } from '@components/block-rewards-graph/block-rewards-graph.component';
-import { PriceChartComponent } from '@components/price-chart/price-chart.component';
-import { BlockSizesWeightsGraphComponent } from '@components/block-sizes-weights-graph/block-sizes-weights-graph.component';
 import { GraphsComponent } from '@components/graphs/graphs.component';
-import { HashrateChartComponent } from '@components/hashrate-chart/hashrate-chart.component';
-import { HashrateChartPoolsComponent } from '@components/hashrates-chart-pools/hashrate-chart-pools.component';
 import { MempoolBlockComponent } from '@components/mempool-block/mempool-block.component';
-import { MiningDashboardComponent } from '@components/mining-dashboard/mining-dashboard.component';
-import { AcceleratorDashboardComponent } from '@components/acceleration/accelerator-dashboard/accelerator-dashboard.component';
-import { PoolRankingComponent } from '@components/pool-ranking/pool-ranking.component';
-import { PoolComponent } from '@components/pool/pool.component';
 import { StartComponent } from '@components/start/start.component';
 import { StatisticsComponent } from '@components/statistics/statistics.component';
 import { DashboardComponent } from '@app/dashboard/dashboard.component';
 import { CustomDashboardComponent } from '@components/custom-dashboard/custom-dashboard.component';
-import { TreasuriesComponent } from '@components/treasuries/treasuries.component';
-import { AccelerationFeesGraphComponent } from '@components/acceleration/acceleration-fees-graph/acceleration-fees-graph.component';
-import { AccelerationsListComponent } from '@components/acceleration/accelerations-list/accelerations-list.component';
-import { AddressComponent } from '@components/address/address.component';
-import { WalletComponent } from '@components/wallet/wallet.component';
 import { CalculatorComponent } from '@components/calculator/calculator.component';
 
 const browserWindow = window || {};
@@ -32,6 +14,16 @@ const browserWindowEnv = browserWindow.__env || {};
 const isCustomized = browserWindowEnv?.customize?.dashboard;
 
 const routes: Routes = [
+  // xmr-space: stripped Bitcoin-only sub-routes from this graphs module:
+  //   mining/pool/:slug, mining, acceleration*, address/:id, wallet/:wallet
+  //   — all impossible (Monero has no public address tracking, no
+  //     accelerator market, our pool fingerprinting is stub-only)
+  // Stripped graphs/mining/* (hashrate, pool dominance, block-fees,
+  // subsidy, rewards, block-fee-rates, sizes-weights, block-health)
+  // because they all depend on Bitcoin-specific indexer state we don't
+  // build.
+  // Kept: tools/calculator (feasible reuse), mempool-block/:id (works),
+  // graphs/mempool (uses our /api/v1/statistics/* time series).
   {
     path: '',
     children: [
@@ -40,44 +32,7 @@ const routes: Routes = [
         component: CalculatorComponent
       },
       {
-        path: 'mining/pool/:slug',
-        data: { networks: ['bitcoin'] },
-        component: PoolComponent,
-      },
-      {
-        path: 'mining',
-        data: { networks: ['bitcoin'] },
-        component: StartComponent,
-        children: [
-          {
-            path: '',
-            component: MiningDashboardComponent,
-          },
-        ]
-      },
-      {
-        path: 'acceleration',
-        data: { networks: ['bitcoin'], networkSpecific: true, onlySubnet: [''] },
-        component: StartComponent,
-        children: [
-          {
-            path: '',
-            component: AcceleratorDashboardComponent,
-          }
-        ]
-      },
-      {
-        path: 'acceleration/list/:page',
-        data: { networks: ['bitcoin'], networkSpecific: true, onlySubnet: [''] },
-        component: AccelerationsListComponent,
-      },
-      {
-        path: 'acceleration/list',
-        redirectTo: 'acceleration/list/1',
-      },
-      {
         path: 'mempool-block/:id',
-        data: { networks: ['bitcoin', 'liquid'] },
         component: StartComponent,
         children: [
           {
@@ -87,97 +42,17 @@ const routes: Routes = [
         ]
       },
       {
-        path: 'address/:id',
-        children: [],
-        component: AddressComponent,
-        data: {
-          ogImage: true,
-          networkSpecific: true,
-        }
-      },
-      {
-        path: 'wallet/:wallet',
-        children: [],
-        component: WalletComponent,
-        data: {
-          ogImage: true,
-          networkSpecific: true,
-        }
-      },
-      {
         path: 'graphs',
-        data: { networks: ['bitcoin', 'liquid'] },
         component: GraphsComponent,
         children: [
           {
             path: 'mempool',
-            data: { networks: ['bitcoin', 'liquid'] },
             component: StatisticsComponent,
-          },
-          {
-            path: 'mining/hashrate-difficulty',
-            data: { networks: ['bitcoin'] },
-            component: HashrateChartComponent,
-          },
-          {
-            path: 'mining/pools-dominance',
-            data: { networks: ['bitcoin'] },
-            component: HashrateChartPoolsComponent,
-          },
-          {
-            path: 'mining/pools',
-            data: { networks: ['bitcoin'] },
-            component: PoolRankingComponent,
-          },
-          {
-            path: 'mining/block-fees',
-            data: { networks: ['bitcoin'] },
-            component: BlockFeesGraphComponent,
-          },
-          {
-            path: 'mining/block-fees-subsidy',
-            data: { networks: ['bitcoin'] },
-            component: BlockFeesSubsidyGraphComponent,
-          },
-          {
-            path: 'mining/block-rewards',
-            data: { networks: ['bitcoin'] },
-            component: BlockRewardsGraphComponent,
-          },
-          {
-            path: 'mining/block-fee-rates',
-            data: { networks: ['bitcoin'] },
-            component: BlockFeeRatesGraphComponent,
-          },
-          {
-            path: 'mining/block-sizes-weights',
-            data: { networks: ['bitcoin'] },
-            component: BlockSizesWeightsGraphComponent,
-          },
-          {
-            path: 'acceleration/fees',
-            data: { networks: ['bitcoin'], networkSpecific: true, onlySubnet: [''] },
-            component: AccelerationFeesGraphComponent,
-          },
-          {
-            path: 'lightning',
-            data: { preload: true, networks: ['bitcoin'] },
-            loadChildren: () => import ('@app/graphs/lightning-graphs.module').then(m => m.LightningGraphsModule),
           },
           {
             path: '',
             pathMatch: 'full',
             redirectTo: 'mempool',
-          },
-          {
-            path: 'mining/block-health',
-            data: { networks: ['bitcoin'] },
-            component: BlockHealthGraphComponent,
-          },
-          {
-            path: 'price',
-            data: { networks: ['bitcoin'], networkSpecific: true, onlySubnet: [''] },
-            component: PriceChartComponent,
           },
         ]
       },
@@ -193,20 +68,8 @@ const routes: Routes = [
   },
 ];
 
-if (window['__env']?.OFFICIAL_MEMPOOL_SPACE) {
-  routes[0].children?.push({
-    path: 'treasuries',
-    component: StartComponent,
-    children: [{
-      path: '',
-      component: TreasuriesComponent,
-      data: {
-        networks: ['bitcoin'],
-        networkSpecific: true,
-      },
-    }]
-  });
-}
+// xmr-space: removed OFFICIAL_MEMPOOL_SPACE 'treasuries' branch
+// (Bitcoin treasury holdings dashboard, doesn't apply).
 
 @NgModule({
   imports: [RouterModule.forChild(routes)],

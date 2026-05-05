@@ -5,13 +5,7 @@ import { MasterPageComponent } from '@components/master-page/master-page.compone
 import { SharedModule } from '@app/shared/shared.module';
 
 import { StartComponent } from '@components/start/start.component';
-import { PushTransactionComponent } from '@components/push-transaction/push-transaction.component';
-import { TestTransactionsComponent } from '@components/test-transactions/test-transactions.component';
-import { BlocksList } from '@components/blocks-list/blocks-list.component';
-import { RbfList } from '@components/rbf-list/rbf-list.component';
 import { RecentTransactionsList } from '@components/recent-transactions-list/recent-transactions-list.component';
-import { StaleList } from '@components/stale-list/stale-list.component';
-import { StratumList } from '@components/stratum/stratum-list/stratum-list.component';
 import { ServerHealthComponent } from '@components/server-health/server-health.component';
 import { ServerStatusComponent } from '@components/server-health/server-status.component';
 import { FaucetComponent } from '@components/faucet/faucet.component';
@@ -27,57 +21,35 @@ const routes: Routes = [
     path: '',
     component: MasterPageComponent,
     children: [
-      {
-        path: 'mining/blocks',
-        redirectTo: 'blocks',
-        pathMatch: 'full'
-      },
-      {
-        path: 'tx/push',
-        component: PushTransactionComponent,
-      },
-      {
-        path: 'pushtx',
-        component: PushTransactionComponent,
-      },
-      {
-        path: 'tx/test',
-        component: TestTransactionsComponent,
-      },
+      // xmr-space: stripped Bitcoin-only routes from this children list.
+      // Each was either UTXO-shaped or unique to mempool's commercial
+      // surface and impossible to retarget meaningfully:
+      //
+      //   tx/push, pushtx, tx/test  → PushTransaction & Testmempoolaccept
+      //                               UI: Bitcoin raw-tx hex format,
+      //                               vin/vout decoder. Strip; a Monero
+      //                               broadcast tool is a future iter.
+      //   blocks/stale              → Bitcoin stale-block tracking
+      //   rbf                       → RBF replacements (impossible)
+      //   stratum                   → Stratum mining pool dashboard
+      //   mining/blocks             → relies on per-pool fingerprinting
+      //   lightning                 → Lightning Network (impossible)
+      //   blocks*                   → upstream BlocksList expects pool +
+      //                               fee-range extras we don't provide;
+      //                               redirected to '/' until iter 23
+      //                               builds XmrBlocksListModule.
+      //
+      // Kept: about, terms/privacy/trademark, docs, api, tx, block.
+      // Files for the stripped routes remain on disk for git-blame and
+      // license compliance; only the routing entries are removed.
       {
         path: 'about',
         loadChildren: () => import('@components/about/about.module').then(m => m.AboutModule),
       },
       {
-        path: 'blocks/stale',
-        component: StaleList,
-      },
-      {
-        path: 'blocks/:page',
-        component: BlocksList,
-      },
-      {
-        path: 'blocks',
-        redirectTo: 'blocks/1',
-      },
-      {
-        path: 'rbf',
-        component: RbfList,
-      },
-      {
         path: 'txs',
         component: RecentTransactionsList,
       },
-      ...(browserWindowEnv.STRATUM_ENABLED ? [{
-        path: 'stratum',
-        component: StartComponent,
-        children: [
-          {
-            path: '',
-            component: StratumList,
-          }
-        ]
-      }] : []),
       {
         path: 'terms-of-service',
         loadChildren: () => import('@components/terms-of-service/terms-of-service.module').then(m => m.TermsOfServiceModule),
@@ -91,20 +63,15 @@ const routes: Routes = [
         loadChildren: () => import('@components/trademark-policy/trademark-policy.module').then(m => m.TrademarkModule),
       },
       {
-        // xmr-space: replace upstream transaction.module (heavily UTXO-shaped:
-        // vin/vout dissection, segwit/taproot script flags, RBF history,
-        // CPFP cluster, fee-rating against block tier, accelerator) with our
-        // public-only XmrTxDetailModule. The upstream module is preserved on
-        // disk for reference but no longer routed.
+        // xmr-space: replace upstream transaction.module (heavily
+        // UTXO-shaped) with our public-only XmrTxDetailModule.
         path: 'tx',
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
         loadChildren: () => import('@app/xmr/tx-detail/xmr-tx-detail.module').then(m => m.XmrTxDetailModule),
       },
       {
-        // xmr-space: replace upstream block.module (Bitcoin-shaped: per-tx
-        // vin/vout dissection, mining-pool charts, audit summary, RBF
-        // history). Upstream module preserved on disk; routing diverted.
+        // xmr-space: replace upstream block.module with XmrBlockDetailModule.
         path: 'block',
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
@@ -119,11 +86,6 @@ const routes: Routes = [
         path: 'api',
         loadChildren: () => import('@app/docs/docs.module').then(m => m.DocsModule)
       },
-      {
-        path: 'lightning',
-        loadChildren: () => import('@app/lightning/lightning.module').then(m => m.LightningModule),
-        data: { preload: browserWindowEnv && browserWindowEnv.LIGHTNING === true, networks: ['bitcoin'] },
-      }
     ],
   }
 ];
