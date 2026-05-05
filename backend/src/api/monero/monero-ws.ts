@@ -67,6 +67,10 @@ interface UpstreamMempoolInfo {
   loaded: boolean;
   size: number;
   bytes: number;
+  usage: number;
+  maxmempool: number;
+  mempoolminfee: number;
+  minrelaytxfee: number;
   total_fee?: number;
 }
 
@@ -174,9 +178,20 @@ export class MoneroWs {
         gitCommit: 'xmr',
         lightning: false,
       },
+      // loadingIndicators tells the frontend mempool/connection are ready.
+      // Several dashboard components gate on `mempool === 100` before
+      // rendering — without this they stay in skeleton state forever.
+      loadingIndicators: { mempool: 100 },
       blocks: recentBlocks,
       'mempool-blocks': this.projectedMempoolBlocks(pool),
-      mempoolInfo: this.shapeMempoolInfo(pool),
+      mempoolInfo: this.shapeMempoolInfo(pool, fees),
+      // vBytesPerSecond drives the "Incoming Transactions" chart's
+      // current-rate readout. We approximate from the daemon's tx_count
+      // delta over the polling interval — for the initial snapshot just
+      // surface a current-pool average so the UI doesn't read "0".
+      vBytesPerSecond: pool.transactions && pool.transactions.length
+        ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
+        : 0,
       fees: this.shapeFees(fees),
       // Difficulty-adjustment widget reads `da`. Monero retargets every
       // block, so the upstream concept of "next adjustment in N blocks"
@@ -223,7 +238,8 @@ export class MoneroWs {
     };
     if (pool) {
       broadcastPayload['mempool-blocks'] = this.projectedMempoolBlocks(pool);
-      broadcastPayload['mempoolInfo'] = this.shapeMempoolInfo(pool);
+      const fees = await this.api.getFeeEstimate().catch(() => undefined);
+      broadcastPayload['mempoolInfo'] = this.shapeMempoolInfo(pool, fees);
     }
     this.broadcast(broadcastPayload);
   }
@@ -236,10 +252,14 @@ export class MoneroWs {
     if (!pool) {
       return;
     }
+    const fees = await this.api.getFeeEstimate().catch(() => undefined);
     this.broadcast({
       'mempool-blocks': this.projectedMempoolBlocks(pool),
-      mempoolInfo: this.shapeMempoolInfo(pool),
+      mempoolInfo: this.shapeMempoolInfo(pool, fees),
       transactions: this.shapeRecentMempoolTxs(pool, 6),
+      vBytesPerSecond: pool.transactions && pool.transactions.length
+        ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
+        : 0,
     });
   }
 
@@ -296,6 +316,13 @@ export class MoneroWs {
         minFee: 0,
         maxFee: 0,
         feeRange: [0, 0, 0, 0, 0, 0, 0],
+        // Frontend's block / blockchain-blocks templates dereference
+        // `block.extras.pool.slug` unconditionally — without a non-null
+        // pool the dashboard's blockchain row throws and stops rendering
+        // the entire block strip. Surface 'unknown' until we have a
+        // miner-fingerprint table (parsing `extra` for known pool tags
+        // is in the backlog).
+        pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
       },
     };
   }
@@ -356,14 +383,32 @@ export class MoneroWs {
     return blocks;
   }
 
-  private shapeMempoolInfo(pool: IMoneroApi.TransactionPool): UpstreamMempoolInfo {
+  /**
+   * Shape mempool info to satisfy upstream's MempoolInfo interface, which
+   * was modeled on bitcoind's `getmempoolinfo`. We reuse `usage` to mean
+   * "actual mempool bytes" and `maxmempool` to mean "node-configured cap".
+   * Cake daemon's default cap is 600 MB; we surface that as a reasonable
+   * stand-in. `mempoolminfee`/`minrelaytxfee` come from monerod's slow
+   * fee tier so the dashboard's "Minimum fee" display has a real number.
+   */
+  private shapeMempoolInfo(
+    pool: IMoneroApi.TransactionPool,
+    fees?: IMoneroApi.FeeEstimate,
+  ): UpstreamMempoolInfo {
     const txs = pool.transactions ?? [];
     const bytes = txs.reduce((acc, t) => acc + t.weight, 0);
     const totalFee = txs.reduce((acc, t) => acc + t.fee, 0);
+    // Convert atomic-per-byte slow tier to BTC/kB-equivalent by multiplying
+    // by 1000 — frontend treats the unit as "minor / kB" for display.
+    const minFeeRate = fees?.fees ? fees.fees[0] : 0;
     return {
       loaded: true,
       size: txs.length,
       bytes,
+      usage: bytes,                  // actual occupied mempool bytes
+      maxmempool: 600 * 1024 * 1024, // monerod default 600 MB pool cap
+      mempoolminfee: minFeeRate,
+      minrelaytxfee: minFeeRate,
       total_fee: totalFee,
     };
   }
