@@ -1,0 +1,237 @@
+import { Application, Request, Response } from 'express';
+import { handleError } from '../../utils/api';
+import logger from '../../logger';
+import { MoneroApi } from './monero-api';
+import { IMoneroApi } from './monero-api.interface';
+
+const HEX64 = /^[a-f0-9]{64}$/i;
+const MAX_RECENT_BLOCKS = 25;
+
+/**
+ * REST surface for the Monero side of xmr-space. Mirrors mempool.space's
+ * `/api/v1/*` URL shapes where the data is meaningfully comparable, and
+ * deliberately omits routes that don't translate (address balance,
+ * scripthash, UTXO endpoints, RBF, accelerator).
+ *
+ * All responses return ONLY public chain data — no amounts, no recipients.
+ * Recipient/amount disclosure happens client-side in the frontend's reveal
+ * flows; the server never sees keys.
+ */
+export class MoneroRoutes {
+  constructor(private api: MoneroApi, private prefix = '/api/v1/') {}
+
+  public initRoutes(app: Application): void {
+    app
+      .get(this.prefix + 'info', (req, res) => this.getInfo(req, res))
+      .get(this.prefix + 'blocks', (req, res) => this.getRecentBlocks(req, res))
+      .get(this.prefix + 'block/:hash', (req, res) => this.getBlock(req, res))
+      .get(this.prefix + 'tx/:hash', (req, res) => this.getTx(req, res))
+      .get(this.prefix + 'mempool', (req, res) => this.getMempool(req, res))
+      .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res));
+  }
+
+  /** GET /api/v1/info — height, difficulty, mempool count, nettype. */
+  private async getInfo(req: Request, res: Response): Promise<void> {
+    try {
+      const info = await this.api.getInfo();
+      // Hashrate isn't a daemon field — derive from difficulty / target_blocktime (120s).
+      const hashrateHs = info.difficulty / 120;
+      res.json({
+        height: info.height,
+        target_height: info.target_height,
+        difficulty: info.difficulty,
+        hashrate_hs: hashrateHs,
+        mempool_size: info.tx_pool_size,
+        tx_count: info.tx_count,
+        nettype: info.nettype,
+        top_block_hash: info.top_block_hash,
+        block_size_limit: info.block_size_limit,
+        version: info.version,
+        synced: info.height === info.target_height || info.target_height === 0,
+        untrusted: info.untrusted,
+      });
+    } catch (err) {
+      logger.err(`xmr getInfo failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /**
+   * GET /api/v1/blocks — last N block headers (default 10, max 25).
+   * Tail of the chain only; for deep history clients should request by hash.
+   */
+  private async getRecentBlocks(req: Request, res: Response): Promise<void> {
+    const requested = Number(req.query.count ?? 10);
+    const count = Math.max(1, Math.min(MAX_RECENT_BLOCKS, Number.isFinite(requested) ? requested : 10));
+    try {
+      const tipCount = await this.api.getBlockCount();
+      const tipHeight = tipCount - 1;
+      const heights: number[] = [];
+      for (let i = 0; i < count; i++) {
+        if (tipHeight - i < 0) {
+          break;
+        }
+        heights.push(tipHeight - i);
+      }
+      const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
+      res.json(blocks.map((b) => this.shapeBlockHeader(b.block_header, b.tx_hashes?.length)));
+    } catch (err) {
+      logger.err(`xmr getRecentBlocks failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /**
+   * GET /api/v1/block/:hash — single block detail.
+   * Returns header + tx hashes only (no amounts, no decoded txs).
+   */
+  private async getBlock(req: Request, res: Response): Promise<void> {
+    const hash = req.params.hash;
+    if (!HEX64.test(hash)) {
+      handleError(req, res, 400, 'invalid block hash');
+      return;
+    }
+    try {
+      const block = await this.api.getBlockByHash(hash);
+      res.json({
+        ...this.shapeBlockHeader(block.block_header, block.tx_hashes?.length),
+        miner_tx_hash: block.miner_tx_hash,
+        tx_hashes: block.tx_hashes ?? [],
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not found|invalid|hash/i.test(msg)) {
+        handleError(req, res, 404, 'block not found');
+        return;
+      }
+      logger.err(`xmr getBlock failed: ${msg}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /**
+   * GET /api/v1/tx/:hash — public-only tx data.
+   *
+   * Returns size, weight, fee, ring info, in/out counts, confirmations.
+   * NEVER returns amounts or recipients — those are RingCT-hidden by design.
+   * The frontend's blur+reveal UI surfaces those client-side via monero-ts.
+   *
+   * Looks up the tx in two places:
+   *   1. mempool — exposes weight/fee/receive_time
+   *   2. confirmed (via /get_transactions) — exposes block_height/timestamp/confirmations
+   *
+   * If neither matches we 404. Note: monerod's /get_transactions returns a
+   * pruned-friendly hex blob plus a JSON decode of the unprunable bits
+   * (vin/vout shapes, ring offsets) — exactly what we need to surface ring
+   * info publicly.
+   */
+  private async getTx(req: Request, res: Response): Promise<void> {
+    const hash = req.params.hash;
+    if (!HEX64.test(hash)) {
+      handleError(req, res, 400, 'invalid tx hash');
+      return;
+    }
+    try {
+      const pool = await this.api.getTransactionPool();
+      const inMempool = pool.transactions?.find((t) => t.id_hash === hash);
+      if (inMempool) {
+        res.json(this.shapeMempoolTx(inMempool));
+        return;
+      }
+      // Fall through: tx may be confirmed — but we haven't wired
+      // /get_transactions yet (it lives in MoneroApi as a future method).
+      // For iteration 3 we only resolve mempool txs; confirmed-tx detail
+      // lands when block-detail wiring exposes the per-tx public fields.
+      handleError(req, res, 404, 'tx not found in mempool (confirmed-tx detail not yet wired in iter 3)');
+    } catch (err) {
+      logger.err(`xmr getTx failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /**
+   * GET /api/v1/mempool — full current mempool, public fields only.
+   * Sorted by fee descending so the frontend's tile layout has a deterministic
+   * top-of-list. The mempool wall does its own sizing/binning client-side.
+   */
+  private async getMempool(req: Request, res: Response): Promise<void> {
+    try {
+      const pool = await this.api.getTransactionPool();
+      const txs = (pool.transactions ?? [])
+        .map((t) => this.shapeMempoolTx(t))
+        .sort((a, b) => b.fee - a.fee);
+      res.json({
+        count: txs.length,
+        total_weight: txs.reduce((acc, t) => acc + t.weight, 0),
+        total_fee: txs.reduce((acc, t) => acc + t.fee, 0),
+        txs,
+      });
+    } catch (err) {
+      logger.err(`xmr getMempool failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /**
+   * GET /api/v1/fees/recommended — Monero's 4-tier fee model.
+   *
+   * Returns `{ slow, normal, fast, fastest }` in atomic units per byte.
+   * Frontend uses these directly for the fee-tier color buckets.
+   */
+  private async getFeesRecommended(req: Request, res: Response): Promise<void> {
+    try {
+      const fees = await this.api.getFeeEstimate();
+      const tiers = fees.fees ?? [fees.fee, fees.fee, fees.fee, fees.fee];
+      res.json({
+        slow: tiers[0],
+        normal: tiers[1],
+        fast: tiers[2],
+        fastest: tiers[3],
+        quantization_mask: fees.quantization_mask,
+      });
+    } catch (err) {
+      logger.err(`xmr getFeesRecommended failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  // ---- shaping helpers ----
+
+  private shapeBlockHeader(h: IMoneroApi.BlockHeader, numTxes?: number) {
+    return {
+      hash: h.hash,
+      height: h.height,
+      timestamp: h.timestamp,
+      age_s: Math.floor(Date.now() / 1000) - h.timestamp,
+      depth: h.depth,
+      prev_hash: h.prev_hash,
+      reward: h.reward,
+      block_size: h.block_size,
+      block_weight: h.block_weight,
+      // For block detail, tx_hashes excludes coinbase; daemon's `num_txes`
+      // also excludes coinbase. Keep both consistent.
+      num_txes: numTxes ?? h.num_txes,
+      difficulty: h.difficulty,
+      cumulative_difficulty: h.cumulative_difficulty,
+      major_version: h.major_version,
+      minor_version: h.minor_version,
+      nonce: h.nonce,
+      orphan_status: h.orphan_status,
+      miner_tx_hash: h.miner_tx_hash,
+    };
+  }
+
+  private shapeMempoolTx(t: IMoneroApi.MempoolEntry) {
+    return {
+      hash: t.id_hash,
+      weight: t.weight,
+      blob_size: t.blob_size,
+      fee: t.fee,
+      // fee_per_byte is the bucket the frontend will color-code against.
+      fee_per_byte: t.weight > 0 ? Math.floor(t.fee / t.weight) : 0,
+      receive_time: t.receive_time || null,
+      relayed: t.relayed,
+      double_spend_seen: t.double_spend_seen,
+    };
+  }
+}

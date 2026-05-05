@@ -21,13 +21,14 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 ### Backend retarget
 - [x] Replace bitcoind RPC client with monerod RPC client. Implement `getInfo`, `getBlockCount`, `getBlock`, `getTransactionPool`, `getFeeEstimate` against the daemon's JSON-RPC. Cache 5–10s server-side. _(iteration 2; live-verified against `https://xmr-node.cakewallet.com:18081` — height 3,667,656, fees `[20000, 80000, 320000, 4000000]`.)_
 - [ ] ZMQ subscriber for new blocks + new mempool txs. Push events into the existing event bus / websocket layer.
-- [ ] REST API surface — keep upstream URL shapes (`/api/v1/*`), retarget data:
-  - [ ] `/api/v1/info` — height, hashrate, difficulty, mempool count
-  - [ ] `/api/v1/blocks` — recent block headers
-  - [ ] `/api/v1/block/:hash` — block detail (tx hashes only, no amounts)
-  - [ ] `/api/v1/tx/:hash` — public tx data only (size, fee, ring info, confs, ring members)
-  - [ ] `/api/v1/mempool` — current mempool with fee + size per tx
-  - [ ] `/api/v1/fees/recommended` — Monero 4-tier fee response
+- [~] REST API surface — keep upstream URL shapes (`/api/v1/*`), retarget data:
+  - [x] `/api/v1/info` — height, hashrate, difficulty, mempool count
+  - [x] `/api/v1/blocks` — recent block headers
+  - [x] `/api/v1/block/:hash` — block detail (tx hashes only, no amounts)
+  - [~] `/api/v1/tx/:hash` — mempool resolution works; **confirmed-tx detail (ring info, ring member ages, vin/vout counts) deferred** — needs `/get_transactions` wiring + `as_json` decoding. Sub-goal added below.
+  - [x] `/api/v1/mempool` — current mempool with fee + size per tx
+  - [x] `/api/v1/fees/recommended` — Monero 4-tier fee response
+- [ ] `MoneroApi.getTransactionByHash(hash)` — wraps `/get_transactions` (the non-JSON-RPC endpoint), decodes `as_json` to surface ring offsets, vin/vout counts, ring size. Required for confirmed-tx detail page.
 - [ ] Strip endpoints that don't apply: address balance / tx history (private), UTXO endpoints, Lightning, accelerator, mining-pool stats (keep simple miner-pool fingerprint only if easy).
 
 ### Frontend retarget
@@ -50,6 +51,24 @@ A Monero-themed fork of [mempool/mempool](https://github.com/mempool/mempool). T
 ---
 
 ## Last iteration
+
+**Iteration 3 (2026-05-05):** REST surface live. Added `monero.routes.ts` (6 endpoints, mirrors upstream URL shapes) + `xmr-server.ts` (standalone Express entry that doesn't disrupt upstream's bootstrap). Verified end-to-end against the public daemon:
+
+- `/healthz` ✓
+- `/api/v1/info` → `{height, difficulty, mempool_size, hashrate_hs, ...}` (synthesised hashrate from `difficulty / 120s`).
+- `/api/v1/blocks?count=N` (capped at 25) → array of recent block headers, age computed.
+- `/api/v1/block/:hash` → header + tx_hashes (validated 64-hex; 400 on bad input; 404 on not-found).
+- `/api/v1/tx/:hash` → mempool path returns shape `{hash, weight, fee, fee_per_byte, receive_time, ...}`. Confirmed-tx path returns 404 with explicit message — deferred sub-goal added.
+- `/api/v1/mempool` → `{count, total_weight, total_fee, txs[]}` sorted by fee desc.
+- `/api/v1/fees/recommended` → `{slow, normal, fast, fastest, quantization_mask}` from monerod's 4-tier model.
+
+Caching verified: 179ms cold → 5ms warm on `/api/v1/info`. CORS open in dev so the frontend's ng dev server can hit us without a proxy.
+
+**Why standalone server:** the upstream `backend/src/index.ts` boots bitcoind RPC, RBF cache, mining-pool indexer, audit pipeline — all UTXO-shaped. Retargeting them is multiple iterations of work; meanwhile the standalone entry gives the frontend something to talk to.
+
+**What's left for backend:** confirmed-tx detail (`getTransactionByHash`), then either ZMQ (if we self-host monerod) or polling-based event bus to push new blocks / new mempool txs over websocket/SSE.
+
+---
 
 **Iteration 2 (2026-05-05):** monerod RPC client. Added `backend/src/api/monero/` (parallel to `backend/src/api/bitcoin/`):
 
@@ -75,3 +94,4 @@ _none yet — no functional code has been written._
 
 - **Iteration 1 (2026-05-05):** scaffolded. Fork ✓ clone ✓ upstream remote ✓ `xmr` branch ✓ PROGRESS.md ✓ README attribution ✓. No goals checked.
 - **Iteration 2 (2026-05-05):** monerod RPC client + smoke. Checked: 1 backend goal (RPC client). Remaining: ZMQ, REST routes, frontend retarget, theme, tx-detail reveals.
+- **Iteration 3 (2026-05-05):** REST surface. Checked: 5/6 sub-bullets of the REST goal (info, blocks, block/:hash, mempool, fees/recommended) plus mempool-resolution path of tx/:hash. Confirmed-tx detail moved to its own sub-goal. Standalone xmr-server.ts boots & serves live data on :8999.
