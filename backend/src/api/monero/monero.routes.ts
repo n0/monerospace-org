@@ -38,7 +38,14 @@ export class MoneroRoutes {
       // BlockComponent is OK with a missing audit and just hides the
       // 'Expected vs Actual' comparison.
       .get(this.prefix + 'block/:hash/audit-summary', (_req, res) => res.status(404).json({ error: 'audit not available on Monero' }))
-      .get(this.prefix + 'tx/:hash', (req, res) => this.getTx(req, res))
+      // /api/v1/tx/:hash returns the upstream Bitcoin-shape Transaction
+      // (txid + vin + vout + status). The dev-server proxy rewrites
+      // /api/tx/* to /api/v1/tx/* so this single route serves both
+      // electrsApiService.getTransaction$ (which hits /api/tx/) and
+      // direct /api/v1/tx/ consumers. The old Monero-shape response
+      // was used by our deprecated XmrTxDetail; that module now lives
+      // on disk only, no live consumer reads it.
+      .get(this.prefix + 'tx/:hash', (req, res) => this.getTxBitcoinShape(req, res))
       .get(this.prefix + 'mempool', (req, res) => this.getMempool(req, res))
       .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res));
 
@@ -56,6 +63,164 @@ export class MoneroRoutes {
     // Also handle the v1 prefix the master-page-preview uses.
     app.get(this.prefix + 'block/:hash/txs/:index', (req, res) => this.getBlockTxsByPage(req, res, false));
     app.get(this.prefix + 'block/:hash/txs', (req, res) => this.getBlockTxsByPage(req, res, false));
+
+    // /api/tx/:txid is rewritten by the dev-server proxy to
+    // /api/v1/tx/:txid, so the route above serves both. Keeping a
+    // direct registration as a no-op safety net for any deployment
+    // that doesn't use that proxy rewrite (production nginx may
+    // forward unrewritten).
+    app.get('/api/tx/:txid', (req, res) => this.getTxBitcoinShape(req, res));
+    // Hex blob — required by some upstream tools but irrelevant for us;
+    // return a small empty hex blob to satisfy 200 expectations.
+    app.get('/api/tx/:txid/hex', (_req, res) => res.type('text/plain').send(''));
+    // /api/v1/transaction-times — array of receive_time per txid request.
+    app.get(this.prefix + 'transaction-times', (req, res) => this.getTransactionTimes(req, res));
+    // CPFP info — Bitcoin-only (child-pays-for-parent fee strategy).
+    // Return an empty struct so upstream's CPFP panel hides itself.
+    app.get(this.prefix + 'cpfp/:txid', (_req, res) => res.json({ ancestors: [], descendants: [], bestDescendant: null, sigops: 0, adjustedVsize: 0, effectiveFeePerVsize: 0 }));
+    // RBF history endpoints — Bitcoin-only. Return null so the upstream
+    // RBF panel doesn't render any timeline.
+    app.get(this.prefix + 'tx/:txid/rbf', (_req, res) => res.status(204).end());
+    app.get(this.prefix + 'tx/:txid/cached', (_req, res) => res.status(204).end());
+    // Outspends — was this output spent? On Monero we can't tell without
+    // wallet keys; always return null entries so upstream's "spent / unspent"
+    // labels don't render misleading state.
+    app.get('/api/tx/:txid/outspends', (_req, res) => res.json([]));
+    app.get('/api/tx/:txid/outspend/:vout', (_req, res) => res.status(204).end());
+    // Stubs for upstream endpoints we haven't built and probably won't:
+    // historical XMR/USD price feed (out of scope), mining-pool ranking
+    // (we don't index pools), accelerator endpoints. Returning 200 with
+    // empty / null payloads keeps the upstream component subscriptions
+    // alive without spamming console errors.
+    app.get(this.prefix + 'historical-price', (_req, res) => res.json([]));
+    app.get(this.prefix + 'mining/pools/:period', (_req, res) => res.json({ pools: [] }));
+    app.get(this.prefix + 'mining/pool/:slug', (_req, res) => res.json(null));
+    app.get(this.prefix + 'difficulty-adjustment', (_req, res) => res.json({
+      progressPercent: 100, difficultyChange: 0, estimatedRetargetDate: Date.now(),
+      remainingBlocks: 0, remainingTime: 0, previousRetarget: 0,
+      nextRetargetHeight: 0, timeAvg: 120_000, adjustedTimeAvg: 120_000,
+      timeOffset: 0, expectedBlocks: 0,
+    }));
+    app.get(this.prefix + 'accelerations', (_req, res) => res.json([]));
+    app.get(this.prefix + 'accelerator', (_req, res) => res.json({ enabled: false }));
+  }
+
+  /** GET /api/v1/transaction-times — first-seen timestamps for the given txids. */
+  private async getTransactionTimes(req: Request, res: Response): Promise<void> {
+    const raw = req.query['txId[]'];
+    const arr: unknown[] = Array.isArray(raw) ? raw : (typeof raw === 'string' ? [raw] : []);
+    const list: string[] = arr.filter((x): x is string => typeof x === 'string');
+    if (list.length === 0) {
+      res.json([]);
+      return;
+    }
+    try {
+      const pool = await this.api.getTransactionPool();
+      const lookup = new Map((pool.transactions ?? []).map((t) => [t.id_hash, t.receive_time || 0]));
+      // For confirmed txs we don't track first-seen separately; return 0
+      // (frontend treats 0 as "unknown" and falls back to block time).
+      res.json(list.map((id) => lookup.get(id) ?? 0));
+    } catch {
+      res.json(list.map(() => 0));
+    }
+  }
+
+  /** GET /api/tx/:txid — single tx in upstream Bitcoin-shape. */
+  private async getTxBitcoinShape(req: Request, res: Response): Promise<void> {
+    // Both route patterns hit this handler: /api/v1/tx/:hash uses :hash,
+    // /api/tx/:txid uses :txid. Accept either param name.
+    const txid = req.params.txid ?? req.params.hash;
+    if (!txid || !HEX64.test(txid)) {
+      handleError(req, res, 400, 'invalid tx hash');
+      return;
+    }
+    try {
+      // Mempool first.
+      const pool = await this.api.getTransactionPool();
+      const inMempool = pool.transactions?.find((t) => t.id_hash === txid);
+      if (inMempool) {
+        res.json({
+          txid,
+          version: 2,
+          locktime: 0,
+          size: inMempool.weight,
+          weight: inMempool.weight,
+          fee: inMempool.fee,
+          vin: [{ is_coinbase: false, ringct: true, prevout: null, scriptsig: '', sequence: 0, witness: [] }],
+          vout: [{ ringct: true, value: 0, scriptpubkey: '', scriptpubkey_address: '', scriptpubkey_type: 'ringct' }],
+          status: { confirmed: false },
+          firstSeen: inMempool.receive_time || 0,
+        });
+        return;
+      }
+      // Confirmed via /get_transactions.
+      const confirmed = await this.api.getTransactionByHash(txid);
+      if (!confirmed) {
+        handleError(req, res, 404, 'tx not found');
+        return;
+      }
+      // Parse the as_json payload to grab vin/vout counts + fee.
+      let parsed: IMoneroApi.TransactionJson | null = null;
+      try {
+        parsed = confirmed.as_json ? JSON.parse(confirmed.as_json) as IMoneroApi.TransactionJson : null;
+      } catch { /* keep null */ }
+      const fee = parsed?.rct_signatures?.txnFee ?? 0;
+      const blobBytes = confirmed.pruned_as_hex
+        ? Math.floor(confirmed.pruned_as_hex.length / 2)
+        : confirmed.as_hex
+          ? Math.floor(confirmed.as_hex.length / 2)
+          : 0;
+      const numInputs = parsed?.vin?.length ?? 1;
+      const numOutputs = parsed?.vout?.length ?? 1;
+      const blockHeight = confirmed.block_height ?? 0;
+      const blockTimestamp = confirmed.block_timestamp ?? 0;
+      // Resolve block hash for status.
+      let blockHash = '';
+      if (blockHeight > 0) {
+        const b = await this.api.getBlockByHeight(blockHeight).catch(() => null);
+        blockHash = b?.block_header.hash ?? '';
+      }
+      res.json({
+        txid,
+        version: parsed?.version ?? 2,
+        locktime: parsed?.unlock_time ?? 0,
+        size: blobBytes,
+        weight: blobBytes,
+        fee,
+        // One vin per Monero input — helps the upstream input decoder
+        // render a row per ring rather than a single placeholder.
+        vin: Array.from({ length: numInputs }, (_, i) => ({
+          is_coinbase: false,
+          ringct: true,
+          ring_size: parsed?.vin?.[i]?.key?.key_offsets?.length ?? null,
+          key_image: parsed?.vin?.[i]?.key?.k_image ?? '',
+          ring_offsets: parsed?.vin?.[i]?.key?.key_offsets ?? [],
+          prevout: null,
+          scriptsig: '',
+          sequence: 0,
+          witness: [],
+        })),
+        vout: Array.from({ length: numOutputs }, () => ({
+          ringct: true,
+          value: 0,
+          scriptpubkey: '',
+          scriptpubkey_address: '',
+          scriptpubkey_type: 'ringct',
+        })),
+        status: {
+          confirmed: true,
+          block_height: blockHeight,
+          block_hash: blockHash,
+          block_time: blockTimestamp,
+        },
+        // Monero-only extras the upstream component will ignore but
+        // our reveal-flow shim can read.
+        rct_type: parsed?.rct_signatures?.type ?? null,
+      });
+    } catch (err) {
+      logger.err(`xmr getTxBitcoinShape failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
   }
 
   /**

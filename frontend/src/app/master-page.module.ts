@@ -72,12 +72,19 @@ const routes: Routes = [
         loadChildren: () => import('@components/trademark-policy/trademark-policy.module').then(m => m.TrademarkModule),
       },
       {
-        // xmr-space: replace upstream transaction.module (heavily
-        // UTXO-shaped) with our public-only XmrTxDetailModule.
+        // xmr-space: route /tx back to upstream TransactionModule for
+        // visual parity with mempool.space. The upstream component
+        // expects vin/vout — our backend returns synthetic placeholders
+        // tagged ringct:true so the inputs/outputs section renders
+        // (with the values flagged as RingCT-hidden) but doesn't crash.
+        // Bitcoin-only sub-features (RBF panel, Accelerator panel,
+        // CPFP cluster) are gated by env flags and stay hidden.
+        // XmrTxDetailModule preserved on disk for the reveal-flow logic
+        // we'll layer back in via a dedicated route or modal later.
         path: 'tx',
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
-        loadChildren: () => import('@app/xmr/tx-detail/xmr-tx-detail.module').then(m => m.XmrTxDetailModule),
+        loadChildren: () => import('@components/transaction/transaction.module').then(m => m.TransactionModule),
       },
       {
         // xmr-space: route /block back to upstream BlockModule for full
