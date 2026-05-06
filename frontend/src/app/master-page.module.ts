@@ -6,6 +6,7 @@ import { SharedModule } from '@app/shared/shared.module';
 
 import { StartComponent } from '@components/start/start.component';
 import { RecentTransactionsList } from '@components/recent-transactions-list/recent-transactions-list.component';
+import { BlocksList } from '@components/blocks-list/blocks-list.component';
 import { ServerHealthComponent } from '@components/server-health/server-health.component';
 import { ServerStatusComponent } from '@components/server-health/server-status.component';
 import { FaucetComponent } from '@components/faucet/faucet.component';
@@ -46,12 +47,14 @@ const routes: Routes = [
         path: 'about',
         loadChildren: () => import('@components/about/about.module').then(m => m.AboutModule),
       },
-      {
-        // xmr-space: paginated blocks list. Replaces upstream BlocksList
-        // (which expected pool + fee-range extras we don't surface).
-        path: 'blocks',
-        loadChildren: () => import('@app/xmr/blocks-list/xmr-blocks-list.module').then(m => m.XmrBlocksListModule),
-      },
+      // xmr-space: route /blocks back to upstream BlocksList. Our
+      // /api/v1/blocks endpoint now returns the upstream `extras`
+      // envelope with totalFees / medianFee / feeRange / pool, so the
+      // Bitcoin table layout (Pool column with logo, Size progress
+      // bar, fee tier coloring) renders correctly against Monero data.
+      // XmrBlocksListModule preserved on disk.
+      { path: 'blocks/:page', component: BlocksList },
+      { path: 'blocks', redirectTo: 'blocks/1' },
       {
         path: 'txs',
         component: RecentTransactionsList,
@@ -77,11 +80,19 @@ const routes: Routes = [
         loadChildren: () => import('@app/xmr/tx-detail/xmr-tx-detail.module').then(m => m.XmrTxDetailModule),
       },
       {
-        // xmr-space: replace upstream block.module with XmrBlockDetailModule.
+        // xmr-space: route /block back to upstream BlockModule for full
+        // visual parity with mempool.space. Bitcoin-only sub-features
+        // are gated by env flags (AUDIT/MINING_DASHBOARD/ACCELERATOR
+        // all default false) so the audit comparison and accelerator
+        // panels stay hidden. The per-tx vin/vout decoder used by
+        // BlockTransactionsComponent will render rows with empty inputs/
+        // outputs for Monero txs (RingCT-hidden), which matches the
+        // privacy invariant — wallet/key-bearing reveals stay on the
+        // tx-detail page.
         path: 'block',
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
-        loadChildren: () => import('@app/xmr/block-detail/xmr-block-detail.module').then(m => m.XmrBlockDetailModule),
+        loadChildren: () => import('@components/block/block.module').then(m => m.BlockModule),
       },
       {
         // xmr-space: replace upstream DocsModule (loaded a 13k-line

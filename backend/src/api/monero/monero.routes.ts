@@ -29,9 +29,163 @@ export class MoneroRoutes {
       // /blocks list page.
       .get(this.prefix + 'blocks/:height', (req, res) => this.getBlocksFromHeight(req, res))
       .get(this.prefix + 'block/:hash', (req, res) => this.getBlock(req, res))
+      // /api/v1/block/:hash/summary — per-tx stripped data for the
+      // upstream BlockComponent's WebGL tile visualization. Returns
+      // the same TransactionStripped[] shape upstream expects:
+      //   [{ txid, fee, vsize, value, rate, flags, time, acc }, …]
+      .get(this.prefix + 'block/:hash/summary', (req, res) => this.getBlockSummary(req, res))
+      // Audit endpoint always 404 — Bitcoin-only feature; the upstream
+      // BlockComponent is OK with a missing audit and just hides the
+      // 'Expected vs Actual' comparison.
+      .get(this.prefix + 'block/:hash/audit-summary', (_req, res) => res.status(404).json({ error: 'audit not available on Monero' }))
       .get(this.prefix + 'tx/:hash', (req, res) => this.getTx(req, res))
       .get(this.prefix + 'mempool', (req, res) => this.getMempool(req, res))
       .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res));
+
+    // Upstream's electrs-style endpoint — used by BlockComponent to
+    // resolve a height-based deep-link to a block hash. Plain-text
+    // response; the upstream client requests it via responseType: 'text'.
+    app.get('/api/block-height/:height', (req, res) => this.getBlockHashByHeight(req, res));
+    // Paginated tx list for a block. Upstream TransactionsList expects
+    // Bitcoin-shape Transaction[] (txid + vin + vout + status). We
+    // populate what we can publicly: txid, fee, size, weight, status,
+    // and synthetic vin/vout entries that flag RingCT-hidden values
+    // so upstream's vin/vout decoder doesn't crash on empty arrays.
+    app.get('/api/block/:hash/txs/:index', (req, res) => this.getBlockTxsByPage(req, res, false));
+    app.get('/api/block/:hash/txs', (req, res) => this.getBlockTxsByPage(req, res, false));
+    // Also handle the v1 prefix the master-page-preview uses.
+    app.get(this.prefix + 'block/:hash/txs/:index', (req, res) => this.getBlockTxsByPage(req, res, false));
+    app.get(this.prefix + 'block/:hash/txs', (req, res) => this.getBlockTxsByPage(req, res, false));
+  }
+
+  /**
+   * GET /api/block/:hash/txs/:index — page of transactions in this
+   * block. Upstream's electrs-style pagination: 25 per page, index 0
+   * is the first 25, index 25 the next, and so on.
+   *
+   * Response shape mirrors Bitcoin's Transaction interface enough that
+   * the upstream TransactionsList renders cleanly:
+   *   { txid, version, locktime, fee, size, weight, vin[], vout[], status }
+   * vin/vout are populated with synthetic single-entry placeholders
+   * tagged 'ringct' so consumers can't decode amounts but don't crash
+   * on empty arrays either.
+   */
+  private async getBlockTxsByPage(req: Request, res: Response, _useV1: boolean): Promise<void> {
+    const hash = req.params.hash;
+    if (!HEX64.test(hash)) {
+      handleError(req, res, 400, 'invalid block hash');
+      return;
+    }
+    const index = Math.max(0, Number(req.params.index ?? 0));
+    if (!Number.isFinite(index)) {
+      handleError(req, res, 400, 'invalid index');
+      return;
+    }
+    try {
+      const block = await this.api.getBlockByHash(hash);
+      const blockTime = block.block_header.timestamp;
+      const blockHeight = block.block_header.height;
+      const tipCount = await this.api.getBlockCount();
+      const confirmations = tipCount - blockHeight;
+      // Tx list including coinbase first (matches upstream).
+      const allHashes = [block.miner_tx_hash, ...(block.tx_hashes ?? [])];
+      const PAGE = 25;
+      const sliceHashes = allHashes.slice(index, index + PAGE);
+      const stripped = sliceHashes.length
+        ? await this.api.getBlockStrippedTxs(block.block_header.hash, sliceHashes, blockTime)
+            .catch(() => [] as Awaited<ReturnType<typeof this.api.getBlockStrippedTxs>>)
+        : [];
+      // Build txs in upstream Transaction shape.
+      const out = sliceHashes.map((h, i) => {
+        const isCoinbase = i === 0 && index === 0;
+        const stat = stripped.find((s) => s.txid === h);
+        const fee = isCoinbase ? 0 : stat?.fee ?? 0;
+        const size = stat?.vsize ?? 0;
+        return {
+          txid: h,
+          version: 2,
+          locktime: 0,
+          size,
+          weight: size,
+          fee,
+          // Synthetic vin/vout — we don't know the real input ring or
+          // output addresses without keys. Each entry is a placeholder
+          // tagged with `ringct: true` so consumers know to render
+          // 'hidden' rather than '0'.
+          vin: stat
+            ? Array.from({ length: 1 }, () => ({
+                is_coinbase: isCoinbase,
+                ringct: true,
+                prevout: null,
+                scriptsig: '',
+                sequence: 0,
+                witness: [],
+              }))
+            : [],
+          vout: stat
+            ? Array.from({ length: 1 }, () => ({
+                ringct: true,
+                value: 0,
+                scriptpubkey: '',
+                scriptpubkey_address: '',
+                scriptpubkey_type: 'ringct',
+              }))
+            : [],
+          status: {
+            confirmed: true,
+            block_height: blockHeight,
+            block_hash: block.block_header.hash,
+            block_time: blockTime,
+          },
+          confirmations,
+        };
+      });
+      res.json(out);
+    } catch (err) {
+      logger.err(`xmr getBlockTxsByPage failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /** GET /api/v1/block/:hash/summary — stripped txs for WebGL viz. */
+  private async getBlockSummary(req: Request, res: Response): Promise<void> {
+    const hash = req.params.hash;
+    if (!HEX64.test(hash)) {
+      handleError(req, res, 400, 'invalid block hash');
+      return;
+    }
+    try {
+      const block = await this.api.getBlockByHash(hash);
+      const txHashes = block.tx_hashes ?? [];
+      const stripped = txHashes.length
+        ? await this.api.getBlockStrippedTxs(block.block_header.hash, txHashes, block.block_header.timestamp)
+        : [];
+      res.json(stripped);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not found|invalid|hash/i.test(msg)) {
+        handleError(req, res, 404, 'block not found');
+        return;
+      }
+      logger.err(`xmr getBlockSummary failed: ${msg}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /** GET /api/block-height/:height — text response, just the hash. */
+  private async getBlockHashByHeight(req: Request, res: Response): Promise<void> {
+    const requested = Number(req.params.height);
+    if (!Number.isFinite(requested) || requested < 0) {
+      handleError(req, res, 400, 'invalid height');
+      return;
+    }
+    try {
+      const block = await this.api.getBlockByHeight(requested);
+      res.type('text/plain').send(block.block_header.hash);
+    } catch (err) {
+      logger.err(`xmr getBlockHashByHeight failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
   }
 
   /**
@@ -57,7 +211,25 @@ export class MoneroRoutes {
         heights.push(h);
       }
       const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
-      res.json(blocks.map((b) => this.shapeBlockHeader(b.block_header, b.tx_hashes?.length)));
+      // Same upstream-compat extras envelope as getRecentBlocks.
+      const shaped = await Promise.all(blocks.map(async (b) => {
+        const fees = b.tx_hashes?.length
+          ? await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
+          : null;
+        return {
+          ...this.shapeBlockHeader(b.block_header, b.tx_hashes?.length),
+          extras: {
+            reward: b.block_header.reward,
+            totalFees: fees?.totalFees ?? 0,
+            medianFee: fees?.medianFee ?? 0,
+            minFee: fees?.minFee ?? 0,
+            maxFee: fees?.maxFee ?? 0,
+            feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
+            pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+          },
+        };
+      }));
+      res.json(shaped);
     } catch (err) {
       logger.err(`xmr getBlocksFromHeight failed: ${err instanceof Error ? err.message : String(err)}`);
       handleError(req, res, 502, 'monerod unreachable');
@@ -108,7 +280,27 @@ export class MoneroRoutes {
         heights.push(tipHeight - i);
       }
       const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
-      res.json(blocks.map((b) => this.shapeBlockHeader(b.block_header, b.tx_hashes?.length)));
+      // Resolve fee stats per block (cached after first lookup) so the
+      // /blocks list page renders fee-tier color spans, total fees,
+      // and median ɱ/B columns. Without this every row reads zeros.
+      const shaped = await Promise.all(blocks.map(async (b) => {
+        const fees = b.tx_hashes?.length
+          ? await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
+          : null;
+        return {
+          ...this.shapeBlockHeader(b.block_header, b.tx_hashes?.length),
+          extras: {
+            reward: b.block_header.reward,
+            totalFees: fees?.totalFees ?? 0,
+            medianFee: fees?.medianFee ?? 0,
+            minFee: fees?.minFee ?? 0,
+            maxFee: fees?.maxFee ?? 0,
+            feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
+            pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+          },
+        };
+      }));
+      res.json(shaped);
     } catch (err) {
       logger.err(`xmr getRecentBlocks failed: ${err instanceof Error ? err.message : String(err)}`);
       handleError(req, res, 502, 'monerod unreachable');
@@ -142,11 +334,25 @@ export class MoneroRoutes {
         ...this.shapeBlockHeader(block.block_header, txHashes.length),
         miner_tx_hash: block.miner_tx_hash,
         tx_hashes: txHashes,
+        // Snake-case fields kept for backwards compat with our
+        // XmrBlockDetail; upstream BlockExtended reads from extras.
         total_fees: fees?.totalFees ?? 0,
         median_fee: fees?.medianFee ?? 0,
         min_fee: fees?.minFee ?? 0,
         max_fee: fees?.maxFee ?? 0,
         fee_range: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
+        // The `extras` envelope is what mempool.space's BlockComponent
+        // reads — block.extras.totalFees / medianFee / feeRange / pool.
+        // 'unknown' pool stub until coinbase-extra fingerprinting lands.
+        extras: {
+          reward: block.block_header.reward,
+          totalFees: fees?.totalFees ?? 0,
+          medianFee: fees?.medianFee ?? 0,
+          minFee: fees?.minFee ?? 0,
+          maxFee: fees?.maxFee ?? 0,
+          feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
+          pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+        },
       };
       if (includeTxs) {
         payload.stripped_txs = stripped ?? [];
@@ -254,24 +460,44 @@ export class MoneroRoutes {
 
   private shapeBlockHeader(h: IMoneroApi.BlockHeader, numTxes?: number) {
     return {
+      // upstream's BlockExtended interface uses `id` for the hash. Keep
+      // both keys: id is the upstream-canonical name (used by the
+      // mempool.space frontend's BlockComponent), hash is the
+      // Monero-canonical name (used by our XmrBlockDetail and tests).
+      // Pointing them at the same string costs ~64 bytes per response
+      // and removes a whole class of "field not found" bugs.
+      id: h.hash,
       hash: h.hash,
       height: h.height,
       timestamp: h.timestamp,
       age_s: Math.floor(Date.now() / 1000) - h.timestamp,
       depth: h.depth,
+      // Both naming conventions for the prev hash, same reason as id/hash.
       prev_hash: h.prev_hash,
+      previousblockhash: h.prev_hash,
       reward: h.reward,
       block_size: h.block_size,
       block_weight: h.block_weight,
-      // For block detail, tx_hashes excludes coinbase; daemon's `num_txes`
-      // also excludes coinbase. Keep both consistent.
+      // upstream Block interface uses `size` and `weight`; Monero's
+      // wire fields are `block_size` and `block_weight`. Map both.
+      size: h.block_size,
+      weight: h.block_weight,
+      // tx_count includes the coinbase per upstream convention. num_txes
+      // excludes it (Monero daemon convention). Keep both.
+      tx_count: (numTxes ?? h.num_txes) + 1,
       num_txes: numTxes ?? h.num_txes,
       difficulty: h.difficulty,
       cumulative_difficulty: h.cumulative_difficulty,
       major_version: h.major_version,
       minor_version: h.minor_version,
+      // upstream BlockExtended.version is generic; map to major_version.
+      version: h.major_version,
       nonce: h.nonce,
       orphan_status: h.orphan_status,
+      // Monero has no Merkle root of all txs; the miner_tx_hash is the
+      // closest analogue and is what our WS adapter has been using.
+      merkle_root: h.miner_tx_hash,
+      bits: 0,
       miner_tx_hash: h.miner_tx_hash,
     };
   }
