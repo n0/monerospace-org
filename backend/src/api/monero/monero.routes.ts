@@ -92,7 +92,13 @@ export class MoneroRoutes {
     // (we don't index pools), accelerator endpoints. Returning 200 with
     // empty / null payloads keeps the upstream component subscriptions
     // alive without spamming console errors.
-    app.get(this.prefix + 'historical-price', (_req, res) => res.json([]));
+    // historical-price expects { prices: [{ time, USD, EUR, ... }],
+    // exchangeRates: { USDEUR, USDGBP, ... } }. Empty arrays are
+    // acceptable; just don't return a bare array.
+    app.get(this.prefix + 'historical-price', (_req, res) => res.json({
+      prices: [],
+      exchangeRates: { USDEUR: 0.92, USDGBP: 0.78, USDCAD: 1.36, USDCHF: 0.88, USDAUD: 1.51, USDJPY: 154 },
+    }));
     app.get(this.prefix + 'mining/pools/:period', (_req, res) => res.json({ pools: [] }));
     app.get(this.prefix + 'mining/pool/:slug', (_req, res) => res.json(null));
     app.get(this.prefix + 'difficulty-adjustment', (_req, res) => res.json({
@@ -260,7 +266,12 @@ export class MoneroRoutes {
         ? await this.api.getBlockStrippedTxs(block.block_header.hash, sliceHashes, blockTime)
             .catch(() => [] as Awaited<ReturnType<typeof this.api.getBlockStrippedTxs>>)
         : [];
-      // Build txs in upstream Transaction shape.
+      // Build txs in upstream Transaction shape. ALWAYS include at
+      // least one vin and one vout entry; upstream's transactions-list
+      // template dereferences `tx.vin[0].is_coinbase` (line 515)
+      // unconditionally — empty vin arrays throw "can't access
+      // is_coinbase of undefined" and the error spams the console
+      // every render cycle.
       const out = sliceHashes.map((h, i) => {
         const isCoinbase = i === 0 && index === 0;
         const stat = stripped.find((s) => s.txid === h);
@@ -275,27 +286,25 @@ export class MoneroRoutes {
           fee,
           // Synthetic vin/vout — we don't know the real input ring or
           // output addresses without keys. Each entry is a placeholder
-          // tagged with `ringct: true` so consumers know to render
-          // 'hidden' rather than '0'.
-          vin: stat
-            ? Array.from({ length: 1 }, () => ({
-                is_coinbase: isCoinbase,
-                ringct: true,
-                prevout: null,
-                scriptsig: '',
-                sequence: 0,
-                witness: [],
-              }))
-            : [],
-          vout: stat
-            ? Array.from({ length: 1 }, () => ({
-                ringct: true,
-                value: 0,
-                scriptpubkey: '',
-                scriptpubkey_address: '',
-                scriptpubkey_type: 'ringct',
-              }))
-            : [],
+          // tagged with `ringct: true` (or `is_coinbase: true` for the
+          // miner tx) so consumers know to render 'hidden' rather than
+          // '0' but the upstream template's `vin[0].is_coinbase` and
+          // `vout[0].ringct` dereferences both succeed.
+          vin: [{
+            is_coinbase: isCoinbase,
+            ringct: !isCoinbase,
+            prevout: null,
+            scriptsig: '',
+            sequence: 0,
+            witness: [],
+          }],
+          vout: [{
+            ringct: !isCoinbase,
+            value: 0,
+            scriptpubkey: '',
+            scriptpubkey_address: '',
+            scriptpubkey_type: isCoinbase ? 'coinbase' : 'ringct',
+          }],
           status: {
             confirmed: true,
             block_height: blockHeight,

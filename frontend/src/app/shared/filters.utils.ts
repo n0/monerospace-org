@@ -57,6 +57,17 @@ export const TransactionFlags = {
   sighash_single: 0b00000100_00000000_00000000_00000000_00000000_00000000n,
   sighash_default:0b00001000_00000000_00000000_00000000_00000000_00000000n,
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
+  // xmr-space: Monero-specific flags. We use bits 28/29/30 — within
+  // 32-bit unsigned int range so they survive the
+  // `tx.bigintFlags = BigInt(tx.flags)` round-trip in tx-view.ts
+  // (where `tx.flags` is a Number, not a bigint). Higher bits would
+  // get truncated on the wire. These positions don't collide with
+  // any upstream flag (the highest upstream uses is bit 46
+  // `sighash_acp`, and it's only set when getTransactionFlags runs
+  // on a full Transaction object — never on stripped mempool txs).
+  xmr_ring16:     0b00010000_00000000_00000000_00000000n, // bit 28
+  xmr_view_tags:  0b00100000_00000000_00000000_00000000n, // bit 29
+  xmr_rct_v6:     0b01000000_00000000_00000000_00000000n, // bit 30
 };
 
 export function toFlags(filters: string[]): bigint {

@@ -22,12 +22,21 @@
             <span>&nbsp;</span>
             <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
           </a>
-          <!-- xmr-space: 'Mempool Goggles' filter buttons removed (consolidation,
-               coinjoin, data flags are Bitcoin-only). The mempool tile shows
-               every pending Monero tx; flag-based highlighting doesn't apply
-               since RingCT hides the patterns those filters detected. -->
-          <div class="quick-filter" style="opacity: 0.5; font-size: 11px; padding: 0 0 6px;">
-            <span>RingCT-hidden — every tile is one tx, area = weight, color = fee tier</span>
+          <!-- xmr-space: Monero-shaped filter pills. Bitcoin's
+               consolidation/coinjoin/data flags don't apply (those
+               detected on-chain patterns of TRANSPARENT txs). Our
+               filters operate on the publicly observable Monero
+               properties: ring size, view-tag presence, RingCT
+               version. Flag bits set by the backend WS adapter on
+               every tx (see monero-ws.ts). -->
+          <div class="quick-filter">
+            <div class="btn-group" role="group">
+              <ng-container *ngFor="let filter of goggleCycle">
+                <input type="radio" class="btn-check" [value]="filter.index" [id]="'btn-radio-' + filter.index"
+                  [checked]="filter.index === goggleIndex" (click)="setFilter(filter.index)">
+                <label class="btn btn-primary btn-xs" [for]="'btn-radio-' + filter.index">{{ filter.name }}</label>
+              </ng-container>
+            </div>
           </div>
           <div class="mempool-block-wrapper" *ngIf="webGlEnabled">
             <app-mempool-block-overview

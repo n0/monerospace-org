@@ -71,11 +71,18 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   private lastReservesBlockUpdate: number = 0;
 
   goggleResolution = 82;
+  // xmr-space: Bitcoin's Mempool Goggles (Consolidation / Coinjoin /
+  // Data) don't translate to Monero — those filters detect on-chain
+  // patterns visible only because Bitcoin txs are transparent. For
+  // Monero we filter on what IS publicly observable: ring size, view
+  // tags, RingCT version. The flag bits are defined in
+  // filters.utils.ts (xmr_ring16 / xmr_view_tags / xmr_rct_v6) and
+  // set per-tx by the backend WS adapter when it ships per-tx data.
   goggleCycle: { index: number, name: string, mode: FilterMode, filters: string[], gradient: GradientMode }[] = [
-    { index: 0, name: $localize`:@@dfc3c34e182ea73c5d784ff7c8135f087992dac1:All`, mode: 'and', filters: [], gradient: 'age' },
-    { index: 1, name: $localize`Consolidation`, mode: 'and', filters: ['consolidation'], gradient: 'fee' },
-    { index: 2, name: $localize`Coinjoin`, mode: 'and', filters: ['coinjoin'], gradient: 'fee' },
-    { index: 3, name: $localize`Data`, mode: 'or', filters: ['inscription', 'fake_pubkey', 'fake_scripthash', 'op_return'], gradient: 'fee' },
+    { index: 0, name: $localize`:@@dfc3c34e182ea73c5d784ff7c8135f087992dac1:All`,                                  mode: 'and', filters: [],                  gradient: 'fee' },
+    { index: 1, name: $localize`:@@xmr.goggle.ring16:Standard ring (16)`,                                          mode: 'and', filters: ['xmr_ring16'],     gradient: 'fee' },
+    { index: 2, name: $localize`:@@xmr.goggle.view-tags:View tags`,                                                mode: 'and', filters: ['xmr_view_tags'],  gradient: 'fee' },
+    { index: 3, name: $localize`:@@xmr.goggle.rct6:RCT v6 (latest)`,                                               mode: 'and', filters: ['xmr_rct_v6'],     gradient: 'fee' },
   ];
   goggleFlags = 0n;
   goggleMode: FilterMode = 'and';

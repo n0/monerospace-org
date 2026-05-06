@@ -343,32 +343,10 @@ export class MoneroWs {
     state: { sequence: number },
   ): Promise<void> {
     const pool = await this.api.getTransactionPool();
-    const txs = (pool.transactions ?? [])
-      .map((t) => ({
-        txid: t.id_hash,
-        weight: t.weight,
-        fee: t.fee,
-        receiveTime: t.receive_time,
-        rate: t.weight > 0 ? t.fee / t.weight : 0,
-      }))
-      .sort((a, b) => b.rate - a.rate);
-
-    // Slice to the requested block — same greedy fill as projectedMempoolBlocks.
-    const buckets: typeof txs[] = [];
-    let bucket: typeof txs = [];
-    let bucketWeight = 0;
-    for (const t of txs) {
-      if (bucketWeight + t.weight > PROJECTED_BLOCK_WEIGHT_LIMIT && bucket.length) {
-        buckets.push(bucket);
-        if (buckets.length >= 8) break;
-        bucket = [];
-        bucketWeight = 0;
-      }
-      bucket.push(t);
-      bucketWeight += t.weight;
-    }
-    if (bucket.length && buckets.length < 8) buckets.push(bucket);
-
+    // Use the shared bucketPool helper so we get computed Monero
+    // filter flags per tx (ring16 / view_tags / rct_v6) and the same
+    // 16-bucket cap as the broadcast path.
+    const buckets = this.bucketPool(pool);
     const target = buckets[blockIndex] ?? [];
     state.sequence += 1;
 
@@ -382,7 +360,7 @@ export class MoneroWs {
           t.weight,
           0, // value — RingCT-hidden
           t.rate,
-          0, // flags
+          t.flags ?? 0, // packed Monero filter flags (xmr_ring16/xmr_view_tags/xmr_rct_v6)
           t.receiveTime || Math.floor(Date.now() / 1000),
         ]),
       },
@@ -448,37 +426,92 @@ export class MoneroWs {
   }
 
   /**
-   * Sort mempool by fee rate desc, greedy-fill blocks up to the weight
-   * limit. Returns up to 8 buckets — same algorithm as
-   * projectedMempoolBlocks but yields per-tx detail instead of summary.
+   * Group mempool txs by Monero's 4 fee tiers (slow / normal / fast /
+   * fastest). Returns 4 buckets — fastest first since the dashboard
+   * strip renders index 0 closest to the chain tip. Each bucket also
+   * carries computed Monero filter flags per tx.
+   *
+   * Why fee-tier-buckets instead of upstream's greedy-weight-fill:
+   *   - Bitcoin's mempool normally has 100MB+ of txs, fills many
+   *     blocks ahead — greedy fill produces 5-10 tiles naturally.
+   *   - Monero mempools rarely exceed 500KB; greedy fill produces
+   *     ONE tile, which looks broken next to mempool.space's
+   *     5-tile strip.
+   *   - Tier-bucketing always shows 4 tiles when there's any mempool,
+   *     and the bucket sizes grow visibly with congestion. More
+   *     informative AND more visually balanced.
+   *
+   * Tier thresholds match monerod's `get_fee_estimate` output for
+   * default values [20000, 80000, 320000, 4000000] atomic/byte. A tx
+   * lands in the bucket whose threshold it most closely matches at or
+   * exceeds.
    */
   private bucketPool(pool: IMoneroApi.TransactionPool): Array<Array<{
-    txid: string; weight: number; fee: number; receiveTime: number; rate: number;
+    txid: string; weight: number; fee: number; receiveTime: number; rate: number; flags: number;
   }>> {
-    const txs = (pool.transactions ?? [])
+    type Tx = { txid: string; weight: number; fee: number; receiveTime: number; rate: number; flags: number };
+    const txs: Tx[] = (pool.transactions ?? [])
       .map((t) => ({
         txid: t.id_hash,
         weight: t.weight,
         fee: t.fee,
         receiveTime: t.receive_time,
         rate: t.weight > 0 ? t.fee / t.weight : 0,
-      }))
-      .sort((a, b) => b.rate - a.rate);
-    const buckets: typeof txs[] = [];
-    let bucket: typeof txs = [];
-    let bucketWeight = 0;
+        flags: this.computeXmrFlags(t),
+      }));
+
+    // 4 fee tiers, fastest first (so dashboard's index 0 = highest
+    // priority, matching mempool.space's "next block" semantics).
+    const FASTEST = 4_000_000;
+    const FAST = 320_000;
+    const NORMAL = 80_000;
+    // anything below NORMAL falls into the slow bucket
+    const buckets: Tx[][] = [[], [], [], []];
     for (const t of txs) {
-      if (bucketWeight + t.weight > PROJECTED_BLOCK_WEIGHT_LIMIT && bucket.length) {
-        buckets.push(bucket);
-        if (buckets.length >= 8) break;
-        bucket = [];
-        bucketWeight = 0;
-      }
-      bucket.push(t);
-      bucketWeight += t.weight;
+      if (t.rate >= FASTEST) buckets[0].push(t);
+      else if (t.rate >= FAST) buckets[1].push(t);
+      else if (t.rate >= NORMAL) buckets[2].push(t);
+      else buckets[3].push(t);
     }
-    if (bucket.length && buckets.length < 8) buckets.push(bucket);
+    // Sort within each bucket by rate desc so the largest-fee txs sit
+    // at the top of each tile.
+    for (const b of buckets) b.sort((a, c) => c.rate - a.rate);
     return buckets;
+  }
+
+  /**
+   * Pull the Monero-relevant filter flags out of a mempool entry's
+   * embedded tx_json. The daemon already populates tx_json on every
+   * /get_transaction_pool entry, so this needs no extra RPC call.
+   *
+   * Bits MUST match `TransactionFlags.xmr_*` in
+   * frontend/src/app/shared/filters.utils.ts:
+   *   bit 28 (xmr_ring16)     — vin[0].key.key_offsets.length === 16
+   *   bit 29 (xmr_view_tags)  — at least one vout has target.tagged_key.view_tag
+   *   bit 30 (xmr_rct_v6)     — rct_signatures.type === 6 (CLSAG + BP+)
+   *
+   * We pack into a Number because the upstream TransactionStripped
+   * tuple stores `flags` as Number; tx-view.ts then converts via
+   * BigInt(tx.flags) for the bitwise comparison. Bits 28-30 stay
+   * within 32-bit unsigned int range so the round-trip is lossless.
+   */
+  private computeXmrFlags(t: IMoneroApi.MempoolEntry): number {
+    let flags = 0;
+    if (!t.tx_json) return flags;
+    let parsed: IMoneroApi.TransactionJson | null = null;
+    try {
+      parsed = JSON.parse(t.tx_json) as IMoneroApi.TransactionJson;
+    } catch {
+      return flags;
+    }
+    const vin = parsed.vin ?? [];
+    const vout = parsed.vout ?? [];
+    const ringSize = vin[0]?.key?.key_offsets?.length ?? 0;
+    if (ringSize === 16) flags |= 1 << 28;
+    const hasViewTag = vout.some((v) => v.target?.tagged_key?.view_tag !== undefined);
+    if (hasViewTag) flags |= 1 << 29;
+    if (parsed.rct_signatures?.type === 6) flags |= 1 << 30;
+    return flags;
   }
 
   private broadcast(payload: Record<string, unknown>): void {
@@ -567,58 +600,36 @@ export class MoneroWs {
   }
 
   /**
-   * Build projected mempool blocks from the current pool snapshot.
-   * Algorithm: sort txs by fee_per_byte descending, greedily fill blocks
-   * up to PROJECTED_BLOCK_WEIGHT_LIMIT until the pool is empty. Return up
-   * to 8 blocks (matches upstream's mempool-blocks UI cap).
+   * Summarise the per-tier buckets produced by `bucketPool`. Returns
+   * one UpstreamMempoolBlock per non-empty fee tier, fastest first.
+   * Empty tiers are omitted so the dashboard strip shows only the
+   * tiers that actually have pending txs.
    */
   private projectedMempoolBlocks(pool: IMoneroApi.TransactionPool): UpstreamMempoolBlock[] {
-    const txs = (pool.transactions ?? [])
-      .map((t) => ({
-        weight: t.weight,
-        fee: t.fee,
-        rate: t.weight > 0 ? t.fee / t.weight : 0,
-      }))
-      .sort((a, b) => b.rate - a.rate);
-
+    const buckets = this.bucketPool(pool);
     const blocks: UpstreamMempoolBlock[] = [];
-    let bucket: typeof txs = [];
-    let bucketWeight = 0;
-
-    const flush = (index: number): void => {
+    buckets.forEach((bucket, idx) => {
       if (bucket.length === 0) return;
       const fees = bucket.map((t) => t.rate).sort((a, b) => a - b);
+      const weight = bucket.reduce((acc, t) => acc + t.weight, 0);
       const totalFee = bucket.reduce((acc, t) => acc + t.fee, 0);
       const median = fees[Math.floor(fees.length / 2)] ?? 0;
-      // 7-bucket fee range: slowest, p20, p40, median, p60, p80, fastest
-      const range = (
-        fees.length === 0
-          ? [0, 0, 0, 0, 0, 0, 0]
-          : [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1].map((p) => fees[Math.min(fees.length - 1, Math.floor(p * (fees.length - 1)))])
-      );
+      const range = fees.length === 0
+        ? [0, 0, 0, 0, 0, 0, 0]
+        : [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1].map((p) => fees[Math.min(fees.length - 1, Math.floor(p * (fees.length - 1)))]);
       blocks.push({
-        blockSize: bucketWeight,
-        blockVSize: bucketWeight,
+        blockSize: weight,
+        blockVSize: weight,
         nTx: bucket.length,
         medianFee: median,
         totalFees: totalFee,
         feeRange: range,
-        index,
+        // The `index` field stays as the visual position in the strip
+        // (0 = closest to chain tip), regardless of underlying tier.
+        // We push fastest first, so index 0 = fastest tier.
+        index: blocks.length,
       });
-      bucket = [];
-      bucketWeight = 0;
-    };
-
-    for (const tx of txs) {
-      if (bucketWeight + tx.weight > PROJECTED_BLOCK_WEIGHT_LIMIT && bucket.length > 0) {
-        flush(blocks.length);
-        if (blocks.length >= 8) break;
-      }
-      bucket.push(tx);
-      bucketWeight += tx.weight;
-    }
-    if (blocks.length < 8) flush(blocks.length);
-
+    });
     return blocks;
   }
 
