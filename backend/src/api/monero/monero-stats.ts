@@ -136,17 +136,25 @@ export class MoneroStats {
       const vbps = Math.max(0, Math.floor(delta / (SAMPLE_INTERVAL_MS / 1000)));
       this.lastByteWeight = byteWeight;
 
-      this.samples.push({
+      const sample: OptimizedMempoolStats = {
         added: Math.floor(Date.now() / 1000),
         count: txs.length,
         vbytes_per_second: vbps,
         total_fee: totalFee,
         mempool_byte_weight: byteWeight,
         vsizes,
-      });
+      };
+      this.samples.push(sample);
       while (this.samples.length > MAX_SAMPLES) {
         this.samples.shift();
       }
+      // Notify the bus so the WebSocket adapter can push this sample
+      // to clients via `live-2h-chart`. The dashboard's "Incoming
+      // Transactions" graph reads this stream and prepends each
+      // arriving sample into its rolling 2h window — without it, the
+      // chart only shows whatever /api/v1/statistics/2h returned at
+      // page load and never updates live.
+      this.bus.emit('stats-sample', sample);
     } catch {
       // Daemon hiccup — skip this sample, recover next minute.
     }

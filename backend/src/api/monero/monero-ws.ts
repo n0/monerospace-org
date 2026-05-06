@@ -133,6 +133,14 @@ export class MoneroWs {
         .catch(() => undefined)
         .then(() => this.broadcastMempoolUpdate().catch(() => undefined));
     });
+    // MoneroStats samples the mempool every minute. Each new sample is
+    // pushed to subscribed clients as `live-2h-chart` so the
+    // dashboard's "Incoming Transactions" graph extends in real time
+    // rather than freezing at the value returned by the initial
+    // /api/v1/statistics/2h fetch.
+    this.bus.on('stats-sample', (sample: unknown) => {
+      this.broadcast({ 'live-2h-chart': sample });
+    });
   }
 
   private handleConnection(ws: WebSocket, _req: IncomingMessage): void {
