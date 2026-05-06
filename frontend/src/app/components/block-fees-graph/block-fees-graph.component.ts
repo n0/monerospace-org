@@ -93,8 +93,9 @@ export class BlockFeesGraphComponent implements OnInit {
             .pipe(
               tap((response) => {
                 this.prepareChartOptions({
-                  blockFees: response.body.map(val => [val.timestamp * 1000, val.avgFees / 100000000, val.avgHeight]),
-                  blockFeesFiat: response.body.filter(val => val[this.currency] > 0).map(val => [val.timestamp * 1000, val.avgFees / 100000000 * val[this.currency], val.avgHeight]),
+                  // xmr-space: Monero is 10^12 atomic per XMR (vs 10^8 sat/BTC).
+                  blockFees: response.body.map(val => [val.timestamp * 1000, val.avgFees / 1e12, val.avgHeight]),
+                  blockFeesFiat: response.body.filter(val => val[this.currency] > 0).map(val => [val.timestamp * 1000, val.avgFees / 1e12 * val[this.currency], val.avgHeight]),
                 });
                 this.isLoading = false;
               }),
@@ -110,7 +111,9 @@ export class BlockFeesGraphComponent implements OnInit {
   }
 
   prepareChartOptions(data) {
-    const feesBtcLabel = $localize`:@@graphs.blockFees.feesBtc:Fees BTC`;
+    // xmr-space: BTC → XMR. Original i18n key kept so existing
+    // translations don't break — the label string is what users see.
+    const feesBtcLabel = $localize`:@@graphs.blockFees.feesBtc:Fees XMR`;
     const feesFiatLabel = $localize`:@@graphs.blockFees.feesFiat:Fees ${this.currency}:currency:`;
 
     let title: object;
@@ -168,7 +171,7 @@ export class BlockFeesGraphComponent implements OnInit {
 
           for (const tick of data) {
             if (tick.seriesIndex === 0) {
-              tooltip += `${tick.marker} ${feesBtcLabel}: ${formatNumber(tick.data[1], this.locale, '1.3-3')} BTC<br>`;
+              tooltip += `${tick.marker} ${feesBtcLabel}: ${formatNumber(tick.data[1], this.locale, '1.3-3')} XMR<br>`;
             } else if (tick.seriesIndex === 1) {
               tooltip += `${tick.marker} ${feesFiatLabel}: ${this.fiatCurrencyPipe.transform(tick.data[1], null, this.currency) }<br>`;
             }
@@ -212,7 +215,7 @@ export class BlockFeesGraphComponent implements OnInit {
           axisLabel: {
             color: 'rgb(110, 112, 121)',
             formatter: (val) => {
-              return `${val} BTC`;
+              return `${val} XMR`;
             }
           },
           splitLine: {

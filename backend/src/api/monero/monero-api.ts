@@ -71,6 +71,24 @@ export class MoneroApi {
     return block;
   }
 
+  /**
+   * Bulk header fetch via `get_block_headers_range`. Range is inclusive
+   * on both ends and capped at 999 by monerod. Used by the chain
+   * indexer to backfill difficulty for many heights without paying
+   * the per-call RPC overhead of `getBlockByHeight`.
+   */
+  public async getBlockHeadersRange(startHeight: number, endHeight: number): Promise<IMoneroApi.BlockHeader[]> {
+    if (endHeight < startHeight) return [];
+    if (endHeight - startHeight > 999) {
+      throw new Error(`get_block_headers_range max span is 999 (got ${endHeight - startHeight + 1})`);
+    }
+    const result = await this.rpc.jsonRpc<{ headers: IMoneroApi.BlockHeader[] }>(
+      'get_block_headers_range',
+      { start_height: startHeight, end_height: endHeight },
+    );
+    return result.headers ?? [];
+  }
+
   /** Mempool snapshot — list of pending txs with fees, weights, ages. */
   public async getTransactionPool(): Promise<IMoneroApi.TransactionPool> {
     const cached = memoryCache.get<IMoneroApi.TransactionPool>('xmr', 'mempool');

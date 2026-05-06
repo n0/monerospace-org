@@ -7,6 +7,18 @@ import { StatisticsComponent } from '@components/statistics/statistics.component
 import { DashboardComponent } from '@app/dashboard/dashboard.component';
 import { CustomDashboardComponent } from '@components/custom-dashboard/custom-dashboard.component';
 import { CalculatorComponent } from '@components/calculator/calculator.component';
+// xmr-space: re-enabled mining graphs now that XmrChainIndexer
+// (xmrchain.net + monerod) hydrates the per-block series the chart
+// components consume. We deliberately omit the pool-related routes
+// (mining/pool/:slug, mining/pools, mining/pools-dominance) — Monero
+// has no canonical pool tagging, so those would render as broken
+// dropdowns with no data behind them.
+import { HashrateChartComponent } from '@components/hashrate-chart/hashrate-chart.component';
+import { BlockFeesGraphComponent } from '@components/block-fees-graph/block-fees-graph.component';
+import { BlockRewardsGraphComponent } from '@components/block-rewards-graph/block-rewards-graph.component';
+import { BlockFeeRatesGraphComponent } from '@components/block-fee-rates-graph/block-fee-rates-graph.component';
+import { BlockSizesWeightsGraphComponent } from '@components/block-sizes-weights-graph/block-sizes-weights-graph.component';
+import { BlockFeesSubsidyGraphComponent } from '@components/block-fees-subsidy-graph/block-fees-subsidy-graph.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -48,6 +60,30 @@ const routes: Routes = [
           {
             path: 'mempool',
             component: StatisticsComponent,
+          },
+          {
+            path: 'mining/hashrate-difficulty',
+            component: HashrateChartComponent,
+          },
+          {
+            path: 'mining/block-fees',
+            component: BlockFeesGraphComponent,
+          },
+          {
+            path: 'mining/block-fees-subsidy',
+            component: BlockFeesSubsidyGraphComponent,
+          },
+          {
+            path: 'mining/block-rewards',
+            component: BlockRewardsGraphComponent,
+          },
+          {
+            path: 'mining/block-fee-rates',
+            component: BlockFeeRatesGraphComponent,
+          },
+          {
+            path: 'mining/block-sizes-weights',
+            component: BlockSizesWeightsGraphComponent,
           },
           {
             path: '',

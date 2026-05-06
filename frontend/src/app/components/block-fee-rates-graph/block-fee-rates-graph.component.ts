@@ -246,9 +246,9 @@ export class BlockFeeRatesGraphComponent implements OnInit {
 
           for (const rate of data.reverse()) {
             if (weightMode) {
-              tooltip += `${rate.marker} ${rate.seriesName}: ${(rate.data[1] / 4).toFixed(2)} sats/WU<br>`;
+              tooltip += `${rate.marker} ${rate.seriesName}: ${(rate.data[1] / 4).toFixed(2)} ɱ/B<br>`;
             } else {
-              tooltip += `${rate.marker} ${rate.seriesName}: ${rate.data[1].toFixed(2)} sats/vByte<br>`;
+              tooltip += `${rate.marker} ${rate.seriesName}: ${rate.data[1].toFixed(2)} ɱ/B<br>`;
             }
           }
 
@@ -304,7 +304,10 @@ export class BlockFeeRatesGraphComponent implements OnInit {
             }
             const selectedPowerOfTen: any = selectPowerOfTen(val);
             const newVal = Math.round(val / selectedPowerOfTen.divider);
-            return `${newVal}${selectedPowerOfTen.unit} s/${weightMode ? 'WU': 'vB'}`;
+            // xmr-space: atomic-per-byte; weightMode unused (Monero
+            // has no segwit weight discount, so the leg above is a
+            // no-op — units are always per-byte).
+            return `${newVal}${selectedPowerOfTen.unit} ɱ/B`;
           },
         },
         splitLine: {

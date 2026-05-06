@@ -94,7 +94,12 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
                 this.prepareChartOptions({
                   sizes: data.sizes.map(val => [val.timestamp * 1000, val.avgSize / 1000000, val.avgHeight]),
                   weights: data.weights.map(val => [val.timestamp * 1000, val.avgWeight / 1000000, val.avgHeight]),
-                  sizePerWeight: data.weights.map((val, i) => [val.timestamp * 1000, data.sizes[i].avgSize / (val.avgWeight / 4), val.avgHeight]),
+                  // xmr-space: Monero has no segwit weight discount —
+                  // weight == size in bytes. The "size per weight"
+                  // ratio collapses to a flat 1.0 line. Suppress it
+                  // entirely (empty array) so the legend hides the
+                  // series and we don't render a misleading constant.
+                  sizePerWeight: [],
                 });
                 this.isLoading = false;
               }),
@@ -158,7 +163,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
             if (tick.seriesIndex === 0) { // Size
               tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} MB`;
             } else if (tick.seriesIndex === 1) { // Weight
-              tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} MWU`;
+              tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} MB`;
             } else if (tick.seriesIndex === 2) { // Size per weight
               tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} B/vB`;
             }
@@ -225,7 +230,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
           axisLabel: {
             color: 'rgb(110, 112, 121)',
             formatter: (val) => {
-              return `${Math.round(val * 100) / 100} MWU`;
+              return `${Math.round(val * 100) / 100} MB`;
             }
           },
           splitLine: {

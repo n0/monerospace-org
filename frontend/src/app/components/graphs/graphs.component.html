@@ -6,10 +6,11 @@
   <div ngbDropdown class="w-33" *ngIf="stateService.env.MINING_DASHBOARD">
     <button class="btn btn-primary w-100" id="dropdownBasic1" ngbDropdownToggle i18n="mining">Mining</button>
     <div ngbDropdownMenu aria-labelledby="dropdownBasic1">
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/mining/pools' | relativeUrl]"
-        i18n="mining.pools">Pools Ranking</a>
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/mining/pools-dominance' | relativeUrl]"
-        i18n="mining.pools-dominance">Pools Dominance</a>
+      <!-- xmr-space: Pools Ranking / Pools Dominance removed.
+           Monero coinbase txs carry no canonical pool tag, so we
+           cannot attribute hashrate to specific pools. The rest of
+           the items work — they read from XmrChainIndexer which
+           hydrates from xmrchain.net + monerod. -->
       <a class="dropdown-item" routerLinkActive="active"
         [routerLink]="['/graphs/mining/hashrate-difficulty' | relativeUrl]" i18n="mining.hashrate-difficulty">Hashrate & Difficulty</a>
       <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/mining/block-fee-rates' | relativeUrl]"

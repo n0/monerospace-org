@@ -21,6 +21,8 @@ import { MoneroEventBus } from './monero-event-bus';
 import { MoneroSseRoutes } from './monero-sse.routes';
 import { MoneroWs } from './monero-ws';
 import { MoneroStats } from './monero-stats';
+import { XmrChainIndexer } from './xmr-chain-indexer';
+import { XmrMiningRoutes } from './xmr-mining.routes';
 
 function main(): void {
   const app = express();
@@ -70,6 +72,16 @@ function main(): void {
   const stats = new MoneroStats(api, bus);
   stats.start();
   stats.initRoutes(app);
+
+  // Historical chain indexer — hydrates per-block size/fees/reward
+  // from xmrchain.net and difficulty from monerod, then exposes the
+  // upstream-shape /api/v1/mining/* endpoints. Kicks off backfill
+  // in the background; mining graphs populate progressively over
+  // the first minute or two of boot. Persists to ~/.xmr-space/
+  // blocks-index.json so subsequent boots are instant.
+  const indexer = new XmrChainIndexer(api, bus);
+  void indexer.start();
+  new XmrMiningRoutes(indexer).initRoutes(app);
 
   // WebSocket adapter at /api/v1/ws speaking the upstream mempool/mempool
   // protocol so the existing Angular frontend renders without retargeting
