@@ -1,3 +1,39 @@
 .green-color {
   color: var(--green);
 }
+
+/* xmr-space: RingCT-hidden amount blur. Applied when satoshis === 0
+ * (which on Monero always means "the real value is encrypted, not
+ * literally zero"). The fake digits underneath are stable across
+ * renders so a refresh doesn't churn the layout, but the blur is
+ * heavy enough that no leakage of the (fake) numbers happens. */
+.xmr-amount-blur {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  cursor: help;
+
+  .xmr-amount-blur-fake {
+    filter: blur(5px);
+    user-select: none;
+    color: rgba(255, 255, 255, 0.65);
+    /* Slight letter-spacing keeps the blurred digits from collapsing
+     * into a single smudge — the visual rhythm of "x.xxxxxxx" is what
+     * tells the user "this is a number, deliberately hidden." */
+    letter-spacing: 0.04em;
+  }
+
+  .symbol {
+    /* The unit (XMR / atomic) stays sharp so the row remains
+     * unambiguous as an amount row. */
+    filter: none;
+    color: var(--tooltip-grey);
+    font-size: 0.85em;
+  }
+
+  &:hover {
+    .xmr-amount-blur-fake {
+      filter: blur(4px);
+    }
+  }
+}

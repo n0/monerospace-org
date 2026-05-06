@@ -52,4 +52,36 @@ export class AmountComponent implements OnInit, OnDestroy {
     this.currencySubscription.unsubscribe();
   }
 
+  /**
+   * Generate a stable, plausibly-shaped fake amount to render under the
+   * blur-out treatment when this entry is RingCT-hidden (satoshis === 0).
+   *
+   * Why a fake instead of just showing nothing:
+   *   - 'amount: 0.00000000 XMR' is misleading — it suggests the value
+   *     IS zero, which is wrong; it's hidden by RingCT.
+   *   - empty cells let the eye think the row is broken / loading.
+   *   - blurred fake digits visually convey 'something is here, by
+   *     design you can't see it.' Same UX pattern as iOS notification
+   *     previews on the lock screen.
+   *
+   * The number is generated from the unitStyle / DOM context so the
+   * same row stays stable across CD cycles. We keep it in a typical
+   * Monero range (0.001-50 XMR) so it doesn't look out of place.
+   */
+  blurredFake(): string {
+    // Stable per-instance: hash the component's identity (we use the
+    // unitStyle reference and digitsInfo as a stable seed) into a
+    // pseudo-random 7-decimal amount in [0.0001000, 49.9999999].
+    if (this._cachedFake) return this._cachedFake;
+    let h = 2166136261 ^ (this.digitsInfo?.length ?? 0);
+    for (const ch of (this.unitStyle ? JSON.stringify(this.unitStyle) : Math.random().toString())) {
+      h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    }
+    h = h >>> 0;
+    const whole = (h % 50);
+    const frac = ((h >>> 8) % 9_999_999).toString().padStart(7, '0');
+    this._cachedFake = `${whole}.${frac}`;
+    return this._cachedFake;
+  }
+  private _cachedFake?: string;
 }

@@ -287,35 +287,11 @@
   <tr></tr>
 </ng-template>
 
-<ng-template #minerRow>
-  @if (network === '') {
-    @if (!isLoadingTx) {
-      <tr>
-        <td class="td-width" i18n="block.miner">Miner</td>
-        @if (pool) {
-          <td class="wrap-cell">
-            <a placement="bottom" [routerLink]="['/mining/pool' | relativeUrl, pool.slug]" class="badge" style="color: var(--fg);padding:0;">
-              <span class="miner-name" *ngIf="pool.minerNames?.length > 1 && pool.minerNames[1] != ''">
-                @if (pool.minerNames[1].length > 16) {
-                  {{ pool.minerNames[1].slice(0, 15) }}…
-                } @else {
-                  {{ pool.minerNames[1] }}
-                }
-              </span>
-              <app-mining-pool [slug]="pool.slug" [name]="pool.name"></app-mining-pool>
-            </a>
-          </td>
-        } @else {
-          <td>
-            <span class="skeleton-loader"></span>
-          </td>
-        }
-      </tr>
-    } @else {
-      <ng-container *ngTemplateOutlet="skeletonDetailsRow"></ng-container>
-    }
-  }
-</ng-template>
+<!-- xmr-space: Miner row stripped. Same reasoning as block-detail —
+     pool fingerprinting on Monero needs a maintained tag table over
+     coinbase `extra`; without that we'd surface 'unknown' on every
+     row, which is more misleading than helpful. -->
+<ng-template #minerRow></ng-template>
 
 <ng-template #skeletonDetailsRow>
   <tr>

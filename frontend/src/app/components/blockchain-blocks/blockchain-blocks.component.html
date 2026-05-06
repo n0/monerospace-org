@@ -76,17 +76,13 @@
             </div>
           </ng-container>
         </div>
-        <div class="animated" *ngIf="block.extras?.pool != undefined && showPools">
-          <a [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-pool'" class="badge" [class.miner-name]="block.extras.pool.minerNames?.length > 1 && block.extras.pool.minerNames[1] != ''" [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
-            <ng-container *ngIf="block.extras.pool.minerNames?.length > 1 && block.extras.pool.minerNames[1] != ''; else centralisedPool">
-              <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.minerNames[1]" [logoStyle]="'filter: grayscale(100%) brightness(1.5);'" [showName]="false"></app-mining-pool>
-              {{ block.extras.pool.minerNames[1] }}
-            </ng-container>
-            <ng-template #centralisedPool>
-              <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.name"></app-mining-pool>
-            </ng-template>
-          </a>
-        </div>
+        <!-- xmr-space: pool badge under each block tile removed.
+             Reliably identifying the mining pool of a Monero block
+             requires parsing the coinbase `extra` field for known pool
+             tags, with a maintained tag table — neither of which we
+             have today. Showing 'unknown' on every tile was visually
+             busy and informationally false. -->
+
       </div>
     </ng-container>
     <ng-template #placeholderBlock>
