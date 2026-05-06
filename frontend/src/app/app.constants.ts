@@ -171,8 +171,28 @@ export const poolsColor = {
   'unknown': '#FDD835',
 };
 
-export const feeLevels = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200,
-  250, 300, 350, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000];
+// xmr-space: feeLevels were tuned for Bitcoin sat/vB (0-2000 typical).
+// Monero atomic-per-byte rates run roughly 1,000x higher: slow tier
+// ~20,000, normal ~80,000, fast ~320,000, fastest ~4,000,000. With
+// the old thresholds every Monero rate exceeded 2000 → fell into the
+// last bucket → every tile rendered the same magenta. New levels
+// span [0, 6,000,000] with denser stops in the typical range
+// (10k-500k where most txs sit) so the green→yellow→orange→red ramp
+// actually expresses the fee distribution.
+//
+// Mapping: bucket index = feeLevels.findIndex(l => rate < l) - 1.
+//   slow tier 20k    → bucket 5  → green
+//   normal 80k       → bucket 12 → yellow-green
+//   fast 320k        → bucket 19 → orange
+//   1.7M (rare high) → bucket 29 → orange-red
+//   fastest 4M       → bucket 35 → deep red
+// 39 stops to match `defaultMempoolFeeColors.length`.
+export const feeLevels = [
+  0, 1_000, 5_000, 10_000, 15_000, 20_000, 25_000, 30_000, 40_000, 50_000,
+  60_000, 70_000, 80_000, 90_000, 100_000, 120_000, 150_000, 200_000, 250_000, 300_000,
+  350_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000, 1_000_000, 1_200_000, 1_500_000,
+  1_800_000, 2_000_000, 2_500_000, 3_000_000, 3_500_000, 4_000_000, 4_500_000, 5_000_000, 6_000_000,
+];
 
 export interface Language {
   code: string;

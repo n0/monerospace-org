@@ -83,6 +83,11 @@ const PROJECTED_BLOCK_WEIGHT_LIMIT = 600_000;
 
 const RECENT_BLOCKS_TO_PUSH = 8;
 
+interface ConnState {
+  trackingMempoolBlock: number;
+  sequence: number;
+}
+
 export class MoneroWs {
   private wss?: WebSocketServer;
   /**
@@ -100,6 +105,15 @@ export class MoneroWs {
    * after a few tip changes.
    */
   private broadcastQueue: Promise<unknown> = Promise.resolve();
+  /**
+   * Per-connection state — needed at broadcast time so we know which
+   * projected-block index each client is tracking. Without this map the
+   * `mempool-delta` and `block` events would fire but the WebGL tile
+   * subscribed via `track-mempool-block` would never receive updated
+   * per-tx data, so the next-block tile would freeze on its initial
+   * snapshot.
+   */
+  private connState = new Map<WebSocket, ConnState>();
 
   constructor(private api: MoneroApi, private bus: MoneroEventBus) {}
 
@@ -127,10 +141,11 @@ export class MoneroWs {
     // client has subscribed to. -1 = not tracking. The dashboard's
     // mempool tile sends `{track-mempool-block: 0}` to ask for the
     // next-block tile contents.
-    const state: { trackingMempoolBlock: number; sequence: number } = {
+    const state: ConnState = {
       trackingMempoolBlock: -1,
       sequence: 0,
     };
+    this.connState.set(ws, state);
 
     ws.on('message', (raw) => {
       let msg: Record<string, unknown> = {};
@@ -173,8 +188,8 @@ export class MoneroWs {
       // translate to Monero's data model.
     });
 
-    ws.on('close', () => { closed = true; });
-    ws.on('error', () => { closed = true; });
+    ws.on('close', () => { closed = true; this.connState.delete(ws); });
+    ws.on('error', () => { closed = true; this.connState.delete(ws); });
 
     // Push an initial snapshot immediately. Clients that don't send
     // `init` (e.g. some embedded views) still get bootstrapped.
@@ -298,6 +313,11 @@ export class MoneroWs {
       broadcastPayload['mempoolInfo'] = this.shapeMempoolInfo(pool, fees);
     }
     this.broadcast(broadcastPayload);
+    // After a block confirms, the projected blocks shift and any
+    // tracking client needs a fresh per-tx tile snapshot.
+    if (pool) {
+      await this.refreshTrackedProjectedBlocks(pool);
+    }
   }
 
   /**
@@ -386,6 +406,79 @@ export class MoneroWs {
         ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
         : 0,
     });
+    // Push fresh per-tx data to any client subscribed to a projected
+    // block — without this, new mempool txs never appear as new tiles.
+    await this.refreshTrackedProjectedBlocks(pool);
+  }
+
+  /**
+   * For each connected client that's tracking a projected block,
+   * recompute that block's tx list from the latest pool snapshot and
+   * push a fresh `projected-block-transactions` payload. Keeps the
+   * WebGL next-block tile live: new txs become tiles, confirmed-and-
+   * removed txs disappear, both without a page reload.
+   *
+   * We send the FULL snapshot rather than a delta because
+   *   (a) Monero mempools are small (typically <200 txs) so the cost
+   *       is negligible
+   *   (b) the upstream client's delta path requires monotonic
+   *       sequence numbers and exact added/removed/changed bookkeeping;
+   *       full snapshots side-step that complexity at the cost of a
+   *       few KB per push.
+   */
+  private async refreshTrackedProjectedBlocks(pool: IMoneroApi.TransactionPool): Promise<void> {
+    if (!this.wss || this.connState.size === 0) return;
+    // Bucket the pool once, reuse across connections.
+    const buckets = this.bucketPool(pool);
+    for (const [ws, state] of this.connState.entries()) {
+      if (ws.readyState !== ws.OPEN) continue;
+      if (state.trackingMempoolBlock < 0) continue;
+      const target = buckets[state.trackingMempoolBlock] ?? [];
+      state.sequence += 1;
+      this.safeSend(ws, {
+        'projected-block-transactions': {
+          index: state.trackingMempoolBlock,
+          sequence: state.sequence,
+          blockTransactions: target.map((t) => [
+            t.txid, t.fee, t.weight, 0, t.rate, 0, t.receiveTime || Math.floor(Date.now() / 1000),
+          ]),
+        },
+      });
+    }
+  }
+
+  /**
+   * Sort mempool by fee rate desc, greedy-fill blocks up to the weight
+   * limit. Returns up to 8 buckets — same algorithm as
+   * projectedMempoolBlocks but yields per-tx detail instead of summary.
+   */
+  private bucketPool(pool: IMoneroApi.TransactionPool): Array<Array<{
+    txid: string; weight: number; fee: number; receiveTime: number; rate: number;
+  }>> {
+    const txs = (pool.transactions ?? [])
+      .map((t) => ({
+        txid: t.id_hash,
+        weight: t.weight,
+        fee: t.fee,
+        receiveTime: t.receive_time,
+        rate: t.weight > 0 ? t.fee / t.weight : 0,
+      }))
+      .sort((a, b) => b.rate - a.rate);
+    const buckets: typeof txs[] = [];
+    let bucket: typeof txs = [];
+    let bucketWeight = 0;
+    for (const t of txs) {
+      if (bucketWeight + t.weight > PROJECTED_BLOCK_WEIGHT_LIMIT && bucket.length) {
+        buckets.push(bucket);
+        if (buckets.length >= 8) break;
+        bucket = [];
+        bucketWeight = 0;
+      }
+      bucket.push(t);
+      bucketWeight += t.weight;
+    }
+    if (bucket.length && buckets.length < 8) buckets.push(bucket);
+    return buckets;
   }
 
   private broadcast(payload: Record<string, unknown>): void {
