@@ -1,3 +1,8 @@
+<!-- xmr-space: tx-fee-rating computes "Overpaid Nx" by comparing this
+     tx's rate against the block's median rate. On Monero the spread of
+     fee tiers is wider (slow ~20k vs fastest ~4M = 200x) so users
+     paying the fastest tier would always see "Overpaid 200x" which is
+     misleading — Monero treats the four tiers as legitimate priority
+     choices. Suppress the warning/danger badges; show "Optimal" only
+     for the lowest tier where the comparison still makes sense. -->
 <span *ngIf="feeRating === 1" class="badge bg-success" i18n="tx-fee-rating.optimal|TX Fee Rating is Optimal">Optimal</span>
-<span *ngIf="feeRating === 2" class="badge bg-warning" placement="bottom" i18n-ngbTooltip="tx-fee-rating.warning-tooltip" ngbTooltip="Only ~{{ medianFeeNeeded | feeRounding }} sat/vB was needed to get into this block" i18n="tx-fee-rating.overpaid.warning|TX Fee Rating is Warning">Overpaid {{ overpaidTimes }}x</span>
-<span *ngIf="feeRating === 3" class="badge bg-danger" placement="bottom" i18n-ngbTooltip="tx-fee-rating.warning-tooltip" ngbTooltip="Only ~{{ medianFeeNeeded | feeRounding }} sat/vB was needed to get into this block" i18n="tx-fee-rating.overpaid.warning|TX Fee Rating is Warning">Overpaid {{ overpaidTimes }}x</span>
