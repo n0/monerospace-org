@@ -2,6 +2,7 @@ import { Application, Request, Response } from 'express';
 import { handleError } from '../../utils/api';
 import logger from '../../logger';
 import { MoneroApi } from './monero-api';
+import { MoneroWs } from './monero-ws';
 import { IMoneroApi } from './monero-api.interface';
 
 const HEX64 = /^[a-f0-9]{64}$/i;
@@ -18,7 +19,14 @@ const MAX_RECENT_BLOCKS = 25;
  * flows; the server never sees keys.
  */
 export class MoneroRoutes {
-  constructor(private api: MoneroApi, private prefix = '/api/v1/') {}
+  // ws is optional — used for /api/v1/init-data which mirrors the
+  // websocket's first-message snapshot. Passing null leaves init-data
+  // returning a minimal stub (used in tests that don't mount the ws).
+  constructor(
+    private api: MoneroApi,
+    private ws: MoneroWs | null = null,
+    private prefix = '/api/v1/',
+  ) {}
 
   public initRoutes(app: Application): void {
     app
@@ -47,7 +55,27 @@ export class MoneroRoutes {
       // on disk only, no live consumer reads it.
       .get(this.prefix + 'tx/:hash', (req, res) => this.getTxBitcoinShape(req, res))
       .get(this.prefix + 'mempool', (req, res) => this.getMempool(req, res))
-      .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res));
+      .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res))
+      // /api/v1/fees/mempool-blocks — projected mempool blocks. Same
+      // shape the websocket pushes via 'mempool-blocks' (used by the
+      // dashboard's next-blocks tile row when called over REST instead
+      // of subscribing to ws). Built by `MoneroWs.projectedMempoolBlocks`
+      // — exposed via buildSnapshot() and lifted out here.
+      .get(this.prefix + 'fees/mempool-blocks', async (req, res) => {
+        try {
+          if (!this.ws) { res.json([]); return; }
+          const snap = await this.ws.buildSnapshot();
+          res.json(snap['mempool-blocks'] ?? []);
+        } catch (err) {
+          logger.err(`xmr fees/mempool-blocks failed: ${err instanceof Error ? err.message : String(err)}`);
+          handleError(req, res, 502, 'monerod unreachable');
+        }
+      });
+
+    // /api/mempool — bare-prefix alias for /api/v1/mempool. The
+    // upstream electrs convention serves this without a v1 prefix; we
+    // mirror it so any caller that hits the legacy URL still works.
+    app.get('/api/mempool', (req, res) => this.getMempool(req, res));
 
     // Upstream's electrs-style endpoint — used by BlockComponent to
     // resolve a height-based deep-link to a block hash. Plain-text
@@ -109,6 +137,72 @@ export class MoneroRoutes {
     }));
     app.get(this.prefix + 'accelerations', (_req, res) => res.json([]));
     app.get(this.prefix + 'accelerator', (_req, res) => res.json({ enabled: false }));
+
+    // /api/v1/init-data — initial snapshot used by SSR and as a
+    // bootstrap when the WebSocket isn't connected yet. Returns the
+    // same WebsocketResponse shape the ws sends as its first message,
+    // so the frontend's handleResponse() works identically against
+    // both. If ws isn't wired (test mode), fall back to an empty bundle.
+    app.get(this.prefix + 'init-data', async (req, res) => {
+      try {
+        if (!this.ws) { res.json({}); return; }
+        res.json(await this.ws.buildSnapshot());
+      } catch (err) {
+        logger.err(`xmr init-data failed: ${err instanceof Error ? err.message : String(err)}`);
+        handleError(req, res, 502, 'monerod unreachable');
+      }
+    });
+
+    // /api/mempool/recent — last few mempool txs in the upstream
+    // electrs `Recent[]` shape ({txid, fee, vsize, value}). Used by
+    // the dashboard's "Latest transactions" widget when it hits
+    // electrs (we proxy through the same handler).
+    app.get('/api/mempool/recent', async (req, res) => {
+      try {
+        const pool = await this.api.getTransactionPool();
+        const txs = (pool.transactions ?? [])
+          .slice()
+          .sort((a, b) => (b.receive_time ?? 0) - (a.receive_time ?? 0))
+          .slice(0, 10)
+          .map((t) => ({
+            txid: t.id_hash || t.tx_hash,
+            fee: t.fee,
+            vsize: t.weight,
+            // Monero amounts are RingCT-hidden — we cannot publish a value.
+            // The upstream consumer treats `value === 0` as "no info" and
+            // displays the blurred-amount placeholder we render in the
+            // amount component, so 0 is the honest signal here.
+            value: 0,
+          }));
+        res.json(txs);
+      } catch (err) {
+        logger.err(`xmr mempool/recent failed: ${err instanceof Error ? err.message : String(err)}`);
+        handleError(req, res, 502, 'monerod unreachable');
+      }
+    });
+
+    // /api/blocks/tip/{hash,height} — upstream electrs convenience
+    // endpoints. Plain-text response, no JSON envelope. The frontend
+    // doesn't currently rely on them but they're documented in the
+    // public API surface and cheap to support.
+    app.get('/api/blocks/tip/hash', async (req, res) => {
+      try {
+        const info = await this.api.getInfo();
+        res.type('text/plain').send(info.top_block_hash);
+      } catch (err) {
+        logger.err(`xmr blocks/tip/hash failed: ${err instanceof Error ? err.message : String(err)}`);
+        handleError(req, res, 502, 'monerod unreachable');
+      }
+    });
+    app.get('/api/blocks/tip/height', async (req, res) => {
+      try {
+        const info = await this.api.getInfo();
+        res.type('text/plain').send(String(info.height - 1));
+      } catch (err) {
+        logger.err(`xmr blocks/tip/height failed: ${err instanceof Error ? err.message : String(err)}`);
+        handleError(req, res, 502, 'monerod unreachable');
+      }
+    });
   }
 
   /** GET /api/v1/transaction-times — first-seen timestamps for the given txids. */
@@ -384,8 +478,19 @@ export class MoneroRoutes {
         if (h < 0) break;
         heights.push(h);
       }
-      const blocks = await Promise.all(heights.map((h) => this.api.getBlockByHeight(h)));
-      // Same upstream-compat extras envelope as getRecentBlocks.
+      // Promise.allSettled instead of Promise.all — the cakewallet
+      // remote daemon occasionally drops a TLS handshake mid-batch and
+      // we don't want one stale connection to nuke the whole 25-block
+      // page. We just drop the rejected entries and serve the rest;
+      // the user sees a slightly shorter list, not an error.
+      const results = await Promise.allSettled(heights.map((h) => this.api.getBlockByHeight(h)));
+      const blocks = results
+        .filter((r): r is PromiseFulfilledResult<IMoneroApi.Block> => r.status === 'fulfilled')
+        .map((r) => r.value);
+      const failed = results.length - blocks.length;
+      if (failed > 0) {
+        logger.warn(`xmr getBlocksFromHeight: ${failed}/${results.length} block fetches failed (transient daemon hiccup)`);
+      }
       const shaped = await Promise.all(blocks.map(async (b) => {
         const fees = b.tx_hashes?.length
           ? await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)

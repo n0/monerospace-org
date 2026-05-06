@@ -46,7 +46,6 @@ function main(): void {
   });
 
   const api = moneroApiFromEnv();
-  new MoneroRoutes(api).initRoutes(app);
 
   const rpcUrl = process.env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081';
   const bus = new MoneroEventBus(
@@ -76,7 +75,12 @@ function main(): void {
   // protocol so the existing Angular frontend renders without retargeting
   // its WebsocketService / StateService.
   const httpServer = createServer(app);
-  new MoneroWs(api, bus).attach(httpServer, '/api/v1/ws');
+  const ws = new MoneroWs(api, bus);
+  ws.attach(httpServer, '/api/v1/ws');
+
+  // REST routes after ws so /api/v1/init-data can mirror the ws
+  // first-message snapshot without duplicating the shaping logic.
+  new MoneroRoutes(api, ws).initRoutes(app);
 
   httpServer.listen(port, host, () => {
     // eslint-disable-next-line no-console

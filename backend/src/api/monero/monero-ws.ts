@@ -223,6 +223,18 @@ export class MoneroWs {
    * `backendInfo` so the frontend's git-commit reload check is satisfied.
    */
   private async sendSnapshot(ws: WebSocket): Promise<void> {
+    const snapshot = await this.buildSnapshot();
+    this.safeSend(ws, snapshot);
+  }
+
+  /**
+   * Same payload as `sendSnapshot` builds but returned directly.
+   * Used by the `/api/v1/init-data` REST route so SSR renders a fully
+   * populated dashboard without waiting on the WebSocket subscription.
+   * Keep this in lock-step with `sendSnapshot` — both must produce the
+   * same shape so the first render matches the first ws message.
+   */
+  public async buildSnapshot(): Promise<Record<string, unknown>> {
     const [info, fees, pool, recentBlocks] = await Promise.all([
       this.api.getInfo(),
       this.api.getFeeEstimate(),
@@ -230,7 +242,7 @@ export class MoneroWs {
       this.recentBlocks(RECENT_BLOCKS_TO_PUSH),
     ]);
 
-    this.safeSend(ws, {
+    return {
       backend: 'esplora',  // upstream gates some logic on backend !== 'none'
       backendInfo: {
         hostname: 'xmr-space',
@@ -238,24 +250,14 @@ export class MoneroWs {
         gitCommit: 'xmr',
         lightning: false,
       },
-      // loadingIndicators tells the frontend mempool/connection are ready.
-      // Several dashboard components gate on `mempool === 100` before
-      // rendering — without this they stay in skeleton state forever.
       loadingIndicators: { mempool: 100 },
       blocks: recentBlocks,
       'mempool-blocks': this.projectedMempoolBlocks(pool),
       mempoolInfo: this.shapeMempoolInfo(pool, fees),
-      // vBytesPerSecond drives the "Incoming Transactions" chart's
-      // current-rate readout. We approximate from the daemon's tx_count
-      // delta over the polling interval — for the initial snapshot just
-      // surface a current-pool average so the UI doesn't read "0".
       vBytesPerSecond: pool.transactions && pool.transactions.length
         ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
         : 0,
       fees: this.shapeFees(fees),
-      // Difficulty-adjustment widget reads `da`. Monero retargets every
-      // block, so the upstream concept of "next adjustment in N blocks"
-      // doesn't apply. Surface `progressPercent: 100` so the bar is full.
       da: {
         progressPercent: 100,
         difficultyChange: 0,
@@ -272,7 +274,7 @@ export class MoneroWs {
       },
       transactions: this.shapeRecentMempoolTxs(pool, 6),
       conversions: { USD: 1, EUR: 0.92 }, // placeholder; price feed not in scope yet
-    });
+    };
   }
 
   /**
