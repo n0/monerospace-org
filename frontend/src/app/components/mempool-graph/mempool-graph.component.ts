@@ -26,7 +26,13 @@ import { download, formatterXAxis, formatterXAxisLabel } from '@app/shared/graph
 })
 export class MempoolGraphComponent implements OnInit, OnChanges {
   @Input() data: any[];
-  @Input() filterSize = 100000;
+  // xmr-space: upstream default 100000 (bytes) was tuned for Bitcoin's
+  // multi-MB mempool. Monero's typical mempool sits in the 100-500 KB
+  // range, so any band with <100KB of weight got suppressed and only
+  // the top tier rendered. Lower threshold so all populated fee bands
+  // (slow / normal / fast / fastest) show up as distinct stacked
+  // bands with their own colors.
+  @Input() filterSize = 1000;
   @Input() limitFilterFee = 1;
   @Input() hideCount: boolean = true;
   @Input() height: number | string = 200;

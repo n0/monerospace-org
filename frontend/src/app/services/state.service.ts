@@ -116,7 +116,12 @@ const defaultEnv: Env = {
   'PACKAGE_JSON_VERSION': '',
   'MEMPOOL_WEBSITE_URL': 'https://mempool.space',
   'LIQUID_WEBSITE_URL': 'https://liquid.network',
-  'MINING_DASHBOARD': true,
+  // xmr-space: Monero has no canonical pool/coinbase tagging, and we
+  // don't index historical chain data. Mining graphs (pools-ranking,
+  // hashrate-difficulty, block-fees-* series, etc.) all 404 at the
+  // backend, so hide the nav menu entirely instead of showing a
+  // dropdown that links to broken pages.
+  'MINING_DASHBOARD': false,
   'LIGHTNING': false,
   'AUDIT': false,
   'MAINNET_BLOCK_AUDIT_START_HEIGHT': 0,
@@ -129,7 +134,9 @@ const defaultEnv: Env = {
   'TESTNET4_TX_FIRST_SEEN_START_HEIGHT': 0,
   'SIGNET_TX_FIRST_SEEN_START_HEIGHT': 0,
   'REGTEST_TX_FIRST_SEEN_START_HEIGHT': 0,
-  'HISTORICAL_PRICE': true,
+  // xmr-space: no historical XMR price oracle wired up; the price
+  // graph + sidebar dropdowns silently degrade if false.
+  'HISTORICAL_PRICE': false,
   'ACCELERATOR': false,
   'ACCELERATOR_BUTTON': true,
   'PUBLIC_ACCELERATIONS': false,

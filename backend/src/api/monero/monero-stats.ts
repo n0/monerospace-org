@@ -36,17 +36,29 @@ const VSIZE_BUCKETS = 38;                   // upstream count
 const SAMPLE_INTERVAL_MS = 60_000;          // 1 minute (matches upstream)
 
 /**
- * Bucket a tx weight into one of 38 size buckets — same approximate
- * binning as upstream's mempool stats: log-spaced from ~1 KB up to
- * 2 MB. We don't need to match exactly because the chart just shows a
- * stack of relative bands.
+ * Fee-rate buckets matching the frontend `feeLevels` array
+ * (app.constants.ts). Upstream's mempool-graph stacks vbytes by fee
+ * rate so each band represents "how much byte weight is sitting at
+ * roughly this fee rate". For Monero we use atomic/byte rates: slow
+ * 20k → bucket 5, normal 80k → 12, fast 320k → 19, fastest 4M → 35.
+ *
+ * Must stay in lock-step with frontend/src/app/app.constants.ts:feeLevels.
  */
-function vsizeBucket(weight: number): number {
-  // Upstream uses fee-rate buckets (sat/vB) for vsizes; for Monero we
-  // bucket by raw byte size since fees are atomic-per-byte and weight
-  // is comparable across txs. Linear bins from 0 to 4096+ in 100 steps.
-  const idx = Math.min(VSIZE_BUCKETS - 1, Math.floor(weight / 100));
-  return idx;
+const FEE_LEVELS = [
+  0, 1_000, 5_000, 10_000, 15_000, 20_000, 25_000, 30_000, 40_000, 50_000,
+  60_000, 70_000, 80_000, 90_000, 100_000, 120_000, 150_000, 200_000, 250_000, 300_000,
+  350_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000, 1_000_000, 1_200_000, 1_500_000,
+  1_800_000, 2_000_000, 2_500_000, 3_000_000, 3_500_000, 4_000_000, 4_500_000, 5_000_000, 6_000_000,
+];
+
+function feeRateBucket(feePerByte: number): number {
+  // Bucket = first index where feeLevels[i] > rate, minus 1.
+  for (let i = FEE_LEVELS.length - 1; i >= 0; i--) {
+    if (feePerByte >= FEE_LEVELS[i]) {
+      return Math.min(VSIZE_BUCKETS - 1, i);
+    }
+  }
+  return 0;
 }
 
 export class MoneroStats {
@@ -104,10 +116,16 @@ export class MoneroStats {
       const byteWeight = txs.reduce((acc, t) => acc + t.weight, 0);
       const totalFee = txs.reduce((acc, t) => acc + t.fee, 0);
 
-      // Histogram of weights in 38 buckets.
+      // Histogram of byte weight bucketed by fee rate (atomic/byte).
+      // The frontend mempool-graph formats this with vbytesPipe → MvB
+      // on the y-axis, so values must be raw byte counts and bucketed
+      // by fee rate to match upstream's "Mempool by vBytes (sat/vByte)"
+      // semantics — each band shows how much weight sits at roughly
+      // that fee rate.
       const vsizes = new Array<number>(VSIZE_BUCKETS).fill(0);
       for (const t of txs) {
-        vsizes[vsizeBucket(t.weight)] += 1;
+        const rate = t.weight > 0 ? t.fee / t.weight : 0;
+        vsizes[feeRateBucket(rate)] += t.weight;
       }
 
       // vbytes_per_second: positive delta in total mempool weight since
