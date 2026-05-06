@@ -127,22 +127,31 @@ export class MoneroRoutes {
     }
     try {
       const block = await this.api.getBlockByHash(hash);
-      const fees = block.tx_hashes?.length
-        ? await this.api.getBlockFeeStats(block.block_header.hash, block.tx_hashes).catch(() => null)
-        : null;
-      res.json({
-        ...this.shapeBlockHeader(block.block_header, block.tx_hashes?.length),
+      const txHashes = block.tx_hashes ?? [];
+      const includeTxs = req.query.include_txs === '1' || req.query.include_txs === 'true';
+      // Always resolve fees (cheap thanks to caching). Optionally also
+      // resolve stripped per-tx data if the client asked for it — used
+      // by the block-detail page's tile visualization.
+      const [fees, stripped] = await Promise.all([
+        txHashes.length ? this.api.getBlockFeeStats(block.block_header.hash, txHashes).catch(() => null) : Promise.resolve(null),
+        includeTxs && txHashes.length
+          ? this.api.getBlockStrippedTxs(block.block_header.hash, txHashes, block.block_header.timestamp).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const payload: Record<string, unknown> = {
+        ...this.shapeBlockHeader(block.block_header, txHashes.length),
         miner_tx_hash: block.miner_tx_hash,
-        tx_hashes: block.tx_hashes ?? [],
-        // Aggregated fee stats — sum of tx fees, median/min/max in
-        // atomic units per byte, and a 7-bucket fee-range used by the
-        // frontend's tile-color ramp.
+        tx_hashes: txHashes,
         total_fees: fees?.totalFees ?? 0,
         median_fee: fees?.medianFee ?? 0,
         min_fee: fees?.minFee ?? 0,
         max_fee: fees?.maxFee ?? 0,
         fee_range: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-      });
+      };
+      if (includeTxs) {
+        payload.stripped_txs = stripped ?? [];
+      }
+      res.json(payload);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/not found|invalid|hash/i.test(msg)) {

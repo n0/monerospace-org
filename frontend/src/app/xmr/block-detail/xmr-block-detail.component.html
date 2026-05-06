@@ -15,34 +15,67 @@
   </ng-container>
 
   <ng-container *ngIf="!loading && block as b">
-    <!-- header summary -->
+    <!-- header summary — 5 stat cards now (reward + total fees + tx
+         count + size + mined-age). Total fees was added once we
+         actually compute it in iter 25. -->
     <div class="row xmr-block-stats g-3 mb-4">
-      <div class="col-md-3">
+      <div class="col-md">
         <div class="xmr-stat-card">
           <div class="xmr-stat-label">Reward</div>
           <div class="xmr-stat-value">{{ formatXmr(b.reward) }} <span class="xmr-stat-unit">XMR</span></div>
-          <div class="xmr-stat-sub">block subsidy + tx fees (coinbase only)</div>
+          <div class="xmr-stat-sub">subsidy + tx fees (coinbase)</div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md">
+        <div class="xmr-stat-card">
+          <div class="xmr-stat-label">Total fees</div>
+          <div class="xmr-stat-value">{{ formatXmr(b.total_fees || 0) }} <span class="xmr-stat-unit">XMR</span></div>
+          <div class="xmr-stat-sub">median {{ b.median_fee | number:'1.0-0' }} ɱ/B</div>
+        </div>
+      </div>
+      <div class="col-md">
         <div class="xmr-stat-card">
           <div class="xmr-stat-label">Transactions</div>
           <div class="xmr-stat-value">{{ b.num_txes | number }}</div>
           <div class="xmr-stat-sub">excluding coinbase</div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md">
         <div class="xmr-stat-card">
           <div class="xmr-stat-label">Size</div>
           <div class="xmr-stat-value">{{ b.block_size | number }} <span class="xmr-stat-unit">B</span></div>
           <div class="xmr-stat-sub">weight {{ b.block_weight | number }} B</div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md">
         <div class="xmr-stat-card">
           <div class="xmr-stat-label">Mined</div>
           <div class="xmr-stat-value">{{ b.age_s | number:'1.0-0' }}s ago</div>
           <div class="xmr-stat-sub">{{ b.timestamp * 1000 | date:'medium' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WebGL tile visualization — every non-coinbase tx in this block
+         as a square sized by weight, colored by fee tier. Same component
+         the dashboard's mempool wall uses. -->
+    <div class="card mb-4 xmr-tx-graph-card" *ngIf="b.tx_hashes?.length && webGlEnabled">
+      <div class="card-header"><h5 class="mb-0">Transactions in this block</h5>
+        <small class="text-muted">tile area = weight, color = fee tier</small>
+      </div>
+      <div class="card-body p-0">
+        <div class="xmr-tx-graph-wrapper">
+          <app-block-overview-graph
+            #blockGraph
+            [isLoading]="loading"
+            [resolution]="86"
+            [blockLimit]="b.block_weight"
+            [orientation]="'top'"
+            [flip]="false"
+            [animationDuration]="800"
+            [excludeFilters]="['replacement']"
+            [relativeTime]="b.timestamp"
+          ></app-block-overview-graph>
         </div>
       </div>
     </div>

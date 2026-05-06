@@ -201,6 +201,72 @@ export class MoneroApi {
   }
 
   /**
+   * Per-tx public data for every tx in a confirmed block — drives the
+   * block-detail page's WebGL tile visualization. Returns a list of
+   * stripped tuples in the upstream's `TransactionStripped` shape:
+   *   { txid, fee, vsize, value, rate, flags, time, acc }
+   * value is always 0 (RingCT-hidden), flags 0 (Bitcoin-only), acc 0,
+   * time is the block timestamp.
+   *
+   * Cached 24h per block hash.
+   */
+  public async getBlockStrippedTxs(blockHash: string, txHashes: string[], blockTimestamp: number): Promise<{
+    txid: string;
+    fee: number;
+    vsize: number;
+    value: number;
+    rate: number;
+    flags: number;
+    time: number;
+    acc: boolean;
+  }[]> {
+    if (txHashes.length === 0) {
+      return [];
+    }
+    const cacheKey = blockHash;
+    const cached = memoryCache.get<ReturnType<MoneroApi['getBlockStrippedTxs']> extends Promise<infer R> ? R : never>('xmr-block-stripped', cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const CHUNK = 100;
+    const chunks: string[][] = [];
+    for (let i = 0; i < txHashes.length; i += CHUNK) {
+      chunks.push(txHashes.slice(i, i + CHUNK));
+    }
+    const all: IMoneroApi.TransactionEntry[] = [];
+    for (const chunk of chunks) {
+      const got = await this.getTransactionsByHashes(chunk);
+      all.push(...got);
+    }
+    const stripped = all.map((t) => {
+      let fee = 0;
+      try {
+        const parsed = t.as_json ? JSON.parse(t.as_json) as IMoneroApi.TransactionJson : null;
+        fee = parsed?.rct_signatures?.txnFee ?? 0;
+      } catch {
+        fee = 0;
+      }
+      const vsize = t.pruned_as_hex
+        ? Math.floor(t.pruned_as_hex.length / 2)
+        : t.as_hex
+          ? Math.floor(t.as_hex.length / 2)
+          : 0;
+      return {
+        txid: t.tx_hash,
+        fee,
+        vsize,
+        value: 0,
+        rate: vsize > 0 ? fee / vsize : 0,
+        flags: 0,
+        time: blockTimestamp,
+        acc: false,
+      };
+    });
+    memoryCache.set('xmr-block-stripped', cacheKey, stripped, 86_400);
+    return stripped;
+  }
+
+  /**
    * Monero's 4-tier fee model. Returns the base atomic-per-byte fee plus a
    * `fees` array `[slow, normal, fast, fastest]` of multipliers — the
    * frontend uses this directly for the fee-tier color buckets.

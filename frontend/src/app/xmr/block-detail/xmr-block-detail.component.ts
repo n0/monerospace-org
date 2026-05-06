@@ -1,8 +1,9 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChildren, AfterViewInit, QueryList } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Subscription, of } from 'rxjs';
-import { catchError, switchMap } from 'rxjs/operators';
+import { catchError, switchMap, startWith } from 'rxjs/operators';
+import { BlockOverviewGraphComponent } from '@components/block-overview-graph/block-overview-graph.component';
 
 /**
  * Block detail. We surface what the chain alone proves:
@@ -23,6 +24,17 @@ import { catchError, switchMap } from 'rxjs/operators';
  *     `extra` field for known pool tags; backlog item)
  */
 
+interface XmrStrippedTx {
+  txid: string;
+  fee: number;
+  vsize: number;
+  value: number;
+  rate: number;
+  flags: number;
+  time: number;
+  acc: boolean;
+}
+
 interface XmrBlockDetail {
   hash: string;
   height: number;
@@ -42,6 +54,12 @@ interface XmrBlockDetail {
   orphan_status: boolean;
   miner_tx_hash: string;
   tx_hashes: string[];
+  total_fees: number;
+  median_fee: number;
+  min_fee: number;
+  max_fee: number;
+  fee_range: number[];
+  stripped_txs: XmrStrippedTx[];
 }
 
 @Component({
@@ -50,13 +68,27 @@ interface XmrBlockDetail {
   styleUrls: ['./xmr-block-detail.component.scss'],
   standalone: false,
 })
-export class XmrBlockDetailComponent implements OnInit, OnDestroy {
+export class XmrBlockDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   loading = true;
   error: string | null = null;
   block: XmrBlockDetail | null = null;
   hashOrHeight = '';
+  webGlEnabled = true;
+  /** Pending stripped-tx data when the graph view-child arrives after data. */
+  private pendingStripped: XmrStrippedTx[] | null = null;
+
+  /**
+   * ViewChildren (not ViewChild) so we can subscribe to its `.changes`
+   * observable. Upstream's block.component does the same pattern: the
+   * graph is inside an *ngIf that flips false→true once data loads, so
+   * the child reference appears asynchronously. Subscribing to
+   * `.changes` is the only reliable way to know "the canvas exists
+   * now and its scene is initialised."
+   */
+  @ViewChildren('blockGraph') blockGraphList!: QueryList<BlockOverviewGraphComponent>;
 
   private routeSub?: Subscription;
+  private graphChangeSub?: Subscription;
 
   constructor(
     private route: ActivatedRoute,
@@ -71,13 +103,10 @@ export class XmrBlockDetailComponent implements OnInit, OnDestroy {
           this.hashOrHeight = id;
           this.loading = true;
           this.error = null;
-          // The /api/v1/block/:hash endpoint accepts only hashes today.
-          // If the route param is numeric (height), we'd need to resolve
-          // height → hash first via /api/v1/blocks?count=N — out of
-          // scope for iter-13; height-based deep links are rare since
-          // block-tile clicks always land hashes.
+          // include_txs=1 asks the backend to also resolve stripped
+          // per-tx data (fee/weight) for the WebGL tile visualization.
           return this.http
-            .get<XmrBlockDetail>(`/api/v1/block/${id}`)
+            .get<XmrBlockDetail>(`/api/v1/block/${id}?include_txs=1`)
             .pipe(catchError(() => of(null)));
         }),
       )
@@ -88,11 +117,38 @@ export class XmrBlockDetailComponent implements OnInit, OnDestroy {
           return;
         }
         this.block = b;
+        // Park the data; installGraph() runs both on initial view-init
+        // and on every subsequent ViewChildren change (e.g. when the
+        // *ngIf flips on after async data loads).
+        this.pendingStripped = b.stripped_txs ?? [];
+        this.installGraph();
       });
+  }
+
+  ngAfterViewInit(): void {
+    // Subscribe to graph appearance/disappearance so we re-install the
+    // dataset whenever the canvas mounts. `startWith(null)` triggers an
+    // initial check in case the graph is already present.
+    this.graphChangeSub = this.blockGraphList.changes
+      .pipe(startWith(null))
+      .subscribe(() => this.installGraph());
+  }
+
+  private installGraph(): void {
+    if (!this.pendingStripped) return;
+    const graph = this.blockGraphList?.first;
+    if (!graph) return;
+    // Defer to the next microtask so the child component's own
+    // ngAfterViewInit (which initialises its WebGL scene) has run.
+    Promise.resolve().then(() => {
+      graph.setup(this.pendingStripped ?? []);
+      this.pendingStripped = null;
+    });
   }
 
   ngOnDestroy(): void {
     this.routeSub?.unsubscribe();
+    this.graphChangeSub?.unsubscribe();
   }
 
   formatXmr(atomic: number): string {

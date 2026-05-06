@@ -88,6 +88,29 @@
   word-break: break-all;
 }
 
+.xmr-tx-graph-card {
+  .card-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: baseline;
+    h5 { margin-right: 0.5rem; }
+  }
+}
+
+.xmr-tx-graph-wrapper {
+  /* The block-overview-graph component sets its own 1:1 padding-bottom
+   * (100% padding) inside .block-overview-graph. We just give it a
+   * bounded width and let the component's own aspect-ratio drive the
+   * height. Without this, the canvas collapses to a 1px strip because
+   * the card-body's flex children don't propagate intrinsic sizing. */
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0.75rem;
+}
+
 .xmr-tx-list {
   max-height: 420px;
   overflow-y: auto;
