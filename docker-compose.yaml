@@ -6,6 +6,22 @@ services:
     restart: unless-stopped
     expose:
       - "80"
+    networks:
+      - coolify
+    labels:
+      caddy_0: "https://monerospace.org"
+      caddy_0.encode: "zstd gzip"
+      caddy_0.handle_path: "/*"
+      caddy_0.handle_path.0_reverse_proxy: "{{upstreams 80}}"
+      caddy_0.header: "-Server"
+      caddy_0.try_files: "{path} /index.html /index.php"
+      caddy_1: "https://www.monerospace.org"
+      caddy_1.encode: "zstd gzip"
+      caddy_1.handle_path: "/*"
+      caddy_1.handle_path.1_reverse_proxy: "{{upstreams 80}}"
+      caddy_1.header: "-Server"
+      caddy_1.try_files: "{path} /index.html /index.php"
+      caddy_ingress_network: "coolify"
     environment:
       XMR_HOST: "127.0.0.1"
       XMR_PORT: "8999"
@@ -29,3 +45,6 @@ services:
 volumes:
   monerospace-data:
 
+networks:
+  coolify:
+    external: true
