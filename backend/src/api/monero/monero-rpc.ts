@@ -1,5 +1,8 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { MoneroDaemonConfig, MoneroRpcError } from './monero-api.interface';
+
+const RPC_RETRIES = Math.max(0, Number(process.env.MONEROD_RPC_RETRIES ?? 2));
+const RPC_RETRY_BACKOFF_MS = Math.max(0, Number(process.env.MONEROD_RPC_RETRY_BACKOFF_MS ?? 500));
 
 /**
  * Thin transport for the monerod daemon. Two flavours of endpoint:
@@ -31,7 +34,7 @@ export class MoneroRpc {
   /** Issue a JSON-RPC 2.0 call against `/json_rpc`. */
   public async jsonRpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     const body = { jsonrpc: '2.0', id: '0', method, params };
-    const { data } = await this.client.post<{ result?: T; error?: MoneroRpcError }>('/json_rpc', body);
+    const { data } = await this.postWithRetry<{ result?: T; error?: MoneroRpcError }>('/json_rpc', body);
     if (data.error) {
       throw new Error(`monerod RPC error (${method}) ${data.error.code}: ${data.error.message}`);
     }
@@ -47,7 +50,7 @@ export class MoneroRpc {
    */
   public async raw<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
     const normalized = path.startsWith('/') ? path : `/${path}`;
-    const { data } = await this.client.post<T>(normalized, body);
+    const { data } = await this.postWithRetry<T>(normalized, body);
     return data;
   }
 
@@ -58,7 +61,7 @@ export class MoneroRpc {
    */
   public async rawBytes(path: string, body: Buffer | Uint8Array): Promise<{ data: Buffer; contentType: string }> {
     const normalized = path.startsWith('/') ? path : `/${path}`;
-    const { data, headers } = await this.client.post<ArrayBuffer>(normalized, body, {
+    const { data, headers } = await this.postWithRetry<ArrayBuffer>(normalized, body, {
       headers: { 'Content-Type': 'application/octet-stream' },
       responseType: 'arraybuffer',
     });
@@ -67,4 +70,43 @@ export class MoneroRpc {
       contentType: String(headers['content-type'] || 'application/octet-stream'),
     };
   }
+
+  private async postWithRetry<T>(
+    path: string,
+    body: unknown,
+    requestConfig?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= RPC_RETRIES; attempt++) {
+      try {
+        return await this.client.post<T>(path, body, requestConfig);
+      } catch (err) {
+        lastError = err;
+        if (attempt >= RPC_RETRIES || !isTransientRpcError(err)) {
+          throw err;
+        }
+        await sleep(RPC_RETRY_BACKOFF_MS * (attempt + 1));
+      }
+    }
+    throw lastError;
+  }
+}
+
+function isTransientRpcError(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) {
+    return false;
+  }
+  const status = err.response?.status;
+  if (status === 429 || (status !== undefined && status >= 500)) {
+    return true;
+  }
+  const code = err.code;
+  if (code && ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'EAI_AGAIN', 'ENOTFOUND'].includes(code)) {
+    return true;
+  }
+  return /socket hang up|timeout|network error/i.test(err.message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

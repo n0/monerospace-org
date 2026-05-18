@@ -99,15 +99,16 @@ interface XmrChainBlock {
 const XMRCHAIN_BASE = process.env.XMRCHAIN_BASE_URL ?? 'https://xmrchain.net';
 const PERSIST_DIR = process.env.XMR_INDEX_DIR ?? path.join(os.homedir(), '.xmr-space');
 const PERSIST_FILE = path.join(PERSIST_DIR, 'blocks-index.json');
-const SAMPLE_STRIDE_FAST = 30;      // 30 blocks ≈ 1 hour
-const SAMPLE_STRIDE_DEEP = 720;     // 720 blocks ≈ 1 day
-const RECENT_FULL_BLOCKS = 144;     // dashboard reward-stats window
-const FAST_PASS_DAYS = 30;
-const DEEP_PASS_DAYS = 365;
+const SAMPLE_STRIDE_FAST = Math.max(1, Number(process.env.XMR_INDEXER_FAST_STRIDE ?? 30));      // 30 blocks ≈ 1 hour
+const SAMPLE_STRIDE_DEEP = Math.max(1, Number(process.env.XMR_INDEXER_DEEP_STRIDE ?? 720));     // 720 blocks ≈ 1 day
+const RECENT_FULL_BLOCKS = Math.max(1, Number(process.env.XMR_INDEXER_RECENT_FULL_BLOCKS ?? 144));     // dashboard reward-stats window
+const FAST_PASS_DAYS = Math.max(1, Number(process.env.XMR_INDEXER_FAST_PASS_DAYS ?? 30));
+const DEEP_PASS_DAYS = Math.max(1, Number(process.env.XMR_INDEXER_DEEP_PASS_DAYS ?? 365));
+const BACKFILL_ENABLED = process.env.XMR_INDEXER_BACKFILL_ENABLED !== 'false';
 // Concurrency: be a good citizen on xmrchain.net (a free public service)
-// and the cakewallet remote daemon. 3 parallel keeps the backfill
-// snappy without earning us a rate-limit / TLS-reset.
-const BACKFILL_CONCURRENCY = 3;
+// and public remote daemons. Keep this low; tx/detail requests share the
+// same daemon and should win over historical hydration.
+const BACKFILL_CONCURRENCY = Math.max(1, Number(process.env.XMR_INDEXER_BACKFILL_CONCURRENCY ?? 1));
 const PERSIST_INTERVAL_MS = 60_000;
 // Retry parameters for individual block hydration. xmrchain and the
 // remote daemon both occasionally drop a connection mid-request; one
@@ -144,9 +145,13 @@ export class XmrChainIndexer {
     }, PERSIST_INTERVAL_MS);
     this.persistTimer.unref?.();
     // Kick off backfill in background — don't block server startup.
-    void this.backfill().catch((err) => {
-      logger.err(`xmr-indexer: backfill aborted: ${err instanceof Error ? err.message : err}`);
-    });
+    if (BACKFILL_ENABLED) {
+      void this.backfill().catch((err) => {
+        logger.err(`xmr-indexer: backfill aborted: ${err instanceof Error ? err.message : err}`);
+      });
+    } else {
+      logger.notice(`xmr-indexer: background backfill disabled; ${this.samples.size} samples held`);
+    }
   }
 
   public stop(): void {
