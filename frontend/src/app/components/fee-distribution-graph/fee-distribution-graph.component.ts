@@ -5,6 +5,7 @@ import { StateService } from '@app/services/state.service';
 import { VbytesPipe } from '@app/shared/pipes/bytes-pipe/vbytes.pipe';
 import { selectPowerOfTen } from '@app/bitcoin.utils';
 import { Subscription } from 'rxjs';
+import { XMR_VISUAL_BLOCK_WEIGHT_LIMIT } from '@app/shared/block-weight.utils';
 
 @Component({
   selector: 'app-fee-distribution-graph',
@@ -60,13 +61,15 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
 
   prepareChart(): void {
     if (this.simple) {
-      this.data = this.feeRange.map((rate, index) => [index * 10, rate]);
+      this.data = this.feeRange.map((rate, index) => [index * 10, Math.max(rate || 0, 0.1)]);
       this.minValue = this.data.length ? this.data.reduce((min, val) => Math.min(min, val[1]), Infinity) : 0;
-      this.maxValue = this.data.length ? this.data.reduce((max, val) => Math.max(max, val[1]), 0) : 0;
+      this.maxValue = this.data.length ? Math.max(this.data.reduce((max, val) => Math.max(max, val[1]), 0), 1) : 1;
       this.labelInterval = 1;
       return;
     }
     this.data = [];
+    this.minValue = 0.1;
+    this.maxValue = 1;
     if (!this.transactions?.length) {
       return;
     }
@@ -74,7 +77,7 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
     const txs = this.transactions.map(tx => { return { vsize: tx.vsize, rate: tx.rate ?? (tx.fee / tx.vsize) }; }).sort((a, b) => { return b.rate - a.rate; });
     this.maxValue = txs.length ? txs.reduce((max, tx) => Math.max(max, tx.rate), 0) : 0;
     this.minValue = txs.length ? txs.reduce((min, tx) => Math.min(min, tx.rate), Infinity) : 0;
-    const maxBlockVSize = this.stateService.env.BLOCK_WEIGHT_UNITS / 4;
+    const maxBlockVSize = XMR_VISUAL_BLOCK_WEIGHT_LIMIT;
     const sampleInterval = maxBlockVSize / this.numSamples;
     let cumVSize = 0;
     let sampleIndex = 0;

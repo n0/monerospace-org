@@ -1,5 +1,4 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
-import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-search-results',
@@ -15,24 +14,11 @@ export class SearchResultsComponent implements OnChanges {
   resultsFlattened = [];
   activeIdx = 0;
   focusFirst = true;
-  networkName = '';
-
-  constructor(
-    public stateService: StateService,
-    ) { }
-
-  ngOnInit() {
-    this.networkName = this.stateService.network.charAt(0).toUpperCase() + this.stateService.network.slice(1);
-  }
 
   ngOnChanges() {
     this.activeIdx = 0;
     if (this.results) {
-      this.resultsFlattened = [...(this.results.hashQuickMatch ? [this.results.searchText] : []), ...this.results.addresses, ...this.results.pools, ...this.results.nodes, ...this.results.channels, ...this.results.otherNetworks];
-      // If searchText is a public key corresponding to a node, select it by default
-      if (this.results.publicKey && this.results.nodes.length > 0) {
-        this.activeIdx = 1;
-      }
+      this.resultsFlattened = this.results.hashQuickMatch ? [this.results.searchText] : [];
     }
   }
 
@@ -44,6 +30,9 @@ export class SearchResultsComponent implements OnChanges {
   }
 
   handleKeyDown(event: KeyboardEvent) {
+    if (!this.results) {
+      return;
+    }
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
@@ -74,6 +63,9 @@ export class SearchResultsComponent implements OnChanges {
   }
 
   next() {
+    if (!this.resultsFlattened.length) {
+      return;
+    }
     if (this.activeIdx === this.resultsFlattened.length - 1) {
       this.activeIdx = this.focusFirst ? (this.activeIdx + 1) % this.resultsFlattened.length : -1;
     } else {
@@ -82,6 +74,9 @@ export class SearchResultsComponent implements OnChanges {
   }
 
   prev() {
+    if (!this.resultsFlattened.length) {
+      return;
+    }
     if (this.activeIdx < 0) {
       this.activeIdx = this.resultsFlattened.length - 1;
     } else if (this.activeIdx === 0) {

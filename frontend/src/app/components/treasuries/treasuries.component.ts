@@ -1,13 +1,14 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Observable, combineLatest, of, Subscription } from 'rxjs';
 import { AddressTxSummary, Transaction, Address } from '@interfaces/electrs.interface';
-import { ApiService } from '@app/services/api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { StateService } from '@app/services/state.service';
 import { catchError, map, scan, shareReplay, startWith, switchMap, tap } from 'rxjs/operators';
 import { WalletStats } from '@app/shared/wallet-stats';
 import { Router } from '@angular/router';
 import { originalChartColors as chartColors } from '@app/app.constants';
 import { Treasury } from '@interfaces/node-api.interface';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 @Component({
   selector: 'app-treasuries',
   templateUrl: './treasuries.component.html',
@@ -33,14 +34,15 @@ export class TreasuriesComponent implements OnInit, OnDestroy {
   sortedTreasuries$: Observable<Treasury[]>;
 
   constructor(
-    private apiService: ApiService,
+    private addressApiService: AddressApiService,
     private stateService: StateService,
+    private websocketService: LegacyWebsocketTrackingService,
     private router: Router,
   ) {}
 
   ngOnInit() {
     // Fetch the list of wallets from the API
-    this.apiService.getTreasuries$().pipe(
+    this.addressApiService.getTreasuries$().pipe(
       catchError(err => {
         console.error('Error loading treasuries list:', err);
         return of([]);
@@ -60,7 +62,7 @@ export class TreasuriesComponent implements OnInit, OnDestroy {
 
   private setupWalletData() {
     this.treasuries.forEach(treasury => {
-      this.walletObservables[treasury.wallet] = this.apiService.getWallet$(treasury.wallet).pipe(
+      this.walletObservables[treasury.wallet] = this.addressApiService.getWallet$(treasury.wallet).pipe(
         catchError((err) => {
           console.log(`Error loading wallet ${treasury.wallet}:`, err);
           return of({});
@@ -92,7 +94,7 @@ export class TreasuriesComponent implements OnInit, OnDestroy {
           }
           return walletInfo;
         }),
-        switchMap(initial => this.stateService.walletTransactions$.pipe(
+        switchMap(initial => this.websocketService.walletTransactions$.pipe(
           startWith(null),
           scan((wallet, walletTransactions) => {
             for (const tx of (walletTransactions || [])) {
@@ -129,7 +131,7 @@ export class TreasuriesComponent implements OnInit, OnDestroy {
       );
 
       this.individualWalletSummaries[treasury.wallet] = this.walletObservables[treasury.wallet].pipe(
-        switchMap(wallet => this.stateService.walletTransactions$.pipe(
+        switchMap(wallet => this.websocketService.walletTransactions$.pipe(
           startWith([]),
           scan((summaries, newTransactions: Transaction[]) => {
             const newSummaries: AddressTxSummary[] = [];

@@ -29,6 +29,7 @@ interface EpochProgress {
 export class DifficultyMiningComponent implements OnInit {
   isLoadingWebSocket$: Observable<boolean>;
   difficultyEpoch$: Observable<EpochProgress>;
+  isMonero = true;
   blocksUntilHalving: number | null = null;
   timeUntilHalving = 0;
   now = new Date().getTime();
@@ -70,8 +71,8 @@ export class DifficultyMiningComponent implements OnInit {
           colorPreviousAdjustments = 'var(--transparent-fg)';
         }
 
-        this.blocksUntilHalving = 210000 - (maxHeight % 210000);
-        this.timeUntilHalving = new Date().getTime() + (this.blocksUntilHalving * 600000);
+        this.blocksUntilHalving = this.isMonero ? 0 : 210000 - (maxHeight % 210000);
+        this.timeUntilHalving = this.isMonero ? 0 : new Date().getTime() + (this.blocksUntilHalving * 600000);
         this.now = new Date().getTime();
 
         const data = {

@@ -165,6 +165,17 @@ __FIAT_PRICE_ENABLED__=${FIAT_PRICE_ENABLED:=true}
 __FIAT_PRICE_PAID__=${FIAT_PRICE_PAID:=false}
 __FIAT_PRICE_API_KEY__=${FIAT_PRICE_API_KEY:=""}
 
+# XMR_SPACE
+# These are consumed directly by dist/api/monero/xmr-server.js.
+# Bind to all interfaces in Docker so the frontend container can reach
+# the API service; local npm starts keep xmr-server's safer 127.0.0.1
+# default unless XMR_HOST is explicitly set.
+export XMR_HOST=${XMR_HOST:=0.0.0.0}
+export XMR_PORT=${XMR_PORT:=${__MEMPOOL_HTTP_PORT__}}
+export XMR_INDEX_DIR=${XMR_INDEX_DIR:=/backend/cache}
+export MONEROD_RPC_URL=${MONEROD_RPC_URL:=https://xmr-node.cakewallet.com:18081}
+export MONEROD_RPC_TIMEOUT_MS=${MONEROD_RPC_TIMEOUT_MS:=10000}
+
 mkdir -p "${__MEMPOOL_CACHE_DIR__}"
 
 sed -i "s!__MEMPOOL_NETWORK__!${__MEMPOOL_NETWORK__}!g" mempool-config.json
@@ -322,4 +333,4 @@ sed -i "s!__FIAT_PRICE_ENABLED__!${__FIAT_PRICE_ENABLED__}!g" mempool-config.jso
 sed -i "s!__FIAT_PRICE_PAID__!${__FIAT_PRICE_PAID__}!g" mempool-config.json
 sed -i "s!__FIAT_PRICE_API_KEY__!${__FIAT_PRICE_API_KEY__}!g" mempool-config.json
 
-node /backend/package/index.js
+node /backend/package/api/monero/xmr-server.js

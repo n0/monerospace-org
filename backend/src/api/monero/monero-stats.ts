@@ -1,4 +1,11 @@
 import { Application, Request, Response } from 'express';
+import { promises as fs } from 'fs';
+import { RowDataPacket } from 'mysql2/typings/mysql';
+import os from 'os';
+import path from 'path';
+import config from '../../config';
+import database from '../../database';
+import logger from '../../logger';
 import { MoneroEventBus } from './monero-event-bus';
 import { IMoneroApi } from './monero-api.interface';
 import { MoneroApi } from './monero-api';
@@ -16,10 +23,10 @@ import { MoneroApi } from './monero-api';
  * vbytes_per_second is computed from the running delta in mempool weight
  * since the previous sample (positive = inflow, clipped at 0).
  *
- * Without backfill, fresh boots show an empty chart that fills over the
- * first 2h. That's an honest UX — the explorer doesn't lie about how
- * much history it has. (If we wanted to backfill, we'd need to keep
- * mempool snapshots across restarts in MariaDB; deferred.)
+ * Samples persist to MySQL when the production database is enabled,
+ * with a JSON-file fallback for development and DB outages. First boot
+ * is still honest: it starts with one live sample and fills naturally
+ * from there.
  */
 
 export interface OptimizedMempoolStats {
@@ -34,6 +41,9 @@ export interface OptimizedMempoolStats {
 const MAX_SAMPLES = 60 * 24 * 7;            // 1w at 1 sample/min
 const VSIZE_BUCKETS = 38;                   // upstream count
 const SAMPLE_INTERVAL_MS = 60_000;          // 1 minute (matches upstream)
+const DEFAULT_PERSIST_DIR = process.env.XMR_INDEX_DIR ?? path.join(os.homedir(), '.xmr-space');
+const DEFAULT_PERSIST_FILE = process.env.XMR_STATS_FILE ?? path.join(DEFAULT_PERSIST_DIR, 'mempool-stats.json');
+const DB_TABLE = 'xmr_mempool_stats';
 
 /**
  * Fee-rate buckets matching the frontend `feeLevels` array
@@ -61,20 +71,198 @@ function feeRateBucket(feePerByte: number): number {
   return 0;
 }
 
+export interface MoneroStatsStore {
+  describe(): string;
+  load(cutoffSeconds: number, maxSamples: number): Promise<OptimizedMempoolStats[]>;
+  save(sample: OptimizedMempoolStats, samples: OptimizedMempoolStats[], cutoffSeconds: number): Promise<void>;
+}
+
+class FileMoneroStatsStore implements MoneroStatsStore {
+  constructor(private persistFile: string) {}
+
+  public describe(): string {
+    return this.persistFile;
+  }
+
+  public async load(): Promise<OptimizedMempoolStats[]> {
+    const raw = await fs.readFile(this.persistFile, 'utf-8');
+    const parsed = JSON.parse(raw) as { samples?: OptimizedMempoolStats[] };
+    return parsed.samples ?? [];
+  }
+
+  public async save(_sample: OptimizedMempoolStats, samples: OptimizedMempoolStats[]): Promise<void> {
+    await fs.mkdir(path.dirname(this.persistFile), { recursive: true });
+    const tmp = this.persistFile + '.tmp';
+    await fs.writeFile(tmp, JSON.stringify({
+      version: 1,
+      savedAt: Math.floor(Date.now() / 1000),
+      samples,
+    }));
+    await fs.rename(tmp, this.persistFile);
+  }
+}
+
+interface MoneroStatsRow extends RowDataPacket {
+  added: number;
+  tx_count: number;
+  vbytes_per_second: number;
+  total_fee: number;
+  mempool_byte_weight: number;
+  vsizes: string;
+}
+
+class MysqlMoneroStatsStore implements MoneroStatsStore {
+  private initialized = false;
+
+  public describe(): string {
+    return `mysql:${DB_TABLE}`;
+  }
+
+  public async load(cutoffSeconds: number, maxSamples: number): Promise<OptimizedMempoolStats[]> {
+    await this.ensureTable();
+    const [rows] = await database.query<MoneroStatsRow[]>(`
+      SELECT added, tx_count, vbytes_per_second, total_fee, mempool_byte_weight, vsizes
+      FROM ${this.table()}
+      WHERE added >= ?
+      ORDER BY added ASC
+      LIMIT ?
+    `, [cutoffSeconds, maxSamples], 'warn');
+
+    return rows.map((row) => ({
+      added: Number(row.added),
+      count: Number(row.tx_count),
+      vbytes_per_second: Number(row.vbytes_per_second),
+      total_fee: Number(row.total_fee),
+      mempool_byte_weight: Number(row.mempool_byte_weight),
+      vsizes: this.parseVsizes(row.vsizes),
+    }));
+  }
+
+  public async save(sample: OptimizedMempoolStats, _samples: OptimizedMempoolStats[], cutoffSeconds: number): Promise<void> {
+    await this.ensureTable();
+    await database.query(`
+      INSERT INTO ${this.table()} (added, tx_count, vbytes_per_second, total_fee, mempool_byte_weight, vsizes)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        tx_count = VALUES(tx_count),
+        vbytes_per_second = VALUES(vbytes_per_second),
+        total_fee = VALUES(total_fee),
+        mempool_byte_weight = VALUES(mempool_byte_weight),
+        vsizes = VALUES(vsizes)
+    `, [
+      sample.added,
+      sample.count,
+      sample.vbytes_per_second,
+      sample.total_fee,
+      sample.mempool_byte_weight,
+      JSON.stringify(sample.vsizes),
+    ], 'warn');
+    await database.query(`DELETE FROM ${this.table()} WHERE added < ?`, [cutoffSeconds], 'warn');
+  }
+
+  private async ensureTable(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+    await database.query(`
+      CREATE TABLE IF NOT EXISTS ${this.table()} (
+        added INT UNSIGNED NOT NULL,
+        tx_count INT UNSIGNED NOT NULL,
+        vbytes_per_second INT UNSIGNED NOT NULL,
+        total_fee BIGINT UNSIGNED NOT NULL,
+        mempool_byte_weight BIGINT UNSIGNED NOT NULL,
+        vsizes TEXT NOT NULL,
+        PRIMARY KEY (added)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `, undefined, 'warn');
+    this.initialized = true;
+  }
+
+  private parseVsizes(raw: string): number[] {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(Number) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private table(): string {
+    return `\`${DB_TABLE}\``;
+  }
+}
+
+class FallbackMoneroStatsStore implements MoneroStatsStore {
+  constructor(
+    private primary: MoneroStatsStore,
+    private fallback: MoneroStatsStore,
+  ) {}
+
+  public describe(): string {
+    return `${this.primary.describe()} with ${this.fallback.describe()} fallback`;
+  }
+
+  public async load(cutoffSeconds: number, maxSamples: number): Promise<OptimizedMempoolStats[]> {
+    try {
+      const samples = await this.primary.load(cutoffSeconds, maxSamples);
+      if (samples.length > 0) {
+        return samples;
+      }
+    } catch (err) {
+      logger.warn(`xmr-stats: primary load failed (${err instanceof Error ? err.message : err}); trying fallback`);
+    }
+    return this.fallback.load(cutoffSeconds, maxSamples);
+  }
+
+  public async save(sample: OptimizedMempoolStats, samples: OptimizedMempoolStats[], cutoffSeconds: number): Promise<void> {
+    try {
+      await this.primary.save(sample, samples, cutoffSeconds);
+    } catch (err) {
+      logger.warn(`xmr-stats: primary persist failed (${err instanceof Error ? err.message : err}); writing fallback`);
+      await this.fallback.save(sample, samples, cutoffSeconds);
+    }
+  }
+}
+
+function createDefaultStore(): MoneroStatsStore {
+  const fileStore = new FileMoneroStatsStore(DEFAULT_PERSIST_FILE);
+  if (isDatabaseEnabled()) {
+    return new FallbackMoneroStatsStore(new MysqlMoneroStatsStore(), fileStore);
+  }
+  return fileStore;
+}
+
+function isDatabaseEnabled(): boolean {
+  const override = process.env.XMR_DATABASE_ENABLED ?? process.env.DATABASE_ENABLED;
+  if (override != null) {
+    return override === 'true' || override === '1';
+  }
+  return config.DATABASE.ENABLED === true;
+}
+
 export class MoneroStats {
   private samples: OptimizedMempoolStats[] = [];
   private lastSampleAt = 0;
   private lastByteWeight = 0;
+  private dirty = false;
+  private store: MoneroStatsStore;
 
   constructor(
     private api: MoneroApi,
     private bus: MoneroEventBus,
-  ) {}
+    store: string | MoneroStatsStore = createDefaultStore(),
+  ) {
+    this.store = typeof store === 'string'
+      ? new FileMoneroStatsStore(store)
+      : store;
+  }
 
   public start(): void {
-    // Record an immediate sample so /statistics/2h returns at least one
-    // entry on first request even before the 1-minute interval fires.
-    void this.recordSample().then(() => { this.lastSampleAt = Date.now(); });
+    void this.loadFromDisk().then(() => {
+      // Record an immediate sample so /statistics/2h returns at least one
+      // entry on first request even before the 1-minute interval fires.
+      void this.recordSample().then(() => { this.lastSampleAt = Date.now(); });
+    });
     // Subscribe to the event bus for fast updates and periodically drop
     // a 1-minute roll-up sample. Listening to mempool-delta gives us a
     // free trigger; we still gate on SAMPLE_INTERVAL_MS so we don't
@@ -115,6 +303,8 @@ export class MoneroStats {
       const txs: IMoneroApi.MempoolEntry[] = pool.transactions ?? [];
       const byteWeight = txs.reduce((acc, t) => acc + t.weight, 0);
       const totalFee = txs.reduce((acc, t) => acc + t.fee, 0);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const previousSample = this.samples.at(-1);
 
       // Histogram of byte weight bucketed by fee rate (atomic/byte).
       // The frontend mempool-graph formats this with vbytesPipe → MvB
@@ -133,11 +323,12 @@ export class MoneroStats {
       // deltas (block confirmation drained the pool) are clipped to 0
       // since the chart represents *arrival* rate.
       const delta = byteWeight - this.lastByteWeight;
-      const vbps = Math.max(0, Math.floor(delta / (SAMPLE_INTERVAL_MS / 1000)));
+      const elapsedSeconds = previousSample ? Math.max(1, nowSec - previousSample.added) : SAMPLE_INTERVAL_MS / 1000;
+      const vbps = Math.max(0, Math.floor(delta / elapsedSeconds));
       this.lastByteWeight = byteWeight;
 
       const sample: OptimizedMempoolStats = {
-        added: Math.floor(Date.now() / 1000),
+        added: nowSec,
         count: txs.length,
         vbytes_per_second: vbps,
         total_fee: totalFee,
@@ -148,6 +339,8 @@ export class MoneroStats {
       while (this.samples.length > MAX_SAMPLES) {
         this.samples.shift();
       }
+      this.dirty = true;
+      await this.persist(sample);
       // Notify the bus so the WebSocket adapter can push this sample
       // to clients via `live-2h-chart`. The dashboard's "Incoming
       // Transactions" graph reads this stream and prepends each
@@ -155,8 +348,51 @@ export class MoneroStats {
       // chart only shows whatever /api/v1/statistics/2h returned at
       // page load and never updates live.
       this.bus.emit('stats-sample', sample);
-    } catch {
+    } catch (err) {
+      logger.warn(`xmr-stats: sample failed: ${err instanceof Error ? err.message : err}`);
       // Daemon hiccup — skip this sample, recover next minute.
     }
+  }
+
+  // ---- persistence ----
+
+  private async loadFromDisk(): Promise<void> {
+    try {
+      const cutoff = Math.floor(Date.now() / 1000) - (MAX_SAMPLES * 60);
+      const loaded = await this.store.load(cutoff, MAX_SAMPLES);
+      this.samples = loaded
+        .filter((s) => this.isValidSample(s) && s.added >= cutoff)
+        .slice(-MAX_SAMPLES);
+      this.lastByteWeight = this.samples.at(-1)?.mempool_byte_weight ?? 0;
+      this.lastSampleAt = (this.samples.at(-1)?.added ?? 0) * 1000;
+      logger.notice(`xmr-stats: loaded ${this.samples.length} samples from ${this.store.describe()}`);
+    } catch (err: unknown) {
+      const e = err as NodeJS.ErrnoException;
+      if (e?.code !== 'ENOENT') {
+        logger.warn(`xmr-stats: load failed from ${this.store.describe()} (${e?.code ?? e?.message}); starting fresh`);
+      }
+    }
+  }
+
+  private async persist(sample: OptimizedMempoolStats): Promise<void> {
+    if (!this.dirty) return;
+    try {
+      const cutoff = Math.floor(Date.now() / 1000) - (MAX_SAMPLES * 60);
+      await this.store.save(sample, this.samples, cutoff);
+      this.dirty = false;
+    } catch (err) {
+      logger.warn(`xmr-stats: persist failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  private isValidSample(sample: OptimizedMempoolStats): boolean {
+    return Number.isFinite(sample?.added)
+      && Number.isFinite(sample?.count)
+      && Number.isFinite(sample?.vbytes_per_second)
+      && Number.isFinite(sample?.total_fee)
+      && Number.isFinite(sample?.mempool_byte_weight)
+      && Array.isArray(sample?.vsizes)
+      && sample.vsizes.length === VSIZE_BUCKETS
+      && sample.vsizes.every(Number.isFinite);
   }
 }

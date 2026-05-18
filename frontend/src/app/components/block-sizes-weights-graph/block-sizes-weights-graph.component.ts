@@ -63,7 +63,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
     let firstRun = true;
 
     this.seoService.setTitle($localize`:@@56fa1cd221491b6478998679cba2dc8d55ba330d:Block Sizes and Weights`);
-    this.seoService.setDescription($localize`:@@meta.description.bitcoin.graphs.block-sizes:See Bitcoin block sizes (MB) and block weights (weight units) visualized over time.`);
+    this.seoService.setDescription($localize`:@@meta.description.bitcoin.graphs.block-sizes:See Monero block sizes visualized over time.`);
     this.miningWindowPreference = this.miningService.getDefaultTimespan('24h');
     this.radioGroupForm = this.formBuilder.group({ dateSpan: this.miningWindowPreference });
     this.radioGroupForm.controls.dateSpan.setValue(this.miningWindowPreference);
@@ -165,7 +165,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
             } else if (tick.seriesIndex === 1) { // Weight
               tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} MB`;
             } else if (tick.seriesIndex === 2) { // Size per weight
-              tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} B/vB`;
+              tooltip += `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.2-2')} B/B`;
             }
             tooltip += `<br>`;
           }

@@ -13,18 +13,11 @@
     <table class="table table-borderless">
       <thead>
         <th class="height text-start" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}" i18n="latest-blocks.height">Height</th>
-        <!-- xmr-space: Pool column hidden. Pool fingerprinting on
-             Monero needs a maintained tag table over coinbase `extra`;
-             without it every row would say 'unknown'. Better to omit
-             than to lie. -->
-
+        <th *ngIf="isMempoolModule" class="pool" [ngClass]="{'widget': widget}" i18n="latest-blocks.pool">Pool</th>
         <th class="timestamp" i18n="latest-blocks.timestamp" *ngIf="!widget" [class]="isMempoolModule ? '' : 'legacy'">Timestamp</th>
-        <th *ngIf="auditAvailable" class="health text-end" i18n="latest-blocks.health" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
-          i18n-ngbTooltip="latest-blocks.health" ngbTooltip="Health" placement="bottom" #health [disableTooltip]="!isEllipsisActive(health)">Health</th>
         <th *ngIf="isMempoolModule" class="reward text-end" i18n="latest-blocks.reward" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
           i18n-ngbTooltip="latest-blocks.reward" ngbTooltip="Reward" placement="bottom" #reward [disableTooltip]="!isEllipsisActive(reward)">Reward</th>
-        <th *ngIf="isMempoolModule && !auditAvailable || isMempoolModule && !widget" class="fees text-end" i18n="latest-blocks.fees" [class]="isMempoolModule ? '' : 'legacy'">Fees</th>
-        <th *ngIf="auditAvailable && !widget" class="fee-delta" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"></th>
+        <th *ngIf="isMempoolModule" class="fees text-end" i18n="latest-blocks.fees" [class]="isMempoolModule ? '' : 'legacy'">Fees</th>
         <th *ngIf="isMempoolModule" class="txs text-end" i18n="dashboard.txs" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
           i18n-ngbTooltip="dashboard.txs" ngbTooltip="TXs" placement="bottom" #txs [disableTooltip]="!isEllipsisActive(txs)">TXs</th>
         <th *ngIf="!isMempoolModule" class="txs text-end" i18n="dashboard.txs" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">Transactions</th>
@@ -35,35 +28,25 @@
           <td class="height text-start" [class]="widget ? 'widget' : ''">
             <a [routerLink]="['/block' | relativeUrl, block.id]" [state]="{ data: { block: block } }">{{ block.height }}</a>
           </td>
-<!-- xmr-space: Pool column body removed (header above). -->
-
+          <td *ngIf="isMempoolModule" class="pool" [ngClass]="{'widget': widget}">
+            <img
+              width="18"
+              height="18"
+              class="me-2"
+              [src]="block.extras?.pool?.logo"
+              onError="this.src = '/resources/mining-pools/unknown.svg'"
+              [alt]="'Logo of ' + (block.extras?.pool?.name || 'unknown') + ' mining pool'"
+            >
+            <span>{{ block.extras?.pool?.name || 'unknown' }}</span>
+          </td>
           <td class="timestamp" *ngIf="!widget" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             <app-timestamp [customFormat]="'yyyy-MM-dd HH:mm:ss'" [unixTime]="block.timestamp" [hideTimeSince]="true"></app-timestamp>
-          </td>
-          <td *ngIf="auditAvailable" class="health text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
-            <a
-              *ngIf="block?.extras?.matchRate != null; else nullHealth"
-              class="health-badge badge"
-              [class.bg-success]="block.extras.matchRate >= 99"
-              [class.bg-warning]="block.extras.matchRate >= 75 && block.extras.matchRate < 99"
-              [class.bg-danger]="block.extras.matchRate < 75"
-              [routerLink]="block.extras.matchRate != null ? ['/block/' | relativeUrl, block.id] : null"
-              [state]="{ data: { block: block } }"
-            >{{ block.extras.matchRate }}%</a>
-            <ng-template #nullHealth>
-              <span class="health-badge badge bg-secondary" i18n="unknown">Unknown</span>
-            </ng-template>
           </td>
           <td *ngIf="isMempoolModule" class="reward text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             <app-amount [satoshis]="block.extras.reward" [noFiat]="true" digitsInfo="1.2-2"></app-amount>
           </td>
-          <td *ngIf="isMempoolModule && !auditAvailable || isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
+          <td *ngIf="isMempoolModule" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
             <app-amount [satoshis]="block.extras.totalFees" [noFiat]="true" digitsInfo="1.2-2"></app-amount>
-          </td>
-          <td *ngIf="auditAvailable" class="fee-delta" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
-            <span *ngIf="block.extras.feeDelta" class="difference" [class.positive]="block.extras.feeDelta >= 0" [class.negative]="block.extras.feeDelta < 0">
-              {{ block.extras.feeDelta > 0 ? '+' : '' }}{{ (block.extras.feeDelta * 100) | amountShortener: 2 }}%
-            </span>
           </td>
           <td class="txs text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             {{ block.tx_count | number }}
@@ -71,7 +54,7 @@
           <td class="size" *ngIf="!widget" [class]="isMempoolModule ? '' : 'legacy'">
             <div class="progress">
               <div class="progress-bar progress-mempool" role="progressbar"
-                [ngStyle]="{'width': (block.weight / stateService.env.BLOCK_WEIGHT_UNITS)*100 + '%' }"></div>
+                [ngStyle]="{'width': blockWeightProgress(block) }"></div>
               <div class="progress-text" [innerHTML]="block.size | bytes: 2"></div>
             </div>
           </td>
@@ -83,22 +66,16 @@
             <td class="height text-start" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
               <span class="skeleton-loader" style="max-width: 75px"></span>
             </td>
-            <td *ngIf="isMempoolModule" class="pool text-start" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
-              <span class="skeleton-loader" style="max-width: 150px"></span>
+            <td *ngIf="isMempoolModule" class="pool" [ngClass]="{'widget': widget}">
+              <span class="skeleton-loader" style="max-width: 130px"></span>
             </td>
             <td class="timestamp" *ngIf="!widget" [class]="isMempoolModule ? '' : 'legacy'">
               <span class="skeleton-loader" style="max-width: 150px"></span>
             </td>
-            <td *ngIf="auditAvailable" class="health text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
-              <span class="skeleton-loader" style="max-width: 75px"></span>
-            </td>
             <td *ngIf="isMempoolModule" class="reward text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
               <span class="skeleton-loader" style="max-width: 75px"></span>
             </td>
-            <td *ngIf="isMempoolModule && !auditAvailable || isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
-              <span class="skeleton-loader" style="max-width: 75px"></span>
-            </td>
-            <td *ngIf="auditAvailable && !widget" class="fee-delta" [class]="isMempoolModule ? '' : 'legacy'">
+            <td *ngIf="isMempoolModule" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
               <span class="skeleton-loader" style="max-width: 75px"></span>
             </td>
             <td class="txs text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">

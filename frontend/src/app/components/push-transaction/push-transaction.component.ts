@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
-import { ApiService } from '@app/services/api.service';
+import { TransactionToolsApiService } from '@app/services/transaction-tools-api.service';
 import { StateService } from '@app/services/state.service';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
@@ -33,7 +33,7 @@ export class PushTransactionComponent implements OnInit {
 
   constructor(
     private formBuilder: UntypedFormBuilder,
-    private apiService: ApiService,
+    private transactionToolsApiService: TransactionToolsApiService,
     public stateService: StateService,
     private seoService: SeoService,
     private ogService: OpenGraphService,
@@ -70,7 +70,7 @@ export class PushTransactionComponent implements OnInit {
     this.error = '';
     this.txId = '';
     return new Promise((resolve, reject) => {
-      this.apiService.postTransaction$(hex || this.pushTxForm.get('txHash').value)
+      this.transactionToolsApiService.postTransaction$(hex || this.pushTxForm.get('txHash').value)
       .subscribe((result) => {
         this.isLoading = false;
         this.txId = result;
@@ -129,7 +129,7 @@ export class PushTransactionComponent implements OnInit {
     this.isLoadingPackage = true;
     this.errorPackage = '';
     this.results = [];
-    this.apiService.submitPackage$(txs, maxfeerate === 0.1 ? null : maxfeerate, maxburnamount === 0 ? null : maxburnamount)
+    this.transactionToolsApiService.submitPackage$(txs, maxfeerate === 0.1 ? null : maxfeerate, maxburnamount === 0 ? null : maxburnamount)
       .subscribe((result) => {
         this.isLoadingPackage = false;
 

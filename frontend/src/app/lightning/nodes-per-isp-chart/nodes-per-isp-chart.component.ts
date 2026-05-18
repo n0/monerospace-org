@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { EChartsOption, PieSeriesOption } from '@app/graphs/echarts';
 import { combineLatest, map, Observable, share, startWith, Subject, switchMap, tap } from 'rxjs';
 import { originalChartColors as chartColors } from '@app/app.constants';
-import { ApiService } from '@app/services/api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { SeoService } from '@app/services/seo.service';
 import { StateService } from '@app/services/state.service';
 import { isMobile } from '@app/shared/common.utils';
@@ -40,7 +40,7 @@ export class NodesPerISPChartComponent implements OnInit {
   showUnknownSubject = new Subject<boolean>();
 
   constructor(
-    private apiService: ApiService,
+    private apiService: LightningApiService,
     private seoService: SeoService,
     private amountShortenerPipe: AmountShortenerPipe,
     private router: Router,
@@ -290,4 +290,3 @@ export class NodesPerISPChartComponent implements OnInit {
     this.sortBySubject.next(e);
   }
 }
-

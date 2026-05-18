@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { StateService } from '@app/services/state.service';
 import { Address, AddressTxSummary } from '@interfaces/electrs.interface';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { Observable, catchError, of } from 'rxjs';
 
 @Component({
@@ -26,7 +26,7 @@ export class BalanceWidgetComponent implements OnInit, OnChanges {
 
   constructor(
     public stateService: StateService,
-    private electrsApiService: ElectrsApiService,
+    private addressApiService: AddressApiService,
     private cd: ChangeDetectorRef,
   ) { }
 
@@ -40,8 +40,8 @@ export class BalanceWidgetComponent implements OnInit, OnChanges {
       return;
     }
     (this.addressSummary$ || (this.isPubkey
-      ? this.electrsApiService.getScriptHashSummary$((this.address.length === 66 ? '21' : '41') + this.address + 'ac')
-      : this.electrsApiService.getAddressSummary$(this.address)).pipe(
+      ? this.addressApiService.getScriptHashSummary$((this.address.length === 66 ? '21' : '41') + this.address + 'ac')
+      : this.addressApiService.getAddressSummary$(this.address)).pipe(
       catchError(e => {
         this.error = `Failed to fetch address balance history: ${e?.status || ''} ${e?.statusText || 'unknown error'}`;
         return of(null);

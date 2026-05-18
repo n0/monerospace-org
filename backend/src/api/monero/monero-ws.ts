@@ -3,6 +3,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { MoneroApi } from './monero-api';
 import { MoneroEventBus } from './monero-event-bus';
 import { IMoneroApi } from './monero-api.interface';
+import { getLatestXmrPrice, priceToConversions } from './xmr-price';
+import { shapeXmrDifficultyAdjustment } from './xmr-difficulty';
+import { identifyXmrMinerPool, unknownXmrMinerPool } from './xmr-miner-fingerprint';
 
 /**
  * Speaks the upstream mempool/mempool websocket protocol so the existing
@@ -15,7 +18,8 @@ import { IMoneroApi } from './monero-api.interface';
  *   {action: 'init'}                 → we send the full snapshot
  *   {action: 'want', data: [...]}    → subscribe to a feed (we ignore filters)
  *   {action: 'ping'}                 → reply {action: 'pong'}
- *   {track-tx, track-address, ...}   → no-op (no per-tx tracking in iter 8)
+ *   {track-tx: txid}                 → mark the tracked tx confirmed when a new block contains it
+ *   {track-address, ...}             → no-op (private/address-shaped upstream flows)
  *
  * Server → client messages: top-level keys mirror upstream's protocol.
  * The frontend's WebsocketService.handleResponse() picks them apart.
@@ -82,9 +86,11 @@ interface UpstreamMempoolInfo {
 const PROJECTED_BLOCK_WEIGHT_LIMIT = 600_000;
 
 const RECENT_BLOCKS_TO_PUSH = 8;
+const HEX64 = /^[a-f0-9]{64}$/i;
 
 interface ConnState {
   trackingMempoolBlock: number;
+  trackingTx: string | null;
   sequence: number;
 }
 
@@ -145,12 +151,22 @@ export class MoneroWs {
 
   private handleConnection(ws: WebSocket, _req: IncomingMessage): void {
     let closed = false;
+    let hb: NodeJS.Timeout | null = null;
+    const cleanup = (): void => {
+      closed = true;
+      this.connState.delete(ws);
+      if (hb) {
+        clearInterval(hb);
+        hb = null;
+      }
+    };
     // Per-connection state — which projected-mempool-block (if any) the
     // client has subscribed to. -1 = not tracking. The dashboard's
     // mempool tile sends `{track-mempool-block: 0}` to ask for the
     // next-block tile contents.
     const state: ConnState = {
       trackingMempoolBlock: -1,
+      trackingTx: null,
       sequence: 0,
     };
     this.connState.set(ws, state);
@@ -168,6 +184,11 @@ export class MoneroWs {
       }
       if (msg.action === 'ping') {
         this.safeSend(ws, { action: 'pong' });
+        return;
+      }
+      if ('track-tx' in msg) {
+        const txid = typeof msg['track-tx'] === 'string' ? msg['track-tx'].toLowerCase() : '';
+        state.trackingTx = HEX64.test(txid) ? txid : null;
         return;
       }
       if ('track-mempool-block' in msg) {
@@ -191,13 +212,13 @@ export class MoneroWs {
         }).catch(() => undefined);
         return;
       }
-      // All other track-* messages (track-tx, track-address, track-rbf,
+      // All other track-* messages (track-address, track-rbf,
       // track-accelerations, etc.) accepted but ignored — they don't
       // translate to Monero's data model.
     });
 
-    ws.on('close', () => { closed = true; this.connState.delete(ws); });
-    ws.on('error', () => { closed = true; this.connState.delete(ws); });
+    ws.on('close', cleanup);
+    ws.on('error', cleanup);
 
     // Push an initial snapshot immediately. Clients that don't send
     // `init` (e.g. some embedded views) still get bootstrapped.
@@ -205,9 +226,9 @@ export class MoneroWs {
 
     // Periodic heartbeat — upstream's ping logic measures latency, but
     // for our case keeping the socket alive against proxies is enough.
-    const hb = setInterval(() => {
+    hb = setInterval(() => {
       if (closed || ws.readyState !== ws.OPEN) {
-        clearInterval(hb);
+        cleanup();
         return;
       }
       try { ws.ping(); } catch { /* ignore */ }
@@ -243,12 +264,17 @@ export class MoneroWs {
    * same shape so the first render matches the first ws message.
    */
   public async buildSnapshot(): Promise<Record<string, unknown>> {
-    const [info, fees, pool, recentBlocks] = await Promise.all([
+    const [info, fees, pool, recentBlocks, latestPrice] = await Promise.all([
       this.api.getInfo(),
       this.api.getFeeEstimate(),
       this.api.getTransactionPool(),
       this.recentBlocks(RECENT_BLOCKS_TO_PUSH),
+      getLatestXmrPrice(),
     ]);
+
+    const tipBlock = recentBlocks.at(-1) ?? null;
+    const previousBlock = recentBlocks.at(-2) ?? null;
+    const previousPreviousBlock = recentBlocks.at(-3) ?? null;
 
     return {
       backend: 'esplora',  // upstream gates some logic on backend !== 'none'
@@ -262,26 +288,13 @@ export class MoneroWs {
       blocks: recentBlocks,
       'mempool-blocks': this.projectedMempoolBlocks(pool),
       mempoolInfo: this.shapeMempoolInfo(pool, fees),
-      vBytesPerSecond: pool.transactions && pool.transactions.length
+      bytesPerSecond: pool.transactions && pool.transactions.length
         ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
         : 0,
       fees: this.shapeFees(fees),
-      da: {
-        progressPercent: 100,
-        difficultyChange: 0,
-        estimatedRetargetDate: Date.now(),
-        remainingBlocks: 0,
-        remainingTime: 0,
-        previousRetarget: 0,
-        previousTime: info.start_time ?? 0,
-        nextRetargetHeight: info.height,
-        timeAvg: 120_000, // 2-minute target
-        adjustedTimeAvg: 120_000,
-        timeOffset: 0,
-        expectedBlocks: info.height,
-      },
+      da: shapeXmrDifficultyAdjustment(tipBlock, previousBlock, previousPreviousBlock),
       transactions: this.shapeRecentMempoolTxs(pool, 6),
-      conversions: { USD: 1, EUR: 0.92 }, // placeholder; price feed not in scope yet
+      conversions: priceToConversions(latestPrice),
     };
   }
 
@@ -306,23 +319,36 @@ export class MoneroWs {
     const block = await this.api.getBlockByHash(header.hash).catch(() => null);
     const headerForShape = block?.block_header ?? header;
     const numTxes = block?.tx_hashes?.length ?? header.num_txes;
+    const confirmedTxids = new Set([
+      ...(block?.tx_hashes ?? []),
+      block?.miner_tx_hash,
+    ].filter((txid): txid is string => typeof txid === 'string').map((txid) => txid.toLowerCase()));
     const fees = block?.tx_hashes?.length
       ? await this.api.getBlockFeeStats(header.hash, block.tx_hashes).catch(() => null)
       : null;
-    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined);
+    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined, identifyXmrMinerPool(block));
     this.lastBroadcastHeight = header.height;
-    // Also push refreshed mempool info — confirming a block drains the pool.
-    const pool = await this.api.getTransactionPool().catch(() => null);
+    // Also push refreshed mempool info and difficulty state — confirming
+    // a block drains the pool, and Monero retargets on every new block.
+    const [pool, previousBlock, previousPreviousBlock] = await Promise.all([
+      this.api.getTransactionPool().catch(() => null),
+      header.height > 0 ? this.api.getBlockByHeight(header.height - 1).catch(() => null) : Promise.resolve(null),
+      header.height > 1 ? this.api.getBlockByHeight(header.height - 2).catch(() => null) : Promise.resolve(null),
+    ]);
     const broadcastPayload: Record<string, unknown> = {
       block: shaped,
-      txConfirmed: undefined,
+      da: shapeXmrDifficultyAdjustment(
+        headerForShape,
+        previousBlock?.block_header ?? null,
+        previousPreviousBlock?.block_header ?? null,
+      ),
     };
     if (pool) {
       broadcastPayload['mempool-blocks'] = this.projectedMempoolBlocks(pool);
       const fees = await this.api.getFeeEstimate().catch(() => undefined);
       broadcastPayload['mempoolInfo'] = this.shapeMempoolInfo(pool, fees);
     }
-    this.broadcast(broadcastPayload);
+    this.broadcastBlock(broadcastPayload, confirmedTxids);
     // After a block confirms, the projected blocks shift and any
     // tracking client needs a fresh per-tx tile snapshot.
     if (pool) {
@@ -333,8 +359,8 @@ export class MoneroWs {
   /**
    * Send the per-tx contents of a projected mempool block to a single
    * subscribed client. Format: `{index, sequence, blockTransactions}`
-   * where each tx is the upstream's TransactionCompressed tuple
-   * `[txid, fee, vsize, value, rate, flags, time, acc?]`.
+   * where each tx is the XMR TransactionCompressed tuple
+   * `[txid, fee, vsize, value, rate, flags, time]`.
    *
    * For Monero:
    *   - txid    : id_hash
@@ -345,7 +371,6 @@ export class MoneroWs {
    *   - flags   : 0 (Bitcoin-only flag bits — RBF, fullrbf, sigops,
    *                  consolidation, coinjoin, data — none apply to XMR)
    *   - time    : receive_time
-   *   - acc     : 0 (no acceleration market on XMR)
    */
   private async sendProjectedBlockTransactions(
     ws: WebSocket,
@@ -353,10 +378,9 @@ export class MoneroWs {
     state: { sequence: number },
   ): Promise<void> {
     const pool = await this.api.getTransactionPool();
-    // Use the shared bucketPool helper so we get computed Monero
-    // filter flags per tx (ring16 / view_tags / rct_v6) and the same
-    // 16-bucket cap as the broadcast path.
-    const buckets = this.bucketPool(pool);
+    // Use the same projected-block helper as the broadcast path so
+    // the WebGL wall and the summary cards describe the same tx set.
+    const buckets = this.projectPool(pool);
     const target = buckets[blockIndex] ?? [];
     state.sequence += 1;
 
@@ -390,7 +414,7 @@ export class MoneroWs {
       'mempool-blocks': this.projectedMempoolBlocks(pool),
       mempoolInfo: this.shapeMempoolInfo(pool, fees),
       transactions: this.shapeRecentMempoolTxs(pool, 6),
-      vBytesPerSecond: pool.transactions && pool.transactions.length
+      bytesPerSecond: pool.transactions && pool.transactions.length
         ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
         : 0,
     });
@@ -416,8 +440,8 @@ export class MoneroWs {
    */
   private async refreshTrackedProjectedBlocks(pool: IMoneroApi.TransactionPool): Promise<void> {
     if (!this.wss || this.connState.size === 0) return;
-    // Bucket the pool once, reuse across connections.
-    const buckets = this.bucketPool(pool);
+    // Project the pool once, reuse across connections.
+    const buckets = this.projectPool(pool);
     for (const [ws, state] of this.connState.entries()) {
       if (ws.readyState !== ws.OPEN) continue;
       if (state.trackingMempoolBlock < 0) continue;
@@ -428,7 +452,7 @@ export class MoneroWs {
           index: state.trackingMempoolBlock,
           sequence: state.sequence,
           blockTransactions: target.map((t) => [
-            t.txid, t.fee, t.weight, 0, t.rate, 0, t.receiveTime || Math.floor(Date.now() / 1000),
+            t.txid, t.fee, t.weight, 0, t.rate, t.flags ?? 0, t.receiveTime || Math.floor(Date.now() / 1000),
           ]),
         },
       });
@@ -436,27 +460,17 @@ export class MoneroWs {
   }
 
   /**
-   * Group mempool txs by Monero's 4 fee tiers (slow / normal / fast /
-   * fastest). Returns 4 buckets — fastest first since the dashboard
-   * strip renders index 0 closest to the chain tip. Each bucket also
-   * carries computed Monero filter flags per tx.
+   * Project the pool into candidate blocks. For Monero, the honest
+   * default is one "next block" candidate: sort pending txs by fee per
+   * byte and fill up to the dynamic-weight proxy. Only create index 1,
+   * 2, ... when the mempool truly overflows that weight.
    *
-   * Why fee-tier-buckets instead of upstream's greedy-weight-fill:
-   *   - Bitcoin's mempool normally has 100MB+ of txs, fills many
-   *     blocks ahead — greedy fill produces 5-10 tiles naturally.
-   *   - Monero mempools rarely exceed 500KB; greedy fill produces
-   *     ONE tile, which looks broken next to mempool.space's
-   *     5-tile strip.
-   *   - Tier-bucketing always shows 4 tiles when there's any mempool,
-   *     and the bucket sizes grow visibly with congestion. More
-   *     informative AND more visually balanced.
-   *
-   * Tier thresholds match monerod's `get_fee_estimate` output for
-   * default values [20000, 80000, 320000, 4000000] atomic/byte. A tx
-   * lands in the bucket whose threshold it most closely matches at or
-   * exceeds.
+   * This intentionally avoids the old fee-tier buckets. Monero exposes
+   * four wallet fee recommendations, but those are not four separate
+   * future blocks; splitting the wall by tier made the UI look fuller
+   * while implying a queue structure that does not actually exist.
    */
-  private bucketPool(pool: IMoneroApi.TransactionPool): Array<Array<{
+  private projectPool(pool: IMoneroApi.TransactionPool): Array<Array<{
     txid: string; weight: number; fee: number; receiveTime: number; rate: number; flags: number;
   }>> {
     type Tx = { txid: string; weight: number; fee: number; receiveTime: number; rate: number; flags: number };
@@ -470,22 +484,29 @@ export class MoneroWs {
         flags: this.computeXmrFlags(t),
       }));
 
-    // 4 fee tiers, fastest first (so dashboard's index 0 = highest
-    // priority, matching mempool.space's "next block" semantics).
-    const FASTEST = 4_000_000;
-    const FAST = 320_000;
-    const NORMAL = 80_000;
-    // anything below NORMAL falls into the slow bucket
-    const buckets: Tx[][] = [[], [], [], []];
-    for (const t of txs) {
-      if (t.rate >= FASTEST) buckets[0].push(t);
-      else if (t.rate >= FAST) buckets[1].push(t);
-      else if (t.rate >= NORMAL) buckets[2].push(t);
-      else buckets[3].push(t);
+    txs.sort((a, b) => {
+      if (b.rate !== a.rate) return b.rate - a.rate;
+      if (a.receiveTime !== b.receiveTime) return a.receiveTime - b.receiveTime;
+      return a.txid.localeCompare(b.txid);
+    });
+
+    const buckets: Tx[][] = [];
+    let current: Tx[] = [];
+    let currentWeight = 0;
+
+    for (const tx of txs) {
+      if (current.length > 0 && currentWeight + tx.weight > PROJECTED_BLOCK_WEIGHT_LIMIT) {
+        buckets.push(current);
+        current = [];
+        currentWeight = 0;
+      }
+      current.push(tx);
+      currentWeight += tx.weight;
     }
-    // Sort within each bucket by rate desc so the largest-fee txs sit
-    // at the top of each tile.
-    for (const b of buckets) b.sort((a, c) => c.rate - a.rate);
+    if (current.length > 0) {
+      buckets.push(current);
+    }
+
     return buckets;
   }
 
@@ -534,6 +555,26 @@ export class MoneroWs {
     }
   }
 
+  private broadcastBlock(payload: Record<string, unknown>, confirmedTxids: Set<string>): void {
+    if (!this.wss) return;
+    for (const client of this.wss.clients) {
+      if (client.readyState !== client.OPEN) {
+        continue;
+      }
+      const state = this.connState.get(client);
+      const txConfirmed = state?.trackingTx && confirmedTxids.has(state.trackingTx)
+        ? state.trackingTx
+        : undefined;
+      const clientPayload = txConfirmed
+        ? { ...payload, txConfirmed }
+        : payload;
+      if (txConfirmed && state) {
+        state.trackingTx = null;
+      }
+      try { client.send(JSON.stringify(clientPayload)); } catch { /* ignore */ }
+    }
+  }
+
   // ---- shapes ----
 
   /**
@@ -559,7 +600,7 @@ export class MoneroWs {
     const shapes = await Promise.all(blocks.map(async (b) => {
       const fees = await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes ?? [])
         .catch(() => null);
-      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined);
+      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined, identifyXmrMinerPool(b));
     }));
     return shapes;
   }
@@ -568,6 +609,7 @@ export class MoneroWs {
     h: IMoneroApi.BlockHeader,
     numTxes?: number,
     fees?: { totalFees: number; medianFee: number; minFee: number; maxFee: number; feeRange: number[] },
+    pool = unknownXmrMinerPool(),
   ): UpstreamBlock {
     return {
       id: h.hash,
@@ -598,25 +640,18 @@ export class MoneroWs {
         minFee: fees?.minFee ?? 0,
         maxFee: fees?.maxFee ?? 0,
         feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-        // Frontend's block / blockchain-blocks templates dereference
-        // `block.extras.pool.slug` unconditionally — without a non-null
-        // pool the dashboard's blockchain row throws and stops rendering
-        // the entire block strip. Surface 'unknown' until we have a
-        // miner-fingerprint table (parsing `extra` for known pool tags
-        // is in the backlog).
-        pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+        pool,
       },
     };
   }
 
   /**
-   * Summarise the per-tier buckets produced by `bucketPool`. Returns
-   * one UpstreamMempoolBlock per non-empty fee tier, fastest first.
-   * Empty tiers are omitted so the dashboard strip shows only the
-   * tiers that actually have pending txs.
+   * Summarise projected block candidates produced by `projectPool`.
+   * In ordinary Monero conditions this returns one block. Additional
+   * entries mean the mempool actually exceeds one projected block.
    */
   private projectedMempoolBlocks(pool: IMoneroApi.TransactionPool): UpstreamMempoolBlock[] {
-    const buckets = this.bucketPool(pool);
+    const buckets = this.projectPool(pool);
     const blocks: UpstreamMempoolBlock[] = [];
     buckets.forEach((bucket, idx) => {
       if (bucket.length === 0) return;
@@ -634,9 +669,8 @@ export class MoneroWs {
         medianFee: median,
         totalFees: totalFee,
         feeRange: range,
-        // The `index` field stays as the visual position in the strip
-        // (0 = closest to chain tip), regardless of underlying tier.
-        // We push fastest first, so index 0 = fastest tier.
+        // The `index` field stays as the visual position in the strip:
+        // 0 is the next block candidate, 1+ are true overflow buckets.
         index: blocks.length,
       });
     });

@@ -74,8 +74,8 @@ export class PriceChartComponent implements OnInit {
     } else if (this.widget) {
       this.miningWindowPreference = '1y';
     } else {
-      this.seoService.setTitle($localize`:@@price-chart.title:Bitcoin Price`);
-      this.seoService.setDescription($localize`:@@price-chart.description:See the Bitcoin price in USD visualized over time.`);
+      this.seoService.setTitle($localize`:@@price-chart.title:XMR Price`);
+      this.seoService.setDescription($localize`:@@price-chart.description:See the Monero price in USD visualized over time.`);
       this.miningWindowPreference = this.miningService.getDefaultTimespan('1m');
     }
     this.radioGroupForm = this.formBuilder.group({ dateSpan: this.miningWindowPreference });
@@ -119,15 +119,16 @@ export class PriceChartComponent implements OnInit {
           return this.apiService.getHistoricalPrice$(undefined, this.currency)
             .pipe(
               tap((response: any) => {
+                const priceData = this.filteredPriceData(response.prices, startTimestamp);
                 this.prepareChartOptions({
-                  priceData: response.prices.filter((p: any) => p[this.currency] > 0 && p.time * 1000 >= startTimestamp).map((p: any) => [p.time * 1000, p[this.currency]]),
+                  priceData,
                 });
                 this.isLoading = false;
               }),
               map((response: any) => {
-                const priceData = response.prices.filter((p: any) => p[this.currency] > 0 && p.time * 1000 >= startTimestamp).map((p: any) => p[this.currency]);
-                const latestPrice = priceData.length > 0 ? priceData[0] : null;
-                const firstPrice = priceData.length > 0 ? priceData[priceData.length - 1] : null;
+                const priceData = this.filteredPriceData(response.prices, startTimestamp).map((point) => point[1]);
+                const firstPrice = priceData.length > 0 ? priceData[0] : null;
+                const latestPrice = priceData.length > 0 ? priceData[priceData.length - 1] : null;
                 const percentChange = (latestPrice && firstPrice) ? ((latestPrice - firstPrice) / firstPrice) * 100 : 0;
 
                 return {
@@ -139,6 +140,13 @@ export class PriceChartComponent implements OnInit {
         }),
         share()
       );
+  }
+
+  private filteredPriceData(prices: any[], startTimestamp: number): [number, number][] {
+    return (prices ?? [])
+      .filter((price: any) => Number(price?.[this.currency]) > 0 && Number(price?.time) * 1000 >= startTimestamp)
+      .map((price: any) => [Number(price.time) * 1000, Number(price[this.currency])] as [number, number])
+      .sort((a, b) => a[0] - b[0]);
   }
 
   prepareChartOptions(data) {
@@ -230,7 +238,7 @@ export class PriceChartComponent implements OnInit {
           // legendHoverLink: false,
           zlevel: 0,
           yAxisIndex: 0,
-          name: `BTC${this.currency}`,
+          name: `XMR${this.currency}`,
           data: data.priceData,
           type: 'line',
           smooth: 0.25,
@@ -288,7 +296,7 @@ export class PriceChartComponent implements OnInit {
     download(this.chartInstance.getDataURL({
       pixelRatio: 2,
       excludeComponents: ['dataZoom'],
-    }), `btc-price-${this.currentTimespan}-${Math.round(now.getTime() / 1000)}.svg`);
+    }), `xmr-price-${this.currentTimespan}-${Math.round(now.getTime() / 1000)}.svg`);
     // @ts-ignore
     this.chartOptions.grid.bottom = prevBottom;
     this.chartOptions.backgroundColor = 'none';

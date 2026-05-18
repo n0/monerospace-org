@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { combineLatest, Observable } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
-import { ApiService } from '@app/services/api.service';
+import { LiquidApiService } from '@app/services/liquid-api.service';
 import { AssetsService } from '@app/services/assets.service';
 
 @Component({
@@ -16,7 +16,7 @@ export class AssetGroupComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private apiService: ApiService,
+    private liquidApiService: LiquidApiService,
     private assetsService: AssetsService,
   ) { }
 
@@ -26,7 +26,7 @@ export class AssetGroupComponent implements OnInit {
         switchMap((params: ParamMap) => {
           return combineLatest([
             this.assetsService.getAssetsJson$,
-            this.apiService.getAssetGroup$(params.get('id')),
+            this.liquidApiService.getAssetGroup$(params.get('id')),
           ]);
         }),
         map(([assets, group]) => {

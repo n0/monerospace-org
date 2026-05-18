@@ -3,7 +3,7 @@ import { ActivatedRoute, ParamMap } from '@angular/router';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
 import { switchMap, filter, catchError, take } from 'rxjs/operators';
 import { Asset, Transaction } from '@interfaces/electrs.interface';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 import { StateService } from '@app/services/state.service';
 import { AudioService } from '@app/services/audio.service';
 import { ApiService } from '@app/services/api.service';
@@ -48,7 +48,7 @@ export class AssetComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private electrsApiService: ElectrsApiService,
-    private websocketService: WebsocketService,
+    private websocketService: LegacyWebsocketTrackingService,
     private stateService: StateService,
     private audioService: AudioService,
     private apiService: ApiService,

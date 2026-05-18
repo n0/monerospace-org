@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, HostListener, Input, OnChanges, SimpleChanges, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, HostListener, Input, OnChanges, SimpleChanges, Output, EventEmitter } from '@angular/core';
 import { Subscription, Observable, of, combineLatest } from 'rxjs';
 import { MempoolBlock } from '@interfaces/websocket.interface';
 import { StateService } from '@app/services/state.service';
@@ -12,6 +12,8 @@ import { Location } from '@angular/common';
 import { DifficultyAdjustment, MempoolPosition } from '@interfaces/node-api.interface';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { ThemeService } from '@app/services/theme.service';
+import { XMR_VISUAL_BLOCK_WEIGHT_LIMIT, getVisualBlockWeightPercent } from '@app/shared/block-weight.utils';
+import { formatCompactFeeRateRange } from '@app/shared/fee-rate.utils';
 
 @Component({
   selector: 'app-mempool-blocks',
@@ -74,14 +76,9 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
   containerOffset: number = 40;
   arrowVisible = false;
   tabHidden = false;
-  feeRounding = '1.0-0';
-
   maxArrowPosition = 0;
   rightPosition = 0;
   transition = 'background 2s, right 2s, transform 1s';
-  @ViewChild('arrowUp')
-  arrowElement: ElementRef<HTMLDivElement>;
-  acceleratingArrow: boolean = false;
 
   markIndex: number;
   txPosition: MempoolPosition;
@@ -91,6 +88,7 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
 
   chainTip: number = -1;
   blockIndex = 1;
+  visualBlockWeightLimit = XMR_VISUAL_BLOCK_WEIGHT_LIMIT;
 
   constructor(
     private router: Router,
@@ -138,9 +136,6 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
       this.cd.markForCheck();
     });
 
-    if (this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') {
-      this.feeRounding = '1.0-1';
-    }
     this.mempoolEmptyBlocks.forEach((b) => {
       this.mempoolEmptyBlockStyles.push(this.getStyleForMempoolEmptyBlock(b.index));
     });
@@ -212,7 +207,6 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
 
     this.markBlocksSubscription = this.stateService.markBlock$
       .subscribe((state) => {
-        const oldTxPosition = this.txPosition;
         this.markIndex = undefined;
         this.txPosition = undefined;
         this.txFeePerVSize = undefined;
@@ -221,12 +215,6 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
         }
         if (state.mempoolPosition) {
           this.txPosition = state.mempoolPosition;
-          if (this.txPosition.accelerated && !oldTxPosition?.accelerated) {
-            this.acceleratingArrow = true;
-            setTimeout(() => {
-              this.acceleratingArrow = false;
-            }, 2000);
-          }
         }
         if (state.txFeePerVSize) {
           this.txFeePerVSize = state.txFeePerVSize;
@@ -326,7 +314,7 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   reduceEmptyBlocksToFitScreen(blocks: MempoolBlock[]): MempoolBlock[] {
-    const innerWidth = this.containerWidth || (this.stateService.env.BASE_MODULE !== 'liquid' && window.innerWidth <= 767.98 ? window.innerWidth : window.innerWidth / 2);
+    const innerWidth = this.containerWidth || (window.innerWidth <= 767.98 ? window.innerWidth : window.innerWidth / 2);
     let blocksAmount = this.stateService.env.MEMPOOL_BLOCKS_AMOUNT;
     if (!this.allBlocks) {
       blocksAmount = Math.min(this.stateService.env.MEMPOOL_BLOCKS_AMOUNT, Math.floor(innerWidth / (this.blockWidth + this.blockPadding)));
@@ -349,7 +337,7 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   reduceMempoolBlocksToFitScreen(blocks: MempoolBlock[]): MempoolBlock[] {
-    const innerWidth = this.containerWidth || (this.stateService.env.BASE_MODULE !== 'liquid' && window.innerWidth <= 767.98 ? window.innerWidth : window.innerWidth / 2);
+    const innerWidth = this.containerWidth || (window.innerWidth <= 767.98 ? window.innerWidth : window.innerWidth / 2);
     let blocksAmount = this.stateService.env.MEMPOOL_BLOCKS_AMOUNT;
     if (this.count) {
       blocksAmount = 8;
@@ -370,7 +358,7 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
       }
     }
     if (blocks.length) {
-      blocks[blocks.length - 1].isStack = blocks[blocks.length - 1].blockVSize > this.stateService.blockVSize;
+      blocks[blocks.length - 1].isStack = blocks[blocks.length - 1].blockVSize > this.visualBlockWeightLimit;
     }
     if (this.count) {
       this.maxArrowPosition = (Math.min(blocks.length, this.count) * (this.blockWidth + this.blockPadding)) - this.blockPadding;
@@ -397,7 +385,7 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   getStyleForMempoolBlock(mempoolBlock: MempoolBlock, index: number) {
-    const emptyBackgroundSpacePercentage = Math.max(100 - mempoolBlock.blockVSize / this.stateService.blockVSize * 100, 0);
+    const emptyBackgroundSpacePercentage = 100 - getVisualBlockWeightPercent(mempoolBlock.blockVSize);
     const usedBlockSpace = 100 - emptyBackgroundSpacePercentage;
     const backgroundGradients = [`repeating-linear-gradient(to right,  var(--mempool-block-loading), var(--mempool-block-loading) ${emptyBackgroundSpacePercentage}%`];
     const gradientColors = [];
@@ -453,14 +441,14 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
       if (this.txPosition.block >= this.mempoolBlocks.length) {
         this.rightPosition = ((this.mempoolBlocks.length - 1) * (this.blockWidth + this.blockPadding)) + this.blockWidth;
       } else {
-        const positionInBlock = Math.min(1, this.txPosition.vsize / this.stateService.blockVSize) * this.blockWidth;
+        const positionInBlock = Math.min(1, this.txPosition.vsize / this.visualBlockWeightLimit) * this.blockWidth;
         const positionOfBlock = this.txPosition.block * (this.blockWidth + this.blockPadding);
         this.rightPosition = positionOfBlock + positionInBlock;
       }
     } else {
       const estimatedPosition = this.etaService.mempoolPositionFromFees(this.txFeePerVSize, this.mempoolBlocks);
       this.rightPosition = estimatedPosition.block * (this.blockWidth + this.blockPadding)
-        + ((estimatedPosition.vsize / this.stateService.blockVSize) * this.blockWidth);
+        + ((estimatedPosition.vsize / this.visualBlockWeightLimit) * this.blockWidth);
     }
     this.rightPosition = Math.min(this.maxArrowPosition, this.rightPosition);
   }
@@ -480,5 +468,13 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
       });
     }
     return emptyBlocks;
+  }
+
+  compactFeeRange(feeRange: number[] | null | undefined): string {
+    return formatCompactFeeRateRange(feeRange?.[0], feeRange?.length ? feeRange[feeRange.length - 1] : undefined);
+  }
+
+  blockSpan(blockVSize: number): number {
+    return Math.ceil(blockVSize / this.visualBlockWeightLimit);
   }
 }

@@ -5,6 +5,8 @@ import { specialBlocks } from '@app/app.constants';
 import { BlockExtended } from '@interfaces/node-api.interface';
 import { Location } from '@angular/common';
 import { CacheService } from '@app/services/cache.service';
+import { formatCompactFeeRateRange } from '@app/shared/fee-rate.utils';
+import { getVisualBlockWeightPercent } from '@app/shared/block-weight.utils';
 
 interface BlockchainBlock extends BlockExtended {
   placeholder?: boolean;
@@ -32,7 +34,6 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   @Input() getHref?: (index, block) => string = (index, block) => `/block/${block.id}`;
 
   specialBlocks = specialBlocks;
-  network = '';
   blocks: BlockchainBlock[] = [];
   dynamicBlocksAmount: number = 8;
   emptyBlocks: BlockExtended[] = this.mountEmptyBlocks();
@@ -41,7 +42,6 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   pendingMarkBlock: { animate: boolean, newBlockFromLeft: boolean };
   blocksSubscription: Subscription;
   blockPageSubscription: Subscription;
-  networkSubscription: Subscription;
   tabHiddenSubscription: Subscription;
   markBlockSubscription: Subscription;
   txConfirmedSubscription: Subscription;
@@ -54,7 +54,6 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   emptyBlockStyles = [];
   interval: any;
   tabHidden = false;
-  feeRounding = '1.0-0';
   arrowVisible = false;
   arrowLeftPx = 30;
   blocksFilled = false;
@@ -66,15 +65,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   dividerBlockOffset: number = 205;
   blockPadding: number = 30;
 
-  gradientColors = {
-    '': ['var(--mainnet-alt)', 'var(--primary)'],
-    liquid: ['var(--liquid)', 'var(--testnet-alt)'],
-    'liquidtestnet': ['var(--liquidtestnet)', 'var(--liquidtestnet-alt)'],
-    testnet: ['var(--testnet)', 'var(--testnet-alt)'],
-    testnet4: ['var(--testnet)', 'var(--testnet-alt)'],
-    signet: ['var(--signet)', 'var(--signet-alt)'],
-    regtest: ['var(--regtest)', 'var(--regtest-alt)'],
-  };
+  gradientColors = ['var(--mainnet-alt)', 'var(--primary)'];
 
   constructor(
     public stateService: StateService,
@@ -122,12 +113,8 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
       this.cd.markForCheck();
     });
 
-    if (this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') {
-      this.feeRounding = '1.0-1';
-    }
     this.emptyBlocks.forEach((b) => this.emptyBlockStyles.push(this.getStyleForEmptyBlock(b)));
     this.loadingBlocks$ = this.stateService.isLoadingWebSocket$;
-    this.networkSubscription = this.stateService.networkChanged$.subscribe((network) => this.network = network);
     this.tabHiddenSubscription = this.stateService.isTabHidden$.subscribe((tabHidden) => this.tabHidden = tabHidden);
     if (!this.static) {
       this.blocksSubscription = this.stateService.blocks$
@@ -223,7 +210,6 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
     if (this.txConfirmedSubscription) {
       this.txConfirmedSubscription.unsubscribe();
     }
-    this.networkSubscription.unsubscribe();
     this.tabHiddenSubscription.unsubscribe();
     this.markBlockSubscription.unsubscribe();
     this.blockDisplayModeSubscription.unsubscribe();
@@ -342,7 +328,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
     } else if (block.loading) {
       return this.getStyleForLoadingBlock(index, animateEnterFrom);
     }
-    const greenBackgroundHeight = 100 - (block.weight / this.stateService.env.BLOCK_WEIGHT_UNITS) * 100;
+    const greenBackgroundHeight = 100 - getVisualBlockWeightPercent(block.weight);
     let addLeft = 0;
 
     if (animateEnterFrom) {
@@ -354,8 +340,8 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
       background: `repeating-linear-gradient(
         var(--secondary),
         var(--secondary) ${greenBackgroundHeight}%,
-        ${this.gradientColors[this.network][0]} ${Math.max(greenBackgroundHeight, 0)}%,
-        ${this.gradientColors[this.network][1]} 100%
+        ${this.gradientColors[0]} ${Math.max(greenBackgroundHeight, 0)}%,
+        ${this.gradientColors[1]} 100%
       )`,
       transition: animateEnterFrom ? 'background 2s, transform 1s' : null,
     };
@@ -409,7 +395,6 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
         size: 0,
         weight: 0,
         previousblockhash: '',
-        matchRate: 0,
       });
     }
     return emptyBlocks;
@@ -432,6 +417,10 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
       return block.extras.feeRange[block.extras.feeRange.length - 1];
     }
     return 0;
+  }
+
+  compactFeeRange(minFee: number | null | undefined, maxFee: number | null | undefined): string {
+    return formatCompactFeeRateRange(minFee, maxFee);
   }
 
   showIsEarlierThanParent(index: number): boolean {

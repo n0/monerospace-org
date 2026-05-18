@@ -9,6 +9,8 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 import { WebsocketService } from '@app/services/websocket.service';
+import { XMR_VISUAL_BLOCK_WEIGHT_LIMIT, getVisualBlockWeightPercent, getVisualBlockWeightPercentStyle } from '@app/shared/block-weight.utils';
+import { formatCompactFeeRateRange } from '@app/shared/fee-rate.utils';
 
 @Component({
   selector: 'app-mempool-block',
@@ -25,6 +27,7 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   ordinal$: BehaviorSubject<string> = new BehaviorSubject('');
   previewTx: TransactionStripped | void;
   webGlEnabled: boolean;
+  visualBlockWeightLimit = XMR_VISUAL_BLOCK_WEIGHT_LIMIT;
 
   constructor(
     private route: ActivatedRoute,
@@ -58,8 +61,8 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
                 const ordinal = this.getOrdinal(mempoolBlocks[this.mempoolBlockIndex]);
                 this.ordinal$.next(ordinal);
                 this.seoService.setTitle(ordinal);
-                this.seoService.setDescription($localize`:@@meta.description.mempool-block:See stats for ${this.stateService.network==='liquid'||this.stateService.network==='liquidtestnet'?'Liquid':'Bitcoin'}${seoDescriptionNetwork(this.stateService.network)} transactions in the mempool: fee range, aggregate size, and more. Mempool blocks are updated in real-time as the network receives new transactions.`);
-                mempoolBlocks[this.mempoolBlockIndex].isStack = mempoolBlocks[this.mempoolBlockIndex].blockVSize > this.stateService.blockVSize;
+                this.seoService.setDescription($localize`:@@meta.description.mempool-block:See live Monero mempool-block stats: atomic-per-byte fee range, aggregate byte size, transaction count, and total fees. Mempool blocks update in real time as the network receives new transactions.`);
+                mempoolBlocks[this.mempoolBlockIndex].isStack = mempoolBlocks[this.mempoolBlockIndex].blockVSize > this.visualBlockWeightLimit;
                 return mempoolBlocks[this.mempoolBlockIndex];
               })
             );
@@ -81,7 +84,7 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   }
 
   getOrdinal(mempoolBlock: MempoolBlock): string {
-    const blocksInBlock = Math.ceil(mempoolBlock.blockVSize / this.stateService.blockVSize);
+    const blocksInBlock = Math.ceil(mempoolBlock.blockVSize / this.visualBlockWeightLimit);
     if (this.mempoolBlockIndex === 0) {
       return $localize`:@@bdf0e930eb22431140a2eaeacd809cc5f8ebd38c:Next Block`;
     } else if (this.mempoolBlockIndex === this.stateService.env.KEEP_BLOCKS_AMOUNT - 1 && blocksInBlock > 1) {
@@ -94,4 +97,20 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   setTxPreview(event: TransactionStripped | void): void {
     this.previewTx = event;
   }
+
+  compactFeeRange(mempoolBlock: MempoolBlock): string {
+    return formatCompactFeeRateRange(
+      mempoolBlock.feeRange?.[0],
+      mempoolBlock.feeRange?.length ? mempoolBlock.feeRange[mempoolBlock.feeRange.length - 1] : undefined
+    );
+  }
+
+  blockFillStyle(mempoolBlock: MempoolBlock): string {
+    return getVisualBlockWeightPercentStyle(mempoolBlock.blockVSize);
+  }
+
+  blockFillPercent(mempoolBlock: MempoolBlock): number {
+    return getVisualBlockWeightPercent(mempoolBlock.blockVSize);
+  }
+
 }

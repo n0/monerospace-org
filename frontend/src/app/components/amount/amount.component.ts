@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, Input, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { StateService } from '@app/services/state.service';
+import { StateService, ViewAmountMode } from '@app/services/state.service';
 import { Observable, Subscription } from 'rxjs';
 import { Price } from '@app/services/price.service';
 
@@ -13,7 +13,7 @@ import { Price } from '@app/services/price.service';
 export class AmountComponent implements OnInit, OnDestroy {
   conversions$: Observable<any>;
   currency: string;
-  viewAmountMode$: Observable<'btc' | 'sats' | 'fiat'>;
+  viewAmountMode$: Observable<ViewAmountMode>;
   network = '';
 
   stateSubscription: Subscription;
@@ -27,6 +27,7 @@ export class AmountComponent implements OnInit, OnDestroy {
   @Input() forceBtc: boolean = false;
   @Input() ignoreViewMode: boolean = false;
   @Input() forceBlockConversion: boolean = false; // true = displays fiat price as 0 if blockConversion is undefined instead of falling back to conversions
+  @Input() blurHiddenAmount: boolean = false;
   @Input() unitStyle: any;
 
   constructor(
@@ -54,11 +55,13 @@ export class AmountComponent implements OnInit, OnDestroy {
 
   /**
    * Generate a stable, plausibly-shaped fake amount to render under the
-   * blur-out treatment when this entry is RingCT-hidden (satoshis === 0).
+   * blur-out treatment when this entry is explicitly marked RingCT-hidden.
    *
    * Why a fake instead of just showing nothing:
-   *   - 'amount: 0.00000000 XMR' is misleading — it suggests the value
-   *     IS zero, which is wrong; it's hidden by RingCT.
+   *   - 'amount: 0.00000000 XMR' is misleading for synthetic tx
+   *     vin/vout placeholders — it suggests the value IS zero, which is
+   *     wrong; it's hidden by RingCT. Real zero-fee block rows must still
+   *     render as zero, so callers opt into this behavior.
    *   - empty cells let the eye think the row is broken / loading.
    *   - blurred fake digits visually convey 'something is here, by
    *     design you can't see it.' Same UX pattern as iOS notification

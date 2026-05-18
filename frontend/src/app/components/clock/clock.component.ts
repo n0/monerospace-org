@@ -6,6 +6,7 @@ import { WebsocketService } from '@app/services/websocket.service';
 import { MempoolInfo, Recommendedfees } from '@interfaces/websocket.interface';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { getVisualBlockWeightPercent } from '@app/shared/block-weight.utils';
 
 @Component({
   selector: 'app-clock',
@@ -98,7 +99,7 @@ export class ClockComponent implements OnInit {
   }
 
   getStyleForBlock(block: BlockExtended) {
-    const greenBackgroundHeight = 100 - (block.weight / this.stateService.env.BLOCK_WEIGHT_UNITS) * 100;
+    const greenBackgroundHeight = 100 - getVisualBlockWeightPercent(block.weight);
 
     return {
       background: `repeating-linear-gradient(

@@ -1,7 +1,7 @@
 import { Component, ViewChild, Input, Output, EventEmitter,
   OnInit, OnDestroy, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, AfterViewInit } from '@angular/core';
 import { StateService } from '@app/services/state.service';
-import { MempoolBlockDelta, isMempoolDelta } from '@interfaces/websocket.interface';
+import { MempoolBlock, MempoolBlockDelta, isMempoolDelta } from '@interfaces/websocket.interface';
 import { TransactionStripped } from '@interfaces/node-api.interface';
 import { BlockOverviewGraphComponent } from '@components/block-overview-graph/block-overview-graph.component';
 import { Subscription, BehaviorSubject } from 'rxjs';
@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { Color } from '@components/block-overview-graph/sprite-types';
 import TxView from '@components/block-overview-graph/tx-view';
 import { FilterMode, GradientMode } from '@app/shared/filters.utils';
+import { XMR_VISUAL_BLOCK_WEIGHT_LIMIT } from '@app/shared/block-weight.utils';
 
 @Component({
   selector: 'app-mempool-block-overview',
@@ -37,9 +38,12 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
   timeLtr: boolean;
   chainDirection: string = 'right';
   poolDirection: string = 'left';
+  visualBlockWeightLimit = XMR_VISUAL_BLOCK_WEIGHT_LIMIT;
 
   blockSub: Subscription;
+  fallbackSub: Subscription;
   firstLoad: boolean = true;
+  destroyed: boolean = false;
 
   constructor(
     public stateService: StateService,
@@ -72,7 +76,7 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
           const inOldBlock = {};
           const inNewBlock = {};
           const added: TransactionStripped[] = [];
-          const changed: { txid: string, rate: number | undefined, flags: number, acc: boolean | undefined }[] = [];
+          const changed: { txid: string, rate: number | undefined, flags: number }[] = [];
           const removed: string[] = [];
           for (const tx of transactionsStripped) {
             inNewBlock[tx.txid] = true;
@@ -90,8 +94,7 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
               changed.push({
                 txid: tx.txid,
                 rate: tx.rate,
-                flags: tx.flags,
-                acc: tx.acc
+                flags: tx.flags
               });
             }
           }
@@ -104,6 +107,22 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
         }
       }
     });
+    this.fallbackSub = this.stateService.mempoolBlocks$.subscribe((blocks) => {
+      if (!this.firstLoad || this.index == null) {
+        return;
+      }
+      const block = blocks?.[this.index];
+      if (block?.nTx > 0 && block.blockVSize > 0) {
+        this.replaceBlock(this.syntheticTransactions(block));
+      }
+    });
+    const cached = this.stateService.mempoolBlockState;
+    if (cached && cached.block === this.index) {
+      this.resumeBlock(Object.values(cached.transactions));
+    } else if (this.index != null) {
+      this.isLoading$.next(true);
+      this.websocketService.startTrackMempoolBlock(this.index, true);
+    }
   }
 
   ngOnChanges(changes): void {
@@ -112,7 +131,9 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
       if (this.blockGraph) {
         this.blockGraph.clear(changes.index.currentValue > changes.index.previousValue ? this.chainDirection : this.poolDirection);
       }
-      if (!this.websocketService.startTrackMempoolBlock(changes.index.currentValue) && this.stateService.mempoolBlockState && this.stateService.mempoolBlockState.block === changes.index.currentValue) {
+      if (!this.blockSub) {
+        this.isLoading$.next(true);
+      } else if (!this.websocketService.startTrackMempoolBlock(changes.index.currentValue) && this.stateService.mempoolBlockState && this.stateService.mempoolBlockState.block === changes.index.currentValue) {
         this.resumeBlock(Object.values(this.stateService.mempoolBlockState.transactions));
       } else {
         this.isLoading$.next(true);
@@ -121,13 +142,23 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.blockGraph?.destroy();
-    this.blockSub.unsubscribe();
-    this.timeLtrSubscription.unsubscribe();
+    this.blockSub?.unsubscribe();
+    this.fallbackSub?.unsubscribe();
+    this.timeLtrSubscription?.unsubscribe();
     this.websocketService.stopTrackMempoolBlock();
   }
 
   replaceBlock(transactionsStripped: TransactionStripped[]): void {
+    if (this.destroyed) {
+      return;
+    }
+    if (!this.blockGraph?.scene) {
+      requestAnimationFrame(() => this.replaceBlock(transactionsStripped));
+      return;
+    }
+
     const blockMined = (this.stateService.latestBlockHeight > this.lastBlockHeight);
     if (this.blockIndex !== this.index) {
       const direction = (this.blockIndex == null || this.index < this.blockIndex) ? this.poolDirection : this.chainDirection;
@@ -138,10 +169,20 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
 
     this.lastBlockHeight = this.stateService.latestBlockHeight;
     this.blockIndex = this.index;
+    this.firstLoad = false;
     this.isLoading$.next(false);
+    this.blockGraph.run(performance.now());
   }
 
   updateBlock(delta: MempoolBlockDelta): void {
+    if (this.destroyed) {
+      return;
+    }
+    if (!this.blockGraph?.scene) {
+      requestAnimationFrame(() => this.updateBlock(delta));
+      return;
+    }
+
     const blockMined = (this.stateService.latestBlockHeight > this.lastBlockHeight);
     if (this.blockIndex !== this.index) {
       const direction = (this.blockIndex == null || this.index < this.blockIndex) ? this.poolDirection : this.chainDirection;
@@ -157,14 +198,19 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
     this.lastBlockHeight = this.stateService.latestBlockHeight;
     this.blockIndex = this.index;
     this.isLoading$.next(false);
+    this.blockGraph.run(performance.now());
   }
 
   resumeBlock(transactionsStripped: TransactionStripped[]): void {
-    if (this.blockGraph) {
+    if (this.destroyed) {
+      return;
+    }
+    if (this.blockGraph?.scene) {
       this.firstLoad = false;
       this.blockGraph.setup(transactionsStripped, true);
       this.blockIndex = this.index;
       this.isLoading$.next(false);
+      this.blockGraph.run(performance.now());
     } else {
       requestAnimationFrame(() => {
         this.resumeBlock(transactionsStripped);
@@ -173,11 +219,34 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
   }
 
   onTxClick(event: { tx: TransactionStripped, keyModifier: boolean }): void {
+    if (event.tx.txid.startsWith('synthetic-xmr-')) {
+      return;
+    }
     const url = new RelativeUrlPipe(this.stateService).transform(`/tx/${event.tx.txid}`);
     if (!event.keyModifier) {
       this.router.navigate([url]);
     } else {
       window.open(url, '_blank');
     }
+  }
+
+  private syntheticTransactions(block: MempoolBlock): TransactionStripped[] {
+    const count = Math.max(1, block.nTx);
+    const txSize = Math.max(1, Math.floor(block.blockVSize / count));
+    const feeRange = block.feeRange?.length ? block.feeRange : [block.medianFee || 0];
+
+    return Array.from({ length: count }, (_, index) => {
+      const rate = feeRange[Math.min(feeRange.length - 1, Math.floor(index * feeRange.length / count))] || block.medianFee || 0;
+      return {
+        txid: `synthetic-xmr-${this.index}-${index}`,
+        fee: Math.round(rate * txSize),
+        vsize: txSize,
+        value: 0,
+        rate,
+        flags: 0,
+        time: Math.floor(Date.now() / 1000),
+        context: 'projected',
+      };
+    });
   }
 }

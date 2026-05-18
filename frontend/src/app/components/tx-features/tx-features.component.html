@@ -9,7 +9,7 @@
 <span *ngIf="tx?.['rct_type'] != null && tx['rct_type'] >= 5" class="badge bg-success me-1"
       placement="bottom" ngbTooltip="Bulletproof+ range proofs — smaller and faster than the original Bulletproofs">Bulletproof+</span>
 
-<span *ngIf="tx?.vout?.[0]?.['ringct'] === true" class="badge bg-success me-1"
+<span *ngIf="tx?.['has_view_tags']" class="badge bg-success me-1"
       placement="bottom" ngbTooltip="Outputs use view tags — wallets scan this tx faster">View tags</span>
 
 <span *ngIf="tx?.vin?.[0]?.['ring_size']" class="badge bg-info me-1"

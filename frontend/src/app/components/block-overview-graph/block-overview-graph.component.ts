@@ -20,7 +20,6 @@ const unmatchedAuditColors = {
   added: setOpacity(defaultAuditColors.added, unmatchedOpacity),
   added_prioritized: setOpacity(defaultAuditColors.added_prioritized, unmatchedOpacity),
   prioritized: setOpacity(defaultAuditColors.prioritized, unmatchedOpacity),
-  accelerated: setOpacity(defaultAuditColors.accelerated, unmatchedOpacity),
 };
 const unmatchedContrastAuditColors = {
   censored: setOpacity(contrastAuditColors.censored, unmatchedOpacity),
@@ -28,7 +27,6 @@ const unmatchedContrastAuditColors = {
   added: setOpacity(contrastAuditColors.added, unmatchedOpacity),
   added_prioritized: setOpacity(contrastAuditColors.added_prioritized, unmatchedOpacity),
   prioritized: setOpacity(contrastAuditColors.prioritized, unmatchedOpacity),
-  accelerated: setOpacity(contrastAuditColors.accelerated, unmatchedOpacity),
 };
 
 @Component({
@@ -90,7 +88,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     count: number,
     add: { [txid: string]: TransactionStripped },
     remove: { [txid: string]: string },
-    change: { [txid: string]: { txid: string, rate: number | undefined, acc: boolean | undefined } },
+    change: { [txid: string]: { txid: string, rate: number | undefined } },
     direction?: string,
   } = {
     count: 0,
@@ -253,7 +251,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   }
 
   // collates deferred updates into a set of consistent pending changes
-  queueUpdate(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined, acc: boolean | undefined }[], direction: string = 'left'): void {
+  queueUpdate(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined }[], direction: string = 'left'): void {
     for (const tx of add) {
       this.pendingUpdate.add[tx.txid] = tx;
       delete this.pendingUpdate.remove[tx.txid];
@@ -267,7 +265,6 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     for (const tx of change) {
       if (this.pendingUpdate.add[tx.txid]) {
         this.pendingUpdate.add[tx.txid].rate = tx.rate;
-        this.pendingUpdate.add[tx.txid].acc = tx.acc;
       } else {
         this.pendingUpdate.change[tx.txid] = tx;
       }
@@ -276,7 +273,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     this.pendingUpdate.count++;
   }
 
-  deferredUpdate(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined, acc: boolean | undefined }[], direction: string = 'left'): void {
+  deferredUpdate(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined }[], direction: string = 'left'): void {
     this.queueUpdate(add, remove, change, direction);
     this.applyQueuedUpdates();
   }
@@ -298,14 +295,14 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     this.lastUpdate = performance.now();
   }
 
-  update(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined, acc: boolean | undefined }[], direction: string = 'left', resetLayout: boolean = false): void {
+  update(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined }[], direction: string = 'left', resetLayout: boolean = false): void {
     // merge any pending changes into this update
     this.queueUpdate(add, remove, change);
     this.applyUpdate(Object.values(this.pendingUpdate.add), Object.values(this.pendingUpdate.remove), Object.values(this.pendingUpdate.change), direction, resetLayout);
     this.clearUpdateQueue();
   }
 
-  applyUpdate(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined, acc: boolean | undefined }[], direction: string = 'left', resetLayout: boolean = false): void {
+  applyUpdate(add: TransactionStripped[], remove: string[], change: { txid: string, rate: number | undefined }[], direction: string = 'left', resetLayout: boolean = false): void {
     if (this.scene) {
       add = add.filter(tx => !this.scene.txs[tx.txid]);
       remove = remove.filter(txid => this.scene.txs[txid]);

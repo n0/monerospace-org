@@ -2,15 +2,15 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, Input, L
 import { EChartsOption } from '@app/graphs/echarts';
 import { Observable } from 'rxjs';
 import { delay, map, retryWhen, share, startWith, switchMap, tap } from 'rxjs/operators';
-import { ApiService } from '@app/services/api.service';
 import { SeoService } from '@app/services/seo.service';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
 import { originalChartColors as chartColors, poolsColor } from '@app/app.constants';
 import { StorageService } from '@app/services/storage.service';
-import { MiningService } from '@app/services/mining.service';
 import { download } from '@app/shared/graphs.utils';
 import { ActivatedRoute } from '@angular/router';
 import { StateService } from '@app/services/state.service';
+import { MiningPoolApiService } from '@app/services/mining-pool-api.service';
+import { MiningPoolService } from '@app/services/mining-pool.service';
 
 interface Hashrate {
   timestamp: number;
@@ -57,11 +57,11 @@ export class HashrateChartPoolsComponent implements OnInit {
   constructor(
     @Inject(LOCALE_ID) public locale: string,
     private seoService: SeoService,
-    private apiService: ApiService,
+    private miningPoolApiService: MiningPoolApiService,
     private formBuilder: UntypedFormBuilder,
     private cd: ChangeDetectorRef,
     private storageService: StorageService,
-    private miningService: MiningService,
+    private miningPoolService: MiningPoolService,
     public stateService: StateService,
     private route: ActivatedRoute,
   ) {
@@ -74,7 +74,7 @@ export class HashrateChartPoolsComponent implements OnInit {
 
     this.seoService.setTitle($localize`:@@mining.pools-historical-dominance:Pools Historical Dominance`);
     this.seoService.setDescription($localize`:@@meta.descriptions.bitcoin.graphs.hashrate-pools:See Bitcoin mining pool dominance visualized over time: see how top mining pools' share of total hashrate has fluctuated over time.`);
-    this.miningWindowPreference = this.miningService.getDefaultTimespan('6m');
+    this.miningWindowPreference = this.miningPoolService.getDefaultTimespan('6m');
     this.radioGroupForm = this.formBuilder.group({ dateSpan: this.miningWindowPreference });
     this.radioGroupForm.controls.dateSpan.setValue(this.miningWindowPreference);
 
@@ -96,7 +96,7 @@ export class HashrateChartPoolsComponent implements OnInit {
           this.timespan = timespan;
           firstRun = false;
           this.isLoading = true;
-          return this.apiService.getHistoricalPoolsHashrate$(timespan)
+          return this.miningPoolApiService.getHistoricalPoolsHashrate$(timespan)
             .pipe(
               tap((response) => {
                 this.hashrates = response.body;

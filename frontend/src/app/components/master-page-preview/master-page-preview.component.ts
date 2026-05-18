@@ -12,7 +12,6 @@ import { EnterpriseService } from '@app/services/enterprise.service';
 })
 export class MasterPagePreviewComponent implements OnInit {
   network$: Observable<string>;
-  lightning$: Observable<boolean>;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
   urlLanguage: string;
   subdomain = '';
@@ -27,7 +26,6 @@ export class MasterPagePreviewComponent implements OnInit {
 
   ngOnInit() {
     this.network$ = merge(of(''), this.stateService.networkChanged$);
-    this.lightning$ = this.stateService.lightningChanged$;
     this.urlLanguage = this.languageService.getLanguageForUrl();
     this.subdomain = this.enterpriseService.getSubdomain();
     this.enterpriseInfo$ = this.enterpriseService.info$.subscribe(info => {

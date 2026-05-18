@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectionStrategy, Input } from '@angular/core
 import { ActivatedRoute, Router } from '@angular/router';
 import { BehaviorSubject, Observable, Subject, combineLatest, of, timer } from 'rxjs';
 import { delayWhen, filter, map, share, shareReplay, switchMap, takeUntil, tap, throttleTime } from 'rxjs/operators';
-import { ApiService } from '@app/services/api.service';
+import { LiquidApiService } from '@app/services/liquid-api.service';
 import { Env, StateService } from '@app/services/state.service';
 import { AuditStatus, CurrentPegs, FederationUtxo } from '@interfaces/node-api.interface';
 import { WebsocketService } from '@app/services/websocket.service';
@@ -38,7 +38,7 @@ export class FederationUtxosListComponent implements OnInit {
   private destroy$ = new Subject();
 
   constructor(
-    private apiService: ApiService,
+    private liquidApiService: LiquidApiService,
     public stateService: StateService,
     private websocketService: WebsocketService,
     private route: ActivatedRoute,
@@ -63,14 +63,14 @@ export class FederationUtxosListComponent implements OnInit {
         throttleTime(40000),
         delayWhen(_ => this.isLoad ? timer(0) : timer(2000)),
         tap(() => this.isLoad = false),
-        switchMap(() => this.apiService.federationAuditSynced$()),
+        switchMap(() => this.liquidApiService.federationAuditSynced$()),
         shareReplay(1)
       );
 
       this.currentPeg$ = this.auditStatus$.pipe(
         filter(auditStatus => auditStatus.isAuditSynced === true),
         switchMap(_ =>
-          this.apiService.liquidPegs$().pipe(
+          this.liquidApiService.liquidPegs$().pipe(
             filter((currentPegs) => currentPegs.lastBlockUpdate >= this.lastPegBlockUpdate),
             tap((currentPegs) => {
               this.lastPegBlockUpdate = currentPegs.lastBlockUpdate;
@@ -105,7 +105,7 @@ export class FederationUtxosListComponent implements OnInit {
 
       this.federationUtxos$ = this.auditUpdated$.pipe(
         filter(auditUpdated => auditUpdated === true),
-        switchMap(_ => this.showExpiredUtxos ? this.apiService.expiredUtxos$() : this.apiService.federationUtxos$()),
+        switchMap(_ => this.showExpiredUtxos ? this.liquidApiService.expiredUtxos$() : this.liquidApiService.federationUtxos$()),
         tap(_ => this.isLoading = false),
         share()
       );

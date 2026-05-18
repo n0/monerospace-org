@@ -39,17 +39,12 @@
           <ng-template [ngIf]="fees !== undefined">
             <tr>
               <td i18n="block.total-fees|Total fees in a block">Total fees</td>
-              <td *ngIf="network !== 'liquid' && network !== 'liquidtestnet'; else liquidTotalFees">
+              <td>
                 <app-amount [satoshis]="block?.extras.totalFees" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
               </td>
-              <ng-template #liquidTotalFees>
-                <td>
-                  <app-amount [satoshis]="fees * 100000000" digitsInfo="1.2-2" [noFiat]="true"></app-amount>
-                </td>
-              </ng-template>
             </tr>
           </ng-template>
-          <tr *ngIf="network !== 'liquid' && network !== 'liquidtestnet' && block?.extras?.pool">
+          <tr *ngIf="block?.extras?.pool">
             <td i18n="block.miner">Miner</td>
             <td *ngIf="stateService.env.MINING_DASHBOARD">
               <a placement="bottom" [routerLink]="['/mining/pool' | relativeUrl, block.extras.pool.slug]" class="badge" style="color: #FFF;padding:0;">

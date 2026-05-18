@@ -2,7 +2,7 @@
   width: 75px;
 }
 
-.bitcoin-satoshis-text {
+.xmr-atomic-text {
   font-size: 40px;
 }
 
@@ -15,14 +15,9 @@
 }
 
 @media (max-width: 767.98px) {
-  .bitcoin-satoshis-text {
+  .xmr-atomic-text {
     font-size: 30px;
   }
-}
-
-.sats {
-  font-size: 20px;
-  margin-left: 5px;
 }
 
 .row {

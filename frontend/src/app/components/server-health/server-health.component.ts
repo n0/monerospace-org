@@ -96,8 +96,8 @@ export class ServerHealthComponent implements OnInit {
       this.cd.markForCheck();
     }, 1000);
 
-    this.isLiquidMainnet = this.stateService.network === 'liquid';
-    this.showHybridHash = !this.stateService.isLiquid();
+    this.isLiquidMainnet = false;
+    this.showHybridHash = true;
   }
 
   trackByFn(index: number, host: HealthCheckHost): string {

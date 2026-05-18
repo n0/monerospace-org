@@ -4,7 +4,6 @@ import { map } from 'rxjs/operators';
 import { ApiService } from '@app/services/api.service';
 import { formatNumber } from '@angular/common';
 import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
-import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-difficulty-adjustments-table',
@@ -29,16 +28,10 @@ export class DifficultyAdjustmentsTable implements OnInit {
     @Inject(LOCALE_ID) public locale: string,
     private apiService: ApiService,
     public amountShortenerPipe: AmountShortenerPipe,
-    public stateService: StateService
   ) {
   }
 
   ngOnInit(): void {
-    let decimals = 2;
-    if (this.stateService.network === 'signet') {
-      decimals = 5;
-    }
-
     this.hashrateObservable$ = this.apiService.getDifficultyAdjustments$('3m')
       .pipe(
         map((response) => {
@@ -49,7 +42,7 @@ export class DifficultyAdjustmentsTable implements OnInit {
               height: adjustment[1],
               timestamp: adjustment[0],
               change: (adjustment[3] - 1) * 100,
-              difficultyShorten: this.amountShortenerPipe.transform(adjustment[2], decimals)
+              difficultyShorten: this.amountShortenerPipe.transform(adjustment[2], 2)
             });
           }
           this.isLoading = false;

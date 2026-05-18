@@ -50,4 +50,21 @@ export class MoneroRpc {
     const { data } = await this.client.post<T>(normalized, body);
     return data;
   }
+
+  /**
+   * Proxy a public binary daemon endpoint. Monero wallet2 uses a few
+   * portable-binary daemon calls for scanning; this keeps the transport
+   * generic while the route layer owns the public-method whitelist.
+   */
+  public async rawBytes(path: string, body: Buffer | Uint8Array): Promise<{ data: Buffer; contentType: string }> {
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    const { data, headers } = await this.client.post<ArrayBuffer>(normalized, body, {
+      headers: { 'Content-Type': 'application/octet-stream' },
+      responseType: 'arraybuffer',
+    });
+    return {
+      data: Buffer.from(data),
+      contentType: String(headers['content-type'] || 'application/octet-stream'),
+    };
+  }
 }

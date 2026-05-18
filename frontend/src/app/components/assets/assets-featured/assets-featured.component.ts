@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ApiService } from '@app/services/api.service';
+import { LiquidApiService } from '@app/services/liquid-api.service';
 import { StateService } from '@app/services/state.service';
 
 @Component({
@@ -13,12 +13,12 @@ export class AssetsFeaturedComponent implements OnInit {
   featuredAssets$: Observable<any>;
 
   constructor(
-    private apiService: ApiService,
+    private liquidApiService: LiquidApiService,
     private stateService: StateService,
   ) { }
 
   ngOnInit(): void {
-    this.featuredAssets$ = this.apiService.listFeaturedAssets$(this.stateService.network);
+    this.featuredAssets$ = this.liquidApiService.listFeaturedAssets$(this.stateService.network);
   }
 
 }

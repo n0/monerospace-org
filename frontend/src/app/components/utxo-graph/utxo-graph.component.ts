@@ -8,7 +8,7 @@ import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pip
 import { renderSats } from '@app/shared/common.utils';
 import { colorToHex, hexToColor, mix } from '@components/block-overview-graph/utils';
 import { TimeService } from '@app/services/time.service';
-import { WebsocketService } from '@app/services/websocket.service';
+import { AccelerationStateService } from '@app/services/acceleration-state.service';
 import { Acceleration } from '@interfaces/node-api.interface';
 import { defaultAuditColors } from '@components/block-overview-graph/utils';
 
@@ -86,7 +86,7 @@ export class UtxoGraphComponent implements OnChanges, OnDestroy {
     private router: Router,
     private relativeUrlPipe: RelativeUrlPipe,
     private timeService: TimeService,
-    private websocketService: WebsocketService,
+    private accelerationStateService: AccelerationStateService,
   ) {
     // re-render the chart every 10 seconds, to keep the age colors up to date
     this.updateInterval = setInterval(() => {
@@ -95,8 +95,7 @@ export class UtxoGraphComponent implements OnChanges, OnDestroy {
       }
     }, 10000);
 
-    this.websocketService.startTrackAccelerations();
-    this.accelerationsSubscription = this.stateService.liveAccelerations$.subscribe((accelerations) => {
+    this.accelerationsSubscription = this.accelerationStateService.liveAccelerations$.subscribe((accelerations) => {
       this.accelerationMap = accelerations.reduce((acc, acceleration) => {
         acc[acceleration.txid] = acceleration;
         return acc;
@@ -402,7 +401,6 @@ export class UtxoGraphComponent implements OnChanges, OnDestroy {
       this.subscription.unsubscribe();
     }
     clearInterval(this.updateInterval);
-    this.websocketService.stopTrackAccelerations();
     this.accelerationsSubscription.unsubscribe();
   }
 

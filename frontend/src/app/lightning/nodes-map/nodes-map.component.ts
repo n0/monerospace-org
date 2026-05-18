@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Inject, Input, Output, EventEmitter, LOCALE_ID, NgZone, OnDestroy, OnInit, OnChanges } from '@angular/core';
 import { SeoService } from '@app/services/seo.service';
-import { ApiService } from '@app/services/api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { Observable, BehaviorSubject, switchMap, tap, combineLatest } from 'rxjs';
 import { AssetsService } from '@app/services/assets.service';
 import { EChartsOption, echarts } from '@app/graphs/echarts';
@@ -38,7 +38,7 @@ export class NodesMap implements OnInit, OnChanges {
   constructor(
     @Inject(LOCALE_ID) public locale: string,
     private seoService: SeoService,
-    private apiService: ApiService,
+    private apiService: LightningApiService,
     public stateService: StateService,
     private assetsService: AssetsService,
     private router: Router,

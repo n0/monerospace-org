@@ -5,6 +5,7 @@ import logger from '../../logger';
 import { MoneroEventBus } from './monero-event-bus';
 import { MoneroApi } from './monero-api';
 import { IMoneroApi } from './monero-api.interface';
+import { identifyXmrMinerPool, XmrMinerPool } from './xmr-miner-fingerprint';
 
 /**
  * XmrChainIndexer
@@ -69,6 +70,15 @@ export interface BlockSample {
   feeP100: number;
   difficulty: number;
   hashRate: number;         // difficulty / 120
+  poolId?: number;
+  poolName?: string;
+  poolSlug?: string;
+  poolMinerNames?: string[];
+  poolFingerprinted?: boolean;
+}
+
+interface HydrateBlockOptions {
+  includePool?: boolean;
 }
 
 interface XmrChainBlockTx {
@@ -91,6 +101,7 @@ const PERSIST_DIR = process.env.XMR_INDEX_DIR ?? path.join(os.homedir(), '.xmr-s
 const PERSIST_FILE = path.join(PERSIST_DIR, 'blocks-index.json');
 const SAMPLE_STRIDE_FAST = 30;      // 30 blocks ≈ 1 hour
 const SAMPLE_STRIDE_DEEP = 720;     // 720 blocks ≈ 1 day
+const RECENT_FULL_BLOCKS = 144;     // dashboard reward-stats window
 const FAST_PASS_DAYS = 30;
 const DEEP_PASS_DAYS = 365;
 // Concurrency: be a good citizen on xmrchain.net (a free public service)
@@ -121,7 +132,7 @@ export class XmrChainIndexer {
     await this.loadFromDisk();
     // Live: index every new block as it arrives.
     this.bus.on('block', (header: IMoneroApi.BlockHeader) => {
-      void this.hydrateBlock(header.height).catch((err) => {
+      void this.hydrateBlock(header.height, { includePool: true }).catch((err) => {
         logger.warn(`xmr-indexer: live hydrate ${header.height} failed: ${err instanceof Error ? err.message : err}`);
       });
       this.currentDifficulty = header.difficulty;
@@ -159,6 +170,38 @@ export class XmrChainIndexer {
     return [...this.samples.values()].sort((a, b) => a.height - b.height);
   }
 
+  /**
+   * Exact recent contiguous window, hydrating missing heights before returning.
+   * This is intentionally separate from allSamples(): mining graphs use sparse
+   * historical samples, but dashboard reward stats need the last N real blocks.
+   */
+  public async recentSamples(count: number, options: HydrateBlockOptions = {}): Promise<BlockSample[]> {
+    const requested = Math.max(1, Math.min(1_000, Math.floor(Number.isFinite(count) ? count : RECENT_FULL_BLOCKS)));
+    const tipCount = await this.api.getBlockCount();
+    const tip = tipCount - 1;
+    if (tip < 0) return [];
+
+    this.fetchTip = Math.max(this.fetchTip, tip);
+    const from = Math.max(0, tip - requested + 1);
+    const heights = this.heightRange(from, tip);
+    const missing = heights.filter((height) => {
+      const sample = this.samples.get(height);
+      return !sample || (options.includePool === true && sample.poolFingerprinted !== true);
+    });
+
+    if (missing.length) {
+      if (missing.some((height) => !this.samples.has(height))) {
+        await this.prefetchHeaderDifficulties(from, tip);
+      }
+      await this.runBatched(missing, options);
+      if (this.dirty) void this.persist();
+    }
+
+    return heights
+      .map((height) => this.samples.get(height))
+      .filter((sample): sample is BlockSample => !!sample);
+  }
+
   /** Subset of samples in the given inclusive time window (unix seconds). */
   public samplesBetween(fromSec: number, toSec: number): BlockSample[] {
     const out: BlockSample[] = [];
@@ -182,6 +225,14 @@ export class XmrChainIndexer {
     // RPC calls during fast pass alone.
     const fastFrom = Math.max(0, tip - (FAST_PASS_DAYS * 720));
     await this.prefetchHeaderDifficulties(fastFrom, tip);
+
+    const recentFrom = Math.max(0, tip - RECENT_FULL_BLOCKS + 1);
+    const recentHeights = this.heightRange(recentFrom, tip)
+      .filter((h) => !this.samples.has(h));
+    logger.notice(`xmr-indexer: recent full backfill ${recentHeights.length} blocks (${recentFrom}-${tip})`);
+    await this.runBatched(recentHeights, { includePool: true });
+    logger.notice(`xmr-indexer: recent full backfill done; ${this.samples.size} samples held`);
+    void this.persist();
 
     const fastHeights = this.heightsToSample(fastFrom, tip, SAMPLE_STRIDE_FAST)
       .filter((h) => !this.samples.has(h));
@@ -244,14 +295,20 @@ export class XmrChainIndexer {
     return out;
   }
 
-  private async runBatched(heights: number[]): Promise<void> {
+  private heightRange(from: number, to: number): number[] {
+    const out: number[] = [];
+    for (let h = from; h <= to; h++) out.push(h);
+    return out;
+  }
+
+  private async runBatched(heights: number[], options: HydrateBlockOptions = {}): Promise<void> {
     let i = 0;
     const workers = Array.from({ length: BACKFILL_CONCURRENCY }, async () => {
       while (i < heights.length) {
         const idx = i++;
         const h = heights[idx];
         try {
-          await this.hydrateBlock(h);
+          await this.hydrateBlock(h, options);
         } catch (err) {
           logger.warn(`xmr-indexer: skip ${h}: ${err instanceof Error ? err.message : err}`);
         }
@@ -267,31 +324,46 @@ export class XmrChainIndexer {
    * No-ops if the height is already indexed and the data looks valid.
    * Retries transient failures up to HYDRATE_RETRIES times.
    */
-  public async hydrateBlock(height: number): Promise<void> {
-    if (this.samples.has(height)) return;
+  public async hydrateBlock(height: number, options: HydrateBlockOptions = {}): Promise<void> {
+    const existing = this.samples.get(height);
+    if (existing) {
+      if (options.includePool === true && existing.poolFingerprinted !== true) {
+        await this.hydratePoolFingerprint(height, existing);
+      }
+      return;
+    }
 
     let chainBlock: XmrChainBlock | null = null;
     let header: IMoneroApi.BlockHeader | null = this.headerCache.get(height) ?? null;
+    let daemonBlock: IMoneroApi.Block | null = null;
 
     for (let attempt = 0; attempt <= HYDRATE_RETRIES; attempt++) {
-      const tasks: Promise<unknown>[] = [];
-      if (!chainBlock) tasks.push(this.fetchXmrchainBlock(height).then((b) => { chainBlock = b; }));
-      if (!header) tasks.push(this.api.getBlockByHeight(height).then((b) => { header = b.block_header; }).catch(() => undefined));
-      await Promise.all(tasks);
-      if (chainBlock && header) break;
+      const needDaemonBlock = options.includePool === true || !header;
+      const [fetchedChainBlock, fetchedDaemonBlock] = await Promise.all([
+        chainBlock ? Promise.resolve(chainBlock) : this.fetchXmrchainBlock(height),
+        needDaemonBlock && !daemonBlock
+          ? this.api.getBlockByHeight(height).catch(() => null)
+          : Promise.resolve(daemonBlock),
+      ]);
+      chainBlock = chainBlock ?? fetchedChainBlock;
+      daemonBlock = daemonBlock ?? fetchedDaemonBlock;
+      header = header ?? daemonBlock?.block_header ?? null;
+      if (chainBlock && header && (options.includePool !== true || daemonBlock)) break;
       if (attempt < HYDRATE_RETRIES) {
         await sleep(HYDRATE_RETRY_BACKOFF_MS * (attempt + 1));
       }
     }
 
-    if (!chainBlock || !header) {
+    const readyBlock = chainBlock;
+    const readyHeader = header;
+    if (!readyBlock || !readyHeader) {
       throw new Error(`incomplete data for height ${height}`);
     }
 
-    const txs = chainBlock.txs ?? [];
+    const txs = readyBlock.txs ?? [];
     const coinbase = txs.find((t) => t.coinbase);
     const nonCoinbase = txs.filter((t) => !t.coinbase);
-    const reward = coinbase?.xmr_outputs ?? header.reward ?? 0;
+    const reward = coinbase?.xmr_outputs ?? readyHeader.reward ?? 0;
     const totalFees = nonCoinbase.reduce((acc, t) => acc + (t.tx_fee ?? 0), 0);
 
     // Per-tx fee/byte rate distribution — used by the fee-rates graph.
@@ -303,9 +375,9 @@ export class XmrChainIndexer {
 
     const sample: BlockSample = {
       height,
-      timestamp: chainBlock.timestamp ?? header.timestamp,
-      hash: chainBlock.hash ?? header.hash,
-      size: chainBlock.size ?? header.block_size ?? 0,
+      timestamp: readyBlock.timestamp ?? readyHeader.timestamp,
+      hash: readyBlock.hash ?? readyHeader.hash,
+      size: readyBlock.size ?? readyHeader.block_size ?? 0,
       numTxs: txs.length - (coinbase ? 1 : 0),
       reward,
       totalFees,
@@ -316,9 +388,13 @@ export class XmrChainIndexer {
       feeP75: percentile(rates, 0.75),
       feeP90: percentile(rates, 0.90),
       feeP100: percentile(rates, 1.0),
-      difficulty: header.difficulty,
-      hashRate: header.difficulty / 120,
+      difficulty: readyHeader.difficulty,
+      hashRate: readyHeader.difficulty / 120,
     };
+    const pool = daemonBlock ? identifyXmrMinerPool(daemonBlock) : null;
+    if (pool) {
+      attachPoolFingerprint(sample, pool);
+    }
 
     this.samples.set(height, sample);
     this.dirty = true;
@@ -327,6 +403,22 @@ export class XmrChainIndexer {
       this.currentDifficulty = sample.difficulty;
       this.currentHashRate = sample.hashRate;
     }
+  }
+
+  private async hydratePoolFingerprint(height: number, sample: BlockSample): Promise<void> {
+    let daemonBlock: IMoneroApi.Block | null = null;
+    for (let attempt = 0; attempt <= HYDRATE_RETRIES; attempt++) {
+      daemonBlock = await this.api.getBlockByHeight(height).catch(() => null);
+      if (daemonBlock) break;
+      if (attempt < HYDRATE_RETRIES) {
+        await sleep(HYDRATE_RETRY_BACKOFF_MS * (attempt + 1));
+      }
+    }
+    if (!daemonBlock) return;
+
+    attachPoolFingerprint(sample, identifyXmrMinerPool(daemonBlock));
+    this.samples.set(height, sample);
+    this.dirty = true;
   }
 
   private async fetchXmrchainBlock(height: number): Promise<XmrChainBlock | null> {
@@ -389,6 +481,14 @@ export class XmrChainIndexer {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function attachPoolFingerprint(sample: BlockSample, pool: XmrMinerPool): void {
+  sample.poolId = pool.id;
+  sample.poolName = pool.name;
+  sample.poolSlug = pool.slug;
+  sample.poolMinerNames = [...pool.minerNames];
+  sample.poolFingerprinted = true;
 }
 
 /** Linear-interpolated percentile on a pre-sorted array. Returns 0 for empty. */

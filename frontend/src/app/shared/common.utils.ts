@@ -151,12 +151,7 @@ export function nextRoundNumber(num: number): number {
   return factor * (roundNumbers.find(val => val >= num) || roundNumbers[roundNumbers.length - 1]);
 }
 
-export function seoDescriptionNetwork(network: string): string {
-  if( network === 'liquidtestnet' || network === 'testnet' ) {
-    return ' Testnet';
-  } else if( network === 'signet' || network === 'testnet' || network === 'testnet4' || network === 'regtest') {
-    return ' ' + network.charAt(0).toUpperCase() + network.slice(1);
-  }
+export function seoDescriptionNetwork(_network: string): string {
   return '';
 }
 
@@ -169,7 +164,6 @@ export function uncompressTx(tx: TransactionCompressed): TransactionStripped {
     rate: tx[4],
     flags: tx[5],
     time: tx[6],
-    acc: !!tx[7],
   };
 }
 
@@ -182,7 +176,6 @@ export function uncompressDeltaChange(block: number, delta: MempoolBlockDeltaCom
       txid: tx[0],
       rate: tx[1],
       flags: tx[2],
-      acc: !!tx[3],
     }))
   };
 }
@@ -226,7 +219,7 @@ export function handleDemoRedirect(route: ActivatedRoute, router: Router) {
   route.queryParams
     .subscribe(params => {
       if (params.next) {
-        const path = ['/', '/acceleration', '/mining', '/lightning'];
+        const path = ['/', '/blocks', '/graphs', '/status'];
         const index = path.indexOf(params.next);
         if (index >= 0) {
           const nextPath = path[(index + 1) % path.length];

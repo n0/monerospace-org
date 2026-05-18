@@ -1,25 +1,24 @@
 {
   "name": "mempool-backend",
   "version": "3.4-dev",
-  "description": "Bitcoin mempool visualizer and blockchain explorer backend",
+  "description": "Monero mempool visualizer and blockchain explorer backend",
   "license": "GNU Affero General Public License v3.0",
-  "homepage": "https://mempool.space",
+  "homepage": "https://github.com/n0/xmr-space",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mempool/mempool"
+    "url": "git+https://github.com/n0/xmr-space"
   },
   "bugs": {
-    "url": "https://github.com/mempool/mempool/issues"
+    "url": "https://github.com/n0/xmr-space/issues"
   },
   "keywords": [
-    "bitcoin",
+    "monero",
+    "xmr",
     "mempool",
     "blockchain",
-    "explorer",
-    "liquid",
-    "lightning"
+    "explorer"
   ],
-  "main": "index.ts",
+  "main": "dist/api/monero/xmr-server.js",
   "scripts": {
     "tsc": "./node_modules/typescript/bin/tsc -p tsconfig.build.json",
     "build": "npm run tsc && npm run create-resources",
@@ -28,10 +27,12 @@
     "package": "./npm_package.sh",
     "package-rm-build-deps": "./npm_package_rm_build_deps.sh",
     "preinstall": "cd ../rust/gbt && npm run build-release && npm run to-backend",
-    "start": "node --max-old-space-size=2048 dist/index.js",
-    "start-production": "node --max-old-space-size=16384 dist/index.js",
-    "reindex-updated-pools": "npm run start-production --update-pools",
-    "reindex-all-blocks": "npm run start-production --update-pools --reindex-blocks",
+    "start": "node --max-old-space-size=2048 dist/api/monero/xmr-server.js",
+    "start-production": "node --max-old-space-size=16384 dist/api/monero/xmr-server.js",
+    "start-upstream": "node --max-old-space-size=2048 dist/index.js",
+    "start-upstream-production": "node --max-old-space-size=16384 dist/index.js",
+    "reindex-updated-pools": "echo \"xmr-space does not run the upstream Bitcoin pool reindexer\"",
+    "reindex-all-blocks": "echo \"xmr-space does not run the upstream Bitcoin block reindexer\"",
     "test": "./node_modules/.bin/jest --coverage",
     "test:ci": "CI=true ./node_modules/.bin/jest --coverage",
     "test:integration": "./node_modules/.bin/jest --config=jest.integration.config.ts --runInBand --forceExit",

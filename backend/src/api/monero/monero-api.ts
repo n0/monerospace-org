@@ -38,6 +38,25 @@ export class MoneroApi {
     return info;
   }
 
+  /**
+   * Forward an already-whitelisted public JSON-RPC daemon method.
+   * The route layer validates method names and rejects secret-shaped
+   * request bodies before reaching this transport helper.
+   */
+  public async proxyPublicJsonRpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+    return this.rpc.jsonRpc<T>(method, params);
+  }
+
+  /** Forward an already-whitelisted public daemon path request. */
+  public async proxyPublicRaw<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+    return this.rpc.raw<T>(path, body);
+  }
+
+  /** Forward an already-whitelisted public binary daemon path request. */
+  public async proxyPublicRawBytes(path: string, body: Buffer | Uint8Array): Promise<{ data: Buffer; contentType: string }> {
+    return this.rpc.rawBytes(path, body);
+  }
+
   /** Just the height — cheaper than `getInfo` when that's all the caller needs. */
   public async getBlockCount(): Promise<number> {
     const cached = memoryCache.get<number>('xmr', 'blockcount');
@@ -138,6 +157,37 @@ export class MoneroApi {
   public async getTransactionByHash(hash: string): Promise<IMoneroApi.TransactionEntry | null> {
     const txs = await this.getTransactionsByHashes([hash]);
     return txs.find((t) => t.tx_hash === hash) ?? null;
+  }
+
+  /**
+   * Resolve public ring-member output metadata by global output index.
+   * For modern RingCT inputs the amount is 0; legacy pre-RingCT inputs
+   * carry their explicit amount in the transaction's key image input.
+   */
+  public async getOuts(
+    outputs: IMoneroApi.GetOutsRequestOutput[],
+    getTxid = true,
+  ): Promise<IMoneroApi.GetOutsOutput[]> {
+    if (!outputs.length) {
+      return [];
+    }
+
+    const cacheKey = `${getTxid ? 'txid' : 'no-txid'}:${outputs.map((o) => `${o.amount}:${o.index}`).join(',')}`;
+    const cached = memoryCache.get<IMoneroApi.GetOutsOutput[]>('xmr-outs', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const resp = await this.rpc.raw<IMoneroApi.GetOutsResponse>(
+      '/get_outs',
+      { outputs, get_txid: getTxid },
+    );
+    if (resp.status && resp.status !== 'OK') {
+      throw new Error(`monerod /get_outs returned ${resp.status}`);
+    }
+    const outs = resp.outs ?? [];
+    memoryCache.set('xmr-outs', cacheKey, outs, 3600);
+    return outs;
   }
 
   /**

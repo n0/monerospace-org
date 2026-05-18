@@ -1,6 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { StateService } from '@app/services/state.service';
+import { Component, Input } from '@angular/core';
 
 @Component({
   selector: 'app-sats',
@@ -8,27 +6,9 @@ import { StateService } from '@app/services/state.service';
   styleUrls: ['./sats.component.scss'],
   standalone: false,
 })
-export class SatsComponent implements OnInit {
+export class SatsComponent {
   @Input() satoshis: number;
   @Input() digitsInfo = '1.0-0';
   @Input() addPlus = false;
   @Input() valueOverride: string | undefined = undefined;
-
-  network = '';
-  stateSubscription: Subscription;
-
-  constructor(
-    private stateService: StateService,
-  ) { }
-
-  ngOnInit() {
-    this.stateSubscription = this.stateService.networkChanged$.subscribe((network) => this.network = network);
-  }
-
-  ngOnDestroy() {
-    if (this.stateSubscription) {
-      this.stateSubscription.unsubscribe();
-    }
-  }
-
 }

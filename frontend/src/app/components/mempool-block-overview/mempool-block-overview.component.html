@@ -2,7 +2,7 @@
   #blockGraph
   [isLoading]="(isLoading$ | async) || !stateService.isBrowser"
   [resolution]="resolution"
-  [blockLimit]="stateService.blockVSize"
+  [blockLimit]="visualBlockWeightLimit"
   [orientation]="timeLtr ? 'right' : 'left'"
   [flip]="true"
   [showFilters]="showFilters"

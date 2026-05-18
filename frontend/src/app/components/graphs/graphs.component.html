@@ -1,9 +1,10 @@
-<div *ngIf="stateService.env.MINING_DASHBOARD || stateService.env.LIGHTNING || stateService.env.ACCELERATOR || (stateService.env.HISTORICAL_PRICE && isMainnet)" class="mb-3 d-flex menu" [style]="{'flex-wrap': flexWrap ? 'wrap' : ''}">
+<div class="mb-3 d-flex menu">
 
   <a routerLinkActive="active" class="btn btn-primary w-33"
     [routerLink]="['/graphs/mempool' | relativeUrl]">Mempool</a>
 
-  <div ngbDropdown class="w-33" *ngIf="stateService.env.MINING_DASHBOARD">
+  @if (stateService.env.MINING_DASHBOARD) {
+  <div ngbDropdown class="w-33">
     <button class="btn btn-primary w-100" id="dropdownBasic1" ngbDropdownToggle i18n="mining">Mining</button>
     <div ngbDropdownMenu aria-labelledby="dropdownBasic1">
       <!-- xmr-space: Pools Ranking / Pools Dominance removed.
@@ -23,43 +24,13 @@
         i18n="mining.block-rewards">Block Rewards</a>
       <a class="dropdown-item" routerLinkActive="active"
         [routerLink]="['/graphs/mining/block-sizes-weights' | relativeUrl]" i18n="mining.block-sizes-weights">Block Sizes and Weights</a>
-      <a *ngIf="stateService.env.AUDIT" class="dropdown-item" routerLinkActive="active"
-        [routerLink]="['/graphs/mining/block-health' | relativeUrl]" i18n="mining.blocks-health">Block Health</a>
     </div>
   </div>
+  }
 
-  <div ngbDropdown class="w-33" *ngIf="stateService.networkSupportsLightning()">
-    <button class="btn btn-primary w-100" id="dropdownBasic1" ngbDropdownToggle i18n="lightning">Lightning</button>
-    <div ngbDropdownMenu aria-labelledby="dropdownBasic1">
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/lightning/nodes-networks' | relativeUrl]"
-        i18n="lightning.nodes-networks">Lightning Nodes Per Network</a>
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/lightning/capacity' | relativeUrl]"
-        i18n="lightning.network-capacity">Lightning Network Capacity</a>
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/lightning/nodes-per-isp' | relativeUrl]"
-        i18n="lightning.nodes-per-isp">Lightning Nodes Per ISP</a>
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/lightning/nodes-per-country' | relativeUrl]"
-        i18n="lightning.nodes-per-country">Lightning Nodes Per Country</a>
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/lightning/nodes-map' | relativeUrl]"
-        i18n="lightning.lightning.nodes-heatmap">Lightning Nodes World Map</a>
-      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/lightning/nodes-channels-map' | relativeUrl]"
-        i18n="lightning.nodes-channels-world-map">Lightning Nodes Channels World Map</a>
-    </div>
-  </div>
-
-  @if (isMainnet) {
-    <div ngbDropdown class="w-33">
-      <button class="btn btn-primary w-100" id="dropdownBasic1" ngbDropdownToggle i18n="more">More</button>
-        <div ngbDropdownMenu aria-labelledby="dropdownBasic1">
-          @if (stateService.env.ACCELERATOR) {
-            <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/acceleration/fees' | relativeUrl]"
-              i18n="accelerator.acceleration-fees">Acceleration Fees</a>
-          }
-          @if (stateService.env.HISTORICAL_PRICE) {
-            <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/price' | relativeUrl]"
-              i18n="price">Price</a>
-          }
-        </div>
-    </div>
+  @if (isMainnet && stateService.env.HISTORICAL_PRICE) {
+    <a class="btn btn-primary w-33" routerLinkActive="active" [routerLink]="['/graphs/price' | relativeUrl]"
+      i18n="price">Price</a>
   }
 
 </div>

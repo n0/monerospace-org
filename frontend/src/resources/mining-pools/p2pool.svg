@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="P2Pool">
+  <rect width="64" height="64" rx="10" fill="#ff6600"/>
+  <path fill="#4b1f00" d="M32 8 54 20.7v25.4L32 58.8 10 46.1V20.7L32 8Zm0 6.9L16 24.1v18.5l16 9.2 16-9.2V24.1l-16-9.2Z"/>
+  <circle cx="32" cy="32" r="12" fill="#fff"/>
+  <path fill="#4b1f00" d="M25 24h9.3c4.5 0 7.7 2.9 7.7 7.1 0 4.4-3.3 7.2-8 7.2h-3.3V43H25V24Zm5.7 4.7v4.9h3.2c1.5 0 2.4-.9 2.4-2.5 0-1.5-.9-2.4-2.4-2.4h-3.2Z"/>
+</svg>

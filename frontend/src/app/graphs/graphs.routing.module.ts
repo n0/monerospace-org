@@ -5,37 +5,33 @@ import { MempoolBlockComponent } from '@components/mempool-block/mempool-block.c
 import { StartComponent } from '@components/start/start.component';
 import { StatisticsComponent } from '@components/statistics/statistics.component';
 import { DashboardComponent } from '@app/dashboard/dashboard.component';
-import { CustomDashboardComponent } from '@components/custom-dashboard/custom-dashboard.component';
 import { CalculatorComponent } from '@components/calculator/calculator.component';
 // xmr-space: re-enabled mining graphs now that XmrChainIndexer
 // (xmrchain.net + monerod) hydrates the per-block series the chart
-// components consume. We deliberately omit the pool-related routes
-// (mining/pool/:slug, mining/pools, mining/pools-dominance) — Monero
-// has no canonical pool tagging, so those would render as broken
-// dropdowns with no data behind them.
+// components consume. Pool ranking is best-effort and only exposes the
+// supported attribution pages; dominance stays omitted until the
+// historical pool series is complete enough to be honest.
 import { HashrateChartComponent } from '@components/hashrate-chart/hashrate-chart.component';
+import { PoolRankingComponent } from '@components/pool-ranking/pool-ranking.component';
+import { PoolComponent } from '@components/pool/pool.component';
 import { BlockFeesGraphComponent } from '@components/block-fees-graph/block-fees-graph.component';
 import { BlockRewardsGraphComponent } from '@components/block-rewards-graph/block-rewards-graph.component';
 import { BlockFeeRatesGraphComponent } from '@components/block-fee-rates-graph/block-fee-rates-graph.component';
 import { BlockSizesWeightsGraphComponent } from '@components/block-sizes-weights-graph/block-sizes-weights-graph.component';
 import { BlockFeesSubsidyGraphComponent } from '@components/block-fees-subsidy-graph/block-fees-subsidy-graph.component';
-
-const browserWindow = window || {};
-// @ts-ignore
-const browserWindowEnv = browserWindow.__env || {};
-const isCustomized = browserWindowEnv?.customize?.dashboard;
+import { PriceChartComponent } from '@components/price-chart/price-chart.component';
 
 const routes: Routes = [
   // xmr-space: stripped Bitcoin-only sub-routes from this graphs module:
-  //   mining/pool/:slug, mining, acceleration*, address/:id, wallet/:wallet
+  //   mining, acceleration*, address/:id, wallet/:wallet
   //   — all impossible (Monero has no public address tracking, no
-  //     accelerator market, our pool fingerprinting is stub-only)
-  // Stripped graphs/mining/* (hashrate, pool dominance, block-fees,
-  // subsidy, rewards, block-fee-rates, sizes-weights, block-health)
-  // because they all depend on Bitcoin-specific indexer state we don't
-  // build.
+  //     accelerator market)
+  // Mining graphs are limited to series hydrated by XmrChainIndexer;
+  // pool dominance and block-health remain stripped because they need
+  // upstream pool-tag/audit state we do not build.
   // Kept: tools/calculator (feasible reuse), mempool-block/:id (works),
-  // graphs/mempool (uses our /api/v1/statistics/* time series).
+  // graphs/mempool (uses our /api/v1/statistics/* time series), and
+  // graphs/price (uses our durable /api/v1/historical-price XMR series).
   {
     path: '',
     children: [
@@ -54,6 +50,10 @@ const routes: Routes = [
         ]
       },
       {
+        path: 'mining/pool/:slug',
+        component: PoolComponent,
+      },
+      {
         path: 'graphs',
         component: GraphsComponent,
         children: [
@@ -62,8 +62,16 @@ const routes: Routes = [
             component: StatisticsComponent,
           },
           {
+            path: 'price',
+            component: PriceChartComponent,
+          },
+          {
             path: 'mining/hashrate-difficulty',
             component: HashrateChartComponent,
+          },
+          {
+            path: 'mining/pools',
+            component: PoolRankingComponent,
           },
           {
             path: 'mining/block-fees',
@@ -97,7 +105,11 @@ const routes: Routes = [
         component: StartComponent,
         children: [{
           path: '',
-          component: isCustomized ? CustomDashboardComponent : DashboardComponent,
+          // xmr-space: force the Monero dashboard even when upstream
+          // customize.dashboard widgets are present. The custom
+          // dashboard can reintroduce address/wallet/SimpleProof
+          // widgets that are not public Monero explorer primitives.
+          component: DashboardComponent,
         }]
       },
     ]

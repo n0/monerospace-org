@@ -168,6 +168,13 @@ export const chartColors = [
 export const originalChartColors = chartColors.slice(1);
 
 export const poolsColor = {
+  'p2pool': '#F4511E',
+  'supportxmr': '#7CB342',
+  'moneroocean': '#039BE5',
+  'nanopool': '#8E24AA',
+  'hashvault': '#43A047',
+  'herominers': '#FB8C00',
+  '2miners': '#E53935',
   'unknown': '#FDD835',
 };
 
@@ -254,93 +261,23 @@ export const languages: Language[] = [
 export const specialBlocks = {
   '0': {
     labelEvent: 'Genesis',
-    labelEventCompleted: 'The Genesis of Bitcoin',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '210000': {
-    labelEvent: 'Bitcoin\'s 1st Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 25 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '420000': {
-    labelEvent: 'Bitcoin\'s 2nd Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 12.5 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '630000': {
-    labelEvent: 'Bitcoin\'s 3rd Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 6.25 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '709632': {
-    labelEvent: 'Taproot 🌱 activation',
-    labelEventCompleted: 'Taproot 🌱 has been activated!',
+    labelEventCompleted: 'The Genesis of Monero',
     networks: ['mainnet'],
   },
-  '840000': {
-    labelEvent: 'Bitcoin\'s 4th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 3.125 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
+  '1220516': {
+    labelEvent: 'RingCT activation',
+    labelEventCompleted: 'RingCT privacy is active',
+    networks: ['mainnet'],
   },
-  '1050000': {
-    labelEvent: 'Bitcoin\'s 5th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 1.5625 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
+  '1978433': {
+    labelEvent: 'RandomX activation',
+    labelEventCompleted: 'RandomX proof-of-work is active',
+    networks: ['mainnet'],
   },
-  '1260000': {
-    labelEvent: 'Bitcoin\'s 6th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.78125 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '1470000': {
-    labelEvent: 'Bitcoin\'s 7th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.390625 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '1680000': {
-    labelEvent: 'Bitcoin\'s 8th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.1953125 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '1890000': {
-    labelEvent: 'Bitcoin\'s 9th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.09765625 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '2100000': {
-    labelEvent: 'Bitcoin\'s 10th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.04882812 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '2310000': {
-    labelEvent: 'Bitcoin\'s 11th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.02441406 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '2520000': {
-    labelEvent: 'Bitcoin\'s 12th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.01220703 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '2730000': {
-    labelEvent: 'Bitcoin\'s 13th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.00610351 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '2940000': {
-    labelEvent: 'Bitcoin\'s 14th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.00305175 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '3150000': {
-    labelEvent: 'Bitcoin\'s 15th Halving',
-    labelEventCompleted: 'Block Subsidy has halved to 0.00152587 BTC per block',
-    networks: ['mainnet', 'testnet', 'testnet4'],
-  },
-  '3477600': {
-    labelEvent: 'Simplicity activation',
-    labelEventCompleted: 'Simplicity has been activated!',
-    networks: ['liquid'],
+  '2641623': {
+    labelEvent: 'Tail emission era',
+    labelEventCompleted: 'Tail emission has started',
+    networks: ['mainnet'],
   },
 };
 

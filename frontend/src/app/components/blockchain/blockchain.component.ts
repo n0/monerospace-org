@@ -130,17 +130,9 @@ export class BlockchainComponent implements OnInit, OnDestroy, OnChanges {
   onResize(): void {
     const width = this.containerWidth || window.innerWidth;
     if (width >= 768) {
-      if (this.stateService.isLiquid()) {
-        this.dividerOffset = 420;
-      } else {
-        this.dividerOffset = width * 0.5;
-      }
+      this.dividerOffset = width * 0.5;
     } else {
-      if (this.stateService.isLiquid()) {
-        this.dividerOffset = width * 0.5;
-      } else {
-        this.dividerOffset = width * 0.95;
-      }
+      this.dividerOffset = width * 0.95;
     }
     this.updateStyle();
   }

@@ -1,6 +1,6 @@
 {
-    "name": "mempool",
-    "short_name": "mempool",
+    "name": "monerospace.org",
+    "short_name": "MoneroSpace",
     "icons": [
         {
             "src": "/resources/favicons/android-chrome-192x192.png",
@@ -13,7 +13,7 @@
             "type": "image/png"
         }
     ],
-    "theme_color": "#000000",
-    "background_color": "#000000",
+    "theme_color": "#ff6600",
+    "background_color": "#0d0f17",
     "display": "standalone"
 }

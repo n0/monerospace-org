@@ -1,6 +1,4 @@
-import { Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { StateService } from '@app/services/state.service';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 
 @Component({
   selector: 'app-btc',
@@ -8,7 +6,7 @@ import { StateService } from '@app/services/state.service';
   styleUrls: ['./btc.component.scss'],
   standalone: false,
 })
-export class BtcComponent implements OnInit, OnChanges {
+export class BtcComponent implements OnChanges {
   @Input() satoshis: number;
   @Input() addPlus = false;
   @Input() valueOverride: string | undefined = undefined;
@@ -16,30 +14,13 @@ export class BtcComponent implements OnInit, OnChanges {
   value: number;
   unit: string;
 
-  network = '';
-  stateSubscription: Subscription;
-
-  constructor(
-    private stateService: StateService,
-  ) { }
-
-  ngOnInit() {
-    this.stateSubscription = this.stateService.networkChanged$.subscribe((network) => this.network = network);
-  }
-
-  ngOnDestroy() {
-    if (this.stateSubscription) {
-      this.stateSubscription.unsubscribe();
-    }
-  }
-
   ngOnChanges(changes: SimpleChanges): void {
-    if (this.satoshis >= 1_000_000) {
-      this.value = (this.satoshis / 100_000_000);
-      this.unit = 'BTC';
+    if (this.satoshis >= 1_000_000_000_000) {
+      this.value = (this.satoshis / 1_000_000_000_000);
+      this.unit = 'XMR';
     } else {
       this.value = Math.round(this.satoshis);
-      this.unit = 'sats';
+      this.unit = 'atomic';
     }
   }
 }

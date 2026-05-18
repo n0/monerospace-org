@@ -1,10 +1,9 @@
 import { Component, OnInit, ChangeDetectionStrategy, OnDestroy } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { BehaviorSubject, EMPTY, merge, Observable, Subscription } from 'rxjs';
+import { ActivatedRoute } from '@angular/router';
+import { BehaviorSubject, EMPTY, Observable, Subscription } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
-import { WebsocketService } from '@app/services/websocket.service';
 import { RbfTree } from '@interfaces/node-api.interface';
-import { ApiService } from '@app/services/api.service';
+import { RbfApiService } from '@app/services/rbf-api.service';
 import { StateService } from '@app/services/state.service';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
@@ -26,10 +25,8 @@ export class RbfList implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
-    private router: Router,
-    private apiService: ApiService,
+    private rbfApiService: RbfApiService,
     public stateService: StateService,
-    private websocketService: WebsocketService,
     private seoService: SeoService,
     private ogService: OpenGraphService,
   ) { }
@@ -37,21 +34,17 @@ export class RbfList implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.urlFragmentSubscription = this.route.fragment.subscribe((fragment) => {
       this.fullRbf = (fragment === 'fullrbf');
-      this.websocketService.startTrackRbf(this.fullRbf ? 'fullRbf' : 'all');
       this.nextRbfSubject.next(null);
       this.isLoading = true;
     });
 
-    this.rbfTrees$ = merge(
-      this.nextRbfSubject.pipe(
-        switchMap(() => {
-          return this.apiService.getRbfList$(this.fullRbf);
-        }),
-        catchError((e) => {
-          return EMPTY;
-        })
-      ),
-      this.stateService.rbfLatest$
+    this.rbfTrees$ = this.nextRbfSubject.pipe(
+      switchMap(() => {
+        return this.rbfApiService.getRbfList$(this.fullRbf);
+      }),
+      catchError((e) => {
+        return EMPTY;
+      })
     )
     .pipe(
       tap(() => {
@@ -65,6 +58,6 @@ export class RbfList implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.websocketService.stopTrackRbf();
+    this.urlFragmentSubscription.unsubscribe();
   }
 }

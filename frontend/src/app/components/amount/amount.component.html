@@ -1,15 +1,11 @@
 <!-- xmr-space: amount values arriving here are Monero atomic units
      (1 XMR = 1e12 atomic). The variable is named `satoshis` for upstream
-     compatibility but should be read as "atomic units." Default view
-     ('btc' branch in the @if) renders XMR; the alternate branch renders
-     raw atomic units.
-     RingCT-hidden case: when satoshis === 0 (vin/vout entries for
-     Monero txs ALWAYS encode 0 because the actual amount is a
-     Pedersen commitment), we render a blurred fake amount instead of
-     '0.00000000 XMR'. The fake digits are derived from the parent
-     transactionId/index via the unitStyle hash so the same row is
-     stable across renders, but no real value leaks. -->
-<ng-container *ngIf="satoshis === 0; else realAmount">
+     compatibility but should be read as "atomic units." Default view renders
+     XMR; the alternate branch renders raw atomic units.
+     RingCT-hidden case: tx vin/vout placeholders opt into blurHiddenAmount
+     because they encode 0 while the actual amount is a Pedersen commitment.
+     Real zero values, such as a block with zero fees, render normally. -->
+<ng-container *ngIf="blurHiddenAmount && satoshis === 0; else realAmount">
   <span class="xmr-amount-blur" aria-label="Amount hidden by RingCT" title="Hidden by RingCT — provide a view key on the tx-detail page to decrypt">
     <span class="xmr-amount-blur-fake">{{ blurredFake() }}</span>
     <span class="symbol" [style]="unitStyle">XMR</span>
@@ -36,7 +32,7 @@
   </ng-container>
 
   <ng-template #viewFiatVin>
-    @if ((viewAmountMode$ | async) === 'btc' || (viewAmountMode$ | async) === 'fiat' || ignoreViewMode === true) {
+    @if ((viewAmountMode$ | async) === 'xmr' || (viewAmountMode$ | async) === 'fiat' || ignoreViewMode === true) {
       &lrm;{{ addPlus && satoshis >= 0 ? '+' : '' }}{{ satoshis / 1000000000000 | number : digitsInfo }}
       <span class="symbol" [style]="unitStyle">XMR</span>
     } @else {

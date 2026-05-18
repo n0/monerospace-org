@@ -63,6 +63,7 @@ src/resources/assets-testnet.json
 src/resources/assets-testnet.minimal.json
 src/resources/pools.json
 src/resources/mining-pools/*
+!src/resources/mining-pools/p2pool.svg
 src/resources/**/*.mp4
 src/resources/**/*.vtt
 src/resources/customize.js
@@ -77,4 +78,3 @@ cypress/screenshots
 
 # Base index
 src/index.html
-

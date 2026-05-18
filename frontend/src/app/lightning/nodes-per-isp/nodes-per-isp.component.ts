@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { BehaviorSubject, combineLatest, map, Observable, share, tap } from 'rxjs';
-import { ApiService } from '@app/services/api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { SeoService } from '@app/services/seo.service';
 import { getFlagEmoji } from '@app/shared/common.utils';
 import { GeolocationData } from '@app/shared/components/geolocation/geolocation.component';
@@ -26,7 +26,7 @@ export class NodesPerISP implements OnInit {
   skeletonLines: number[] = [];
 
   constructor(
-    private apiService: ApiService,
+    private apiService: LightningApiService,
     private seoService: SeoService,
     private route: ActivatedRoute,
   ) {

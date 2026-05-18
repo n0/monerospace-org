@@ -1,5 +1,4 @@
 import { Component } from '@angular/core';
-import { Env, StateService } from '@app/services/state.service';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
 
@@ -10,17 +9,14 @@ import { OpenGraphService } from '@app/services/opengraph.service';
   standalone: false,
 })
 export class TrademarkPolicyComponent {
-  officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
-
   constructor(
-    private stateService: StateService,
     private seoService: SeoService,
     private ogService: OpenGraphService,
   ) { }
 
   ngOnInit(): void {
-    this.seoService.setTitle('Trademark Policy');
-    this.seoService.setDescription('An overview of the trademarks registered by Mempool Holdings S.A. de C.V. and The Mempool Open Source Project® and what we consider to be lawful usage of those trademarks.');
+    this.seoService.setTitle('Trademark & Attribution');
+    this.seoService.setDescription('Trademark and attribution notes for MoneroSpace, including upstream mempool/mempool attribution and Monero project independence.');
     this.ogService.setManualOgImage('trademark-policy.jpg');
   }
 }

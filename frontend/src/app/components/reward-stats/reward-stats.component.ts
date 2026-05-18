@@ -42,10 +42,11 @@ export class RewardStatsComponent implements OnInit {
       )
       .pipe(
         map((stats) => {
+          const blockCount = stats.blockCount ?? Math.max(0, stats.endBlock - stats.startBlock + 1);
           return {
             totalReward: stats.totalReward,
-            feePerTx: stats.totalFee / stats.totalTx,
-            feePerBlock: stats.totalFee / 144,
+            feePerTx: stats.totalTx > 0 ? stats.totalFee / stats.totalTx : 0,
+            feePerBlock: blockCount > 0 ? stats.totalFee / blockCount : 0,
           };
         })
       );

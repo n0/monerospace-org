@@ -1,12 +1,71 @@
-import { Application, Request, Response } from 'express';
+import express, { Application, Request, Response } from 'express';
 import { handleError } from '../../utils/api';
 import logger from '../../logger';
 import { MoneroApi } from './monero-api';
 import { MoneroWs } from './monero-ws';
 import { IMoneroApi } from './monero-api.interface';
+import { getXmrPriceConversion } from './xmr-price';
+import { MoneroWalletRpc } from './monero-wallet-rpc';
+import { shapeXmrDifficultyAdjustment } from './xmr-difficulty';
+import { attachResolvedRingMembers, buildRingLookupPlan, XmrRingMember } from './xmr-rings';
+import { identifyXmrMinerPool } from './xmr-miner-fingerprint';
 
 const HEX64 = /^[a-f0-9]{64}$/i;
+const MONERO_MAINNET_ADDRESS = /^[48][0-9a-zA-Z]{94,105}$/;
 const MAX_RECENT_BLOCKS = 25;
+const MAX_RING_MEMBER_LOOKUPS = 512;
+const PUBLIC_MONEROD_JSON_RPC_METHODS = new Set([
+  'get_info',
+  'get_version',
+  'get_block_count',
+  'get_block',
+  'get_block_header_by_hash',
+  'get_block_header_by_height',
+  'get_block_headers_range',
+  'get_last_block_header',
+  'get_fee_estimate',
+  'get_output_histogram',
+  'get_output_distribution',
+  'hard_fork_info',
+  'sync_info',
+]);
+const PUBLIC_MONEROD_PATH_METHODS = new Set([
+  'get_transactions',
+  'gettransactions',
+  'get_transaction_pool',
+  'get_transaction_pool_hashes',
+  'get_outs',
+  'get_output_distribution',
+  'is_key_image_spent',
+]);
+const PUBLIC_MONEROD_BINARY_METHODS = new Set([
+  'get_blocks.bin',
+  'getblocks.bin',
+  'get_blocks_by_height.bin',
+  'get_hashes.bin',
+  'get_o_indexes.bin',
+  'get_outs.bin',
+]);
+const FORBIDDEN_SECRET_BODY_KEYS = [
+  'privateviewkey',
+  'privviewkey',
+  'viewsecretkey',
+  'viewkey',
+  'privatespendkey',
+  'privspendkey',
+  'spendsecretkey',
+  'spendkey',
+  'txsecretkey',
+  'txkey',
+  'secretkey',
+  'privatekey',
+  'walletseed',
+  'mnemonicseed',
+  'mnemonic',
+  'seedphrase',
+  'walletpassword',
+  'password',
+];
 
 /**
  * REST surface for the Monero side of xmr-space. Mirrors mempool.space's
@@ -25,6 +84,7 @@ export class MoneroRoutes {
   constructor(
     private api: MoneroApi,
     private ws: MoneroWs | null = null,
+    private walletRpc: MoneroWalletRpc | null = null,
     private prefix = '/api/v1/',
   ) {}
 
@@ -42,6 +102,7 @@ export class MoneroRoutes {
       // the same TransactionStripped[] shape upstream expects:
       //   [{ txid, fee, vsize, value, rate, flags, time, acc }, …]
       .get(this.prefix + 'block/:hash/summary', (req, res) => this.getBlockSummary(req, res))
+      .get(this.prefix + 'block/:hash/tx/:txid/summary', (req, res) => this.getStrippedBlockTransaction(req, res))
       // Audit endpoint always 404 — Bitcoin-only feature; the upstream
       // BlockComponent is OK with a missing audit and just hides the
       // 'Expected vs Actual' comparison.
@@ -54,6 +115,8 @@ export class MoneroRoutes {
       // was used by our deprecated XmrTxDetail; that module now lives
       // on disk only, no live consumer reads it.
       .get(this.prefix + 'tx/:hash', (req, res) => this.getTxBitcoinShape(req, res))
+      .post(this.prefix + 'tx/:hash/verify-proof', (req, res) => this.verifyTxProof(req, res))
+      .post(this.prefix + 'monerod/json_rpc', (req, res) => this.proxyPublicMonerodJsonRpc(req, res))
       .get(this.prefix + 'mempool', (req, res) => this.getMempool(req, res))
       .get(this.prefix + 'fees/recommended', (req, res) => this.getFeesRecommended(req, res))
       // /api/v1/fees/mempool-blocks — projected mempool blocks. Same
@@ -88,6 +151,16 @@ export class MoneroRoutes {
     // so upstream's vin/vout decoder doesn't crash on empty arrays.
     app.get('/api/block/:hash/txs/:index', (req, res) => this.getBlockTxsByPage(req, res, false));
     app.get('/api/block/:hash/txs', (req, res) => this.getBlockTxsByPage(req, res, false));
+    // Raw block blob. Monero does not expose Bitcoin's 80-byte header
+    // hex shape; the daemon's canonical downloadable binary form is the
+    // full block blob returned by get_block.
+    app.get('/api/block/:hash/raw', (req, res) => this.getBlockRaw(req, res));
+    app.get(this.prefix + 'block/:hash/raw', (req, res) => this.getBlockRaw(req, res));
+    // Compatibility alias for upstream docs/old links. It returns the
+    // same Monero block blob rather than pretending there is a
+    // Bitcoin-style standalone header.
+    app.get('/api/block/:hash/header', (req, res) => this.getBlockRaw(req, res));
+    app.get(this.prefix + 'block/:hash/header', (req, res) => this.getBlockRaw(req, res));
     // Also handle the v1 prefix the master-page-preview uses.
     app.get(this.prefix + 'block/:hash/txs/:index', (req, res) => this.getBlockTxsByPage(req, res, false));
     app.get(this.prefix + 'block/:hash/txs', (req, res) => this.getBlockTxsByPage(req, res, false));
@@ -98,9 +171,16 @@ export class MoneroRoutes {
     // that doesn't use that proxy rewrite (production nginx may
     // forward unrewritten).
     app.get('/api/tx/:txid', (req, res) => this.getTxBitcoinShape(req, res));
-    // Hex blob — required by some upstream tools but irrelevant for us;
-    // return a small empty hex blob to satisfy 200 expectations.
-    app.get('/api/tx/:txid/hex', (_req, res) => res.type('text/plain').send(''));
+    app.post('/api/tx/:txid/verify-proof', (req, res) => this.verifyTxProof(req, res));
+    app.post('/api/monerod/json_rpc', (req, res) => this.proxyPublicMonerodJsonRpc(req, res));
+    app.post(this.prefix + 'monerod/:method', express.raw({ type: 'application/octet-stream', limit: '8mb' }), (req, res) => this.proxyPublicMonerodPath(req, res));
+    app.post('/api/monerod/:method', express.raw({ type: 'application/octet-stream', limit: '8mb' }), (req, res) => this.proxyPublicMonerodPath(req, res));
+    // Hex blob. For mempool txs this is the full tx_blob from
+    // /get_transaction_pool; for confirmed txs monerod's pruned
+    // /get_transactions response gives the pruned tx hex, which is the
+    // honest public blob available without fetching rangeproof data.
+    app.get('/api/tx/:txid/hex', (req, res) => this.getTxHex(req, res));
+    app.get(this.prefix + 'tx/:hash/hex', (req, res) => this.getTxHex(req, res));
     // /api/v1/transaction-times — array of receive_time per txid request.
     app.get(this.prefix + 'transaction-times', (req, res) => this.getTransactionTimes(req, res));
     // CPFP info — Bitcoin-only (child-pays-for-parent fee strategy).
@@ -113,28 +193,20 @@ export class MoneroRoutes {
     // Outspends — was this output spent? On Monero we can't tell without
     // wallet keys; always return null entries so upstream's "spent / unspent"
     // labels don't render misleading state.
+    app.get(this.prefix + 'txs/outspends', (req, res) => this.getBatchedOutspends(req, res));
+    app.get('/api/txs/outspends', (req, res) => this.getBatchedOutspends(req, res));
     app.get('/api/tx/:txid/outspends', (_req, res) => res.json([]));
     app.get('/api/tx/:txid/outspend/:vout', (_req, res) => res.status(204).end());
     // Stubs for upstream endpoints we haven't built and probably won't:
-    // historical XMR/USD price feed (out of scope), mining-pool ranking
-    // (we don't index pools), accelerator endpoints. Returning 200 with
-    // empty / null payloads keeps the upstream component subscriptions
-    // alive without spamming console errors.
-    // historical-price expects { prices: [{ time, USD, EUR, ... }],
-    // exchangeRates: { USDEUR, USDGBP, ... } }. Empty arrays are
-    // acceptable; just don't return a bare array.
-    app.get(this.prefix + 'historical-price', (_req, res) => res.json({
-      prices: [],
-      exchangeRates: { USDEUR: 0.92, USDGBP: 0.78, USDCAD: 1.36, USDCHF: 0.88, USDAUD: 1.51, USDJPY: 154 },
-    }));
-    app.get(this.prefix + 'mining/pools/:period', (_req, res) => res.json({ pools: [] }));
-    app.get(this.prefix + 'mining/pool/:slug', (_req, res) => res.json(null));
-    app.get(this.prefix + 'difficulty-adjustment', (_req, res) => res.json({
-      progressPercent: 100, difficultyChange: 0, estimatedRetargetDate: Date.now(),
-      remainingBlocks: 0, remainingTime: 0, previousRetarget: 0,
-      nextRetargetHeight: 0, timeAvg: 120_000, adjustedTimeAvg: 120_000,
-      timeOffset: 0, expectedBlocks: 0,
-    }));
+    // accelerator endpoints. Mining-pool endpoints are owned by
+    // XmrMiningRoutes because they aggregate indexed block samples.
+    // Returning 200 with empty / null payloads keeps the upstream
+    // component subscriptions alive without spamming console errors.
+    app.get(this.prefix + 'historical-price', async (req, res) => {
+      const timestamp = Number(req.query.timestamp);
+      res.json(await getXmrPriceConversion(Number.isFinite(timestamp) ? timestamp : undefined));
+    });
+    app.get(this.prefix + 'difficulty-adjustment', (req, res) => this.getDifficultyAdjustment(req, res));
     app.get(this.prefix + 'accelerations', (_req, res) => res.json([]));
     app.get(this.prefix + 'accelerator', (_req, res) => res.json({ enabled: false }));
 
@@ -165,7 +237,7 @@ export class MoneroRoutes {
           .sort((a, b) => (b.receive_time ?? 0) - (a.receive_time ?? 0))
           .slice(0, 10)
           .map((t) => ({
-            txid: t.id_hash || t.tx_hash,
+            txid: t.id_hash,
             fee: t.fee,
             vsize: t.weight,
             // Monero amounts are RingCT-hidden — we cannot publish a value.
@@ -205,9 +277,194 @@ export class MoneroRoutes {
     });
   }
 
+  /**
+   * POST /api/v1/tx/:hash/verify-proof
+   *
+   * Real tx_proof verification uses monero-wallet-rpc's `check_tx_proof`.
+   * The public daemon cannot perform this check. When wallet RPC is not
+   * configured we return a clear 503 instead of a fake verification result.
+   */
+  private async verifyTxProof(req: Request, res: Response): Promise<void> {
+    const txid = req.params.txid ?? req.params.hash;
+    if (!txid || !HEX64.test(txid)) {
+      handleError(req, res, 400, 'invalid tx hash');
+      return;
+    }
+
+    const body = (req.body ?? {}) as { address?: unknown; signature?: unknown; message?: unknown };
+    const address = typeof body.address === 'string' ? body.address.trim() : '';
+    const signature = typeof body.signature === 'string' ? body.signature.trim() : '';
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+
+    if (!MONERO_MAINNET_ADDRESS.test(address)) {
+      handleError(req, res, 400, 'invalid Monero recipient address');
+      return;
+    }
+    if (signature.length < 80 || signature.length > 4096) {
+      handleError(req, res, 400, 'invalid tx_proof signature');
+      return;
+    }
+    if (message.length > 1024) {
+      handleError(req, res, 400, 'tx_proof message is too long');
+      return;
+    }
+    if (!this.walletRpc) {
+      res.status(503).json({
+        ok: false,
+        message: 'tx_proof verification requires monero-wallet-rpc; set MONERO_WALLET_RPC_URL on the backend',
+      });
+      return;
+    }
+
+    try {
+      const result = await this.walletRpc.checkTxProof({
+        txid,
+        address,
+        signature,
+        ...(message ? { message } : {}),
+      });
+      const received = Number(result.received ?? 0);
+      res.json({
+        ok: !!result.good,
+        amount: received,
+        received,
+        confirmations: Number(result.confirmations ?? 0),
+        in_pool: !!result.in_pool,
+        message: result.good
+          ? `verified tx_proof; received ${received} atomic units`
+          : 'invalid tx_proof',
+      });
+    } catch (err) {
+      logger.err(`xmr verifyTxProof failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monero-wallet-rpc unreachable');
+    }
+  }
+
+  /**
+   * POST /api/v1/monerod/json_rpc
+   *
+   * Same-origin bridge for browser-local Monero wallet scanning. This
+   * exposes only public daemon methods and rejects secret-shaped JSON
+   * fields before proxying. Wallet RPC methods and private key material
+   * never belong here.
+   */
+  private async proxyPublicMonerodJsonRpc(req: Request, res: Response): Promise<void> {
+    const body = (req.body ?? {}) as { id?: unknown; method?: unknown; params?: unknown };
+    const method = typeof body.method === 'string' ? body.method.trim() : '';
+
+    if (!PUBLIC_MONEROD_JSON_RPC_METHODS.has(method)) {
+      handleError(req, res, 403, 'monerod method is not exposed by xmr-space');
+      return;
+    }
+    if (this.containsForbiddenSecretBodyKey(body)) {
+      handleError(req, res, 400, 'wallet secrets must stay in the browser');
+      return;
+    }
+
+    const params = this.plainObjectOrEmpty(body.params);
+    try {
+      const result = await this.api.proxyPublicJsonRpc(method, params);
+      res.json({
+        id: body.id ?? '0',
+        jsonrpc: '2.0',
+        result,
+      });
+    } catch (err) {
+      logger.err(`xmr monerod json_rpc proxy failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /**
+   * POST /api/v1/monerod/:method
+   *
+   * Public path/binary daemon proxy used by monero-ts wallet2. JSON
+   * requests remain inspectable and secret-guarded; binary requests are
+   * limited to the daemon's public .bin scan endpoints.
+   */
+  private async proxyPublicMonerodPath(req: Request, res: Response): Promise<void> {
+    const method = typeof req.params.method === 'string' ? req.params.method.trim() : '';
+    const isBinaryBody = Buffer.isBuffer(req.body);
+
+    if (isBinaryBody) {
+      if (!PUBLIC_MONEROD_BINARY_METHODS.has(method)) {
+        handleError(req, res, 403, 'binary monerod method is not exposed by xmr-space');
+        return;
+      }
+      try {
+        const result = await this.api.proxyPublicRawBytes(`/${method}`, req.body);
+        res.type(result.contentType).send(result.data);
+      } catch (err) {
+        logger.err(`xmr monerod binary proxy failed: ${err instanceof Error ? err.message : String(err)}`);
+        handleError(req, res, 502, 'monerod unreachable');
+      }
+      return;
+    }
+
+    if (!PUBLIC_MONEROD_PATH_METHODS.has(method)) {
+      handleError(req, res, 403, 'monerod path is not exposed by xmr-space');
+      return;
+    }
+    if (this.containsForbiddenSecretBodyKey(req.body ?? {})) {
+      handleError(req, res, 400, 'wallet secrets must stay in the browser');
+      return;
+    }
+
+    const body = this.plainObjectOrEmpty(req.body);
+    try {
+      res.json(await this.api.proxyPublicRaw(`/${method}`, body));
+    } catch (err) {
+      logger.err(`xmr monerod path proxy failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  private containsForbiddenSecretBodyKey(value: unknown): boolean {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+    if (Array.isArray(value)) {
+      return value.some((item) => this.containsForbiddenSecretBodyKey(item));
+    }
+
+    return Object.entries(value as Record<string, unknown>).some(([key, child]) => {
+      const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return FORBIDDEN_SECRET_BODY_KEYS.some((forbidden) => normalized.includes(forbidden))
+        || this.containsForbiddenSecretBodyKey(child);
+    });
+  }
+
+  private plainObjectOrEmpty(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+    return value as Record<string, unknown>;
+  }
+
+  /** GET /api/v1/difficulty-adjustment — Monero retargets every block. */
+  private async getDifficultyAdjustment(req: Request, res: Response): Promise<void> {
+    try {
+      const count = await this.api.getBlockCount();
+      const tipHeight = count - 1;
+      const [tip, previous, previousPrevious] = await Promise.all([
+        tipHeight >= 0 ? this.api.getBlockByHeight(tipHeight).catch(() => null) : Promise.resolve(null),
+        tipHeight > 0 ? this.api.getBlockByHeight(tipHeight - 1).catch(() => null) : Promise.resolve(null),
+        tipHeight > 1 ? this.api.getBlockByHeight(tipHeight - 2).catch(() => null) : Promise.resolve(null),
+      ]);
+      res.json(shapeXmrDifficultyAdjustment(
+        tip?.block_header ?? null,
+        previous?.block_header ?? null,
+        previousPrevious?.block_header ?? null,
+      ));
+    } catch (err) {
+      logger.err(`xmr getDifficultyAdjustment failed: ${err instanceof Error ? err.message : String(err)}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
   /** GET /api/v1/transaction-times — first-seen timestamps for the given txids. */
   private async getTransactionTimes(req: Request, res: Response): Promise<void> {
-    const raw = req.query['txId[]'];
+    const raw = req.query['txId[]'] ?? req.query.txId;
     const arr: unknown[] = Array.isArray(raw) ? raw : (typeof raw === 'string' ? [raw] : []);
     const list: string[] = arr.filter((x): x is string => typeof x === 'string');
     if (list.length === 0) {
@@ -225,6 +482,12 @@ export class MoneroRoutes {
     }
   }
 
+  private getBatchedOutspends(req: Request, res: Response): void {
+    const txidsCsv = typeof req.query.txids === 'string' ? req.query.txids : '';
+    const txids = txidsCsv ? txidsCsv.split(',').filter(Boolean) : [];
+    res.json(txids.map(() => []));
+  }
+
   /** GET /api/tx/:txid — single tx in upstream Bitcoin-shape. */
   private async getTxBitcoinShape(req: Request, res: Response): Promise<void> {
     // Both route patterns hit this handler: /api/v1/tx/:hash uses :hash,
@@ -239,17 +502,44 @@ export class MoneroRoutes {
       const pool = await this.api.getTransactionPool();
       const inMempool = pool.transactions?.find((t) => t.id_hash === txid);
       if (inMempool) {
+        const parsed = this.parseTransactionJson(inMempool.tx_json);
+        const info = await this.api.getInfo().catch(() => null);
+        const ringResolution = await this.resolveRingMembers(parsed, info?.height);
+        const numInputs = parsed?.vin?.length ?? 1;
+        const numOutputs = parsed?.vout?.length ?? 1;
         res.json({
           txid,
-          version: 2,
-          locktime: 0,
-          size: inMempool.weight,
+          version: parsed?.version ?? 2,
+          locktime: parsed?.unlock_time ?? 0,
+          size: inMempool.blob_size || inMempool.weight,
           weight: inMempool.weight,
           fee: inMempool.fee,
-          vin: [{ is_coinbase: false, ringct: true, prevout: null, scriptsig: '', sequence: 0, witness: [] }],
-          vout: [{ ringct: true, value: 0, scriptpubkey: '', scriptpubkey_address: '', scriptpubkey_type: 'ringct' }],
+          vin: Array.from({ length: numInputs }, (_, i) => ({
+            is_coinbase: false,
+            ringct: true,
+            ring_size: parsed?.vin?.[i]?.key?.key_offsets?.length ?? null,
+            key_image: parsed?.vin?.[i]?.key?.k_image ?? '',
+            ring_offsets: parsed?.vin?.[i]?.key?.key_offsets ?? [],
+            ring_members: ringResolution.membersPerInput[i] ?? [],
+            ring_members_truncated: ringResolution.truncated,
+            prevout: null,
+            scriptsig: '',
+            scriptsig_asm: '',
+            sequence: 0,
+            witness: [],
+          })),
+          vout: Array.from({ length: numOutputs }, () => ({
+            ringct: true,
+            value: 0,
+            scriptpubkey: '',
+            scriptpubkey_asm: '',
+            scriptpubkey_address: '',
+            scriptpubkey_type: 'ringct',
+          })),
           status: { confirmed: false },
           firstSeen: inMempool.receive_time || 0,
+          rct_type: parsed?.rct_signatures?.type ?? null,
+          has_view_tags: this.hasViewTags(parsed),
         });
         return;
       }
@@ -261,9 +551,7 @@ export class MoneroRoutes {
       }
       // Parse the as_json payload to grab vin/vout counts + fee.
       let parsed: IMoneroApi.TransactionJson | null = null;
-      try {
-        parsed = confirmed.as_json ? JSON.parse(confirmed.as_json) as IMoneroApi.TransactionJson : null;
-      } catch { /* keep null */ }
+      parsed = this.parseTransactionJson(confirmed.as_json);
       const fee = parsed?.rct_signatures?.txnFee ?? 0;
       const blobBytes = confirmed.pruned_as_hex
         ? Math.floor(confirmed.pruned_as_hex.length / 2)
@@ -280,6 +568,7 @@ export class MoneroRoutes {
         const b = await this.api.getBlockByHeight(blockHeight).catch(() => null);
         blockHash = b?.block_header.hash ?? '';
       }
+      const ringResolution = await this.resolveRingMembers(parsed, blockHeight || undefined);
       res.json({
         txid,
         version: parsed?.version ?? 2,
@@ -295,8 +584,11 @@ export class MoneroRoutes {
           ring_size: parsed?.vin?.[i]?.key?.key_offsets?.length ?? null,
           key_image: parsed?.vin?.[i]?.key?.k_image ?? '',
           ring_offsets: parsed?.vin?.[i]?.key?.key_offsets ?? [],
+          ring_members: ringResolution.membersPerInput[i] ?? [],
+          ring_members_truncated: ringResolution.truncated,
           prevout: null,
           scriptsig: '',
+          scriptsig_asm: '',
           sequence: 0,
           witness: [],
         })),
@@ -304,6 +596,7 @@ export class MoneroRoutes {
           ringct: true,
           value: 0,
           scriptpubkey: '',
+          scriptpubkey_asm: '',
           scriptpubkey_address: '',
           scriptpubkey_type: 'ringct',
         })),
@@ -316,10 +609,77 @@ export class MoneroRoutes {
         // Monero-only extras the upstream component will ignore but
         // our reveal-flow shim can read.
         rct_type: parsed?.rct_signatures?.type ?? null,
+        has_view_tags: this.hasViewTags(parsed),
       });
     } catch (err) {
       logger.err(`xmr getTxBitcoinShape failed: ${err instanceof Error ? err.message : String(err)}`);
       handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /** GET /api/tx/:txid/hex — mempool full blob or confirmed pruned tx hex. */
+  private async getTxHex(req: Request, res: Response): Promise<void> {
+    const txid = req.params.txid ?? req.params.hash;
+    if (!txid || !HEX64.test(txid)) {
+      handleError(req, res, 400, 'invalid tx hash');
+      return;
+    }
+    try {
+      const pool = await this.api.getTransactionPool().catch(() => null);
+      const inMempool = pool?.transactions?.find((t) => t.id_hash === txid);
+      if (inMempool?.tx_blob) {
+        res.type('text/plain').send(inMempool.tx_blob);
+        return;
+      }
+
+      const confirmed = await this.api.getTransactionByHash(txid);
+      const hex = confirmed?.as_hex || confirmed?.pruned_as_hex || '';
+      if (!hex) {
+        handleError(req, res, 404, 'tx hex not found');
+        return;
+      }
+      res.type('text/plain').send(hex);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not found|invalid|hash/i.test(msg)) {
+        handleError(req, res, 404, 'tx not found');
+        return;
+      }
+      logger.err(`xmr getTxHex failed: ${msg}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  private parseTransactionJson(raw?: string): IMoneroApi.TransactionJson | null {
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as IMoneroApi.TransactionJson;
+    } catch {
+      return null;
+    }
+  }
+
+  private hasViewTags(parsed: IMoneroApi.TransactionJson | null): boolean {
+    return (parsed?.vout ?? []).some((v) => v.target?.tagged_key?.view_tag !== undefined);
+  }
+
+  private async resolveRingMembers(
+    parsed: IMoneroApi.TransactionJson | null,
+    referenceHeight?: number,
+  ): Promise<{ membersPerInput: XmrRingMember[][]; truncated: boolean }> {
+    const plan = buildRingLookupPlan(parsed, MAX_RING_MEMBER_LOOKUPS);
+    if (!plan.requests.length) {
+      return attachResolvedRingMembers(plan, [], referenceHeight);
+    }
+
+    try {
+      const outs = await this.api.getOuts(plan.requests, true);
+      return attachResolvedRingMembers(plan, outs, referenceHeight);
+    } catch (err) {
+      logger.warn(`xmr ring member resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+      return attachResolvedRingMembers(plan, [], referenceHeight);
     }
   }
 
@@ -389,6 +749,7 @@ export class MoneroRoutes {
             ringct: !isCoinbase,
             prevout: null,
             scriptsig: '',
+            scriptsig_asm: '',
             sequence: 0,
             witness: [],
           }],
@@ -396,6 +757,7 @@ export class MoneroRoutes {
             ringct: !isCoinbase,
             value: 0,
             scriptpubkey: '',
+            scriptpubkey_asm: '',
             scriptpubkey_address: '',
             scriptpubkey_type: isCoinbase ? 'coinbase' : 'ringct',
           }],
@@ -436,6 +798,68 @@ export class MoneroRoutes {
         return;
       }
       logger.err(`xmr getBlockSummary failed: ${msg}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /** GET /api/v1/block/:hash/tx/:txid/summary — one stripped tx for graph/detail consumers. */
+  private async getStrippedBlockTransaction(req: Request, res: Response): Promise<void> {
+    const hash = req.params.hash;
+    const txid = req.params.txid;
+    if (!HEX64.test(hash)) {
+      handleError(req, res, 400, 'invalid block hash');
+      return;
+    }
+    if (!HEX64.test(txid)) {
+      handleError(req, res, 400, 'invalid tx hash');
+      return;
+    }
+    try {
+      const block = await this.api.getBlockByHash(hash);
+      const txHashes = block.tx_hashes ?? [];
+      if (!txHashes.includes(txid)) {
+        handleError(req, res, 404, 'tx not found in block');
+        return;
+      }
+      const stripped = await this.api.getBlockStrippedTxs(block.block_header.hash, txHashes, block.block_header.timestamp);
+      const tx = stripped.find((candidate) => candidate.txid === txid);
+      if (!tx) {
+        handleError(req, res, 404, 'tx not found');
+        return;
+      }
+      res.json(tx);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not found|invalid|hash/i.test(msg)) {
+        handleError(req, res, 404, 'block not found');
+        return;
+      }
+      logger.err(`xmr getStrippedBlockTransaction failed: ${msg}`);
+      handleError(req, res, 502, 'monerod unreachable');
+    }
+  }
+
+  /** GET /api/block/:hash/raw — Monero block blob as daemon hex. */
+  private async getBlockRaw(req: Request, res: Response): Promise<void> {
+    const hash = req.params.hash;
+    if (!HEX64.test(hash)) {
+      handleError(req, res, 400, 'invalid block hash');
+      return;
+    }
+    try {
+      const block = await this.api.getBlockByHash(hash);
+      if (!block.blob) {
+        handleError(req, res, 404, 'block blob not found');
+        return;
+      }
+      res.type('text/plain').send(block.blob);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not found|invalid|hash/i.test(msg)) {
+        handleError(req, res, 404, 'block not found');
+        return;
+      }
+      logger.err(`xmr getBlockRaw failed: ${msg}`);
       handleError(req, res, 502, 'monerod unreachable');
     }
   }
@@ -504,7 +928,7 @@ export class MoneroRoutes {
             minFee: fees?.minFee ?? 0,
             maxFee: fees?.maxFee ?? 0,
             feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-            pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+            pool: identifyXmrMinerPool(b),
           },
         };
       }));
@@ -515,7 +939,7 @@ export class MoneroRoutes {
     }
   }
 
-  /** GET /api/v1/info — height, difficulty, mempool count, nettype. */
+  /** GET /api/v1/info — daemon status, height, difficulty, mempool count, nettype. */
   private async getInfo(req: Request, res: Response): Promise<void> {
     try {
       const info = await this.api.getInfo();
@@ -532,8 +956,23 @@ export class MoneroRoutes {
         top_block_hash: info.top_block_hash,
         block_size_limit: info.block_size_limit,
         version: info.version,
+        daemon_status: info.status,
         synced: info.height === info.target_height || info.target_height === 0,
+        offline: Boolean(info.offline),
         untrusted: info.untrusted,
+        outgoing_connections_count: info.outgoing_connections_count,
+        incoming_connections_count: info.incoming_connections_count,
+        rpc_connections_count: info.rpc_connections_count,
+        white_peerlist_size: info.white_peerlist_size,
+        grey_peerlist_size: info.grey_peerlist_size,
+        start_time: info.start_time,
+        uptime_s: info.start_time ? Math.max(0, Math.floor(Date.now() / 1000) - info.start_time) : null,
+        database_size: info.database_size,
+        free_space: info.free_space,
+        height_without_bootstrap: info.height_without_bootstrap,
+        bootstrap_daemon_address: info.bootstrap_daemon_address,
+        was_bootstrap_ever_used: info.was_bootstrap_ever_used,
+        update_available: info.update_available,
       });
     } catch (err) {
       logger.err(`xmr getInfo failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -575,7 +1014,7 @@ export class MoneroRoutes {
             minFee: fees?.minFee ?? 0,
             maxFee: fees?.maxFee ?? 0,
             feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-            pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+            pool: identifyXmrMinerPool(b),
           },
         };
       }));
@@ -622,7 +1061,6 @@ export class MoneroRoutes {
         fee_range: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
         // The `extras` envelope is what mempool.space's BlockComponent
         // reads — block.extras.totalFees / medianFee / feeRange / pool.
-        // 'unknown' pool stub until coinbase-extra fingerprinting lands.
         extras: {
           reward: block.block_header.reward,
           totalFees: fees?.totalFees ?? 0,
@@ -630,7 +1068,7 @@ export class MoneroRoutes {
           minFee: fees?.minFee ?? 0,
           maxFee: fees?.maxFee ?? 0,
           feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-          pool: { id: 0, name: 'unknown', slug: 'unknown', minerNames: [] },
+          pool: identifyXmrMinerPool(block),
         },
       };
       if (includeTxs) {
@@ -786,8 +1224,8 @@ export class MoneroRoutes {
    *   - ring_size: length of vin[0].key.key_offsets (16 in modern Monero)
    *   - num_inputs / num_outputs: counts only, never amounts
    *   - ring_offsets_per_input: delta-encoded global output indices for
-   *     each input. Frontend can resolve these to block heights via a
-   *     follow-up call once we wire /get_outs.
+   *     each input. The active Bitcoin-shape tx endpoint resolves these
+   *     into public ring-member heights via `/get_outs`.
    *   - has_view_tags: derived from any vout with `target.tagged_key.view_tag`
    *     set — a privacy/scanning-speed signal.
    *   - rct_type: ringct version (0=none, 1=full, 2=simple, 3=bulletproof, 4=clsag, 5=bulletproof+, 6=clsag-bp+)

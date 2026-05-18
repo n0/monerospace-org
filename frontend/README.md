@@ -1,3 +1,43 @@
+# xmr-space Frontend
+
+This fork keeps the upstream Angular frontend, but the active local
+configuration is XMR-only and expects the standalone Monero backend from
+`../backend/README.md`.
+
+For a local xmr-space run:
+
+```sh
+cd backend
+npm install --no-install-links
+npm run build
+MONEROD_RPC_URL=https://xmr-node.cakewallet.com:18081 npm run start
+
+cd ../frontend
+npm install
+npm run start
+```
+
+The frontend runtime config is generated from this repository's XMR defaults.
+Do not use the upstream `config:defaults:mempool` / `serve:local-prod` flow
+unless you intentionally want to debug the preserved Bitcoin upstream app
+against mempool.space.
+
+## Browser-local payment verification
+
+The active `/tx/:hash` page exposes three Monero verification modes:
+
+- `tx_proof`: posts only the public recipient address, optional message, and tx proof signature to the backend wallet-RPC verifier.
+- `Received`: loads `monero-ts` lazily in the browser, scans the single transaction with the supplied recipient address and private view key, and keeps the key in component/service memory only.
+- `tx_secret_key`: loads `monero-ts` lazily in the browser and checks the transaction secret key against the recipient address locally.
+
+Private view keys and `tx_secret_key` values must not be sent to `/api/**`, stored in localStorage/sessionStorage, embedded in URLs, logged, or kept after the transaction component resets. The frontend talks to same-origin public monerod proxy routes under `/api/v1/monerod`; those backend routes expose only allowlisted public daemon methods and reject secret-shaped JSON fields.
+
+Subaddress receive scanning from only a subaddress plus private view key is explicitly unsupported by this browser flow. The `tx_secret_key` mode is the supported subaddress payment-check path.
+
+The upstream README follows below for historical context.
+
+---
+
 # Mempool Frontend
 
 You can build and run the Mempool frontend and proxy to the production Mempool backend (for easier frontend development), or you can connect it to your own backend for a full Mempool development instance, custom deployment, etc.

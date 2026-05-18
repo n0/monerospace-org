@@ -8,8 +8,8 @@ import { StateService } from '@app/services/state.service';
 import { WebsocketService } from '@app/services/websocket.service';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
-import { seoDescriptionNetwork } from '@app/shared/common.utils';
 import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { getVisualBlockWeightPercentStyle } from '@app/shared/block-weight.utils';
 
 @Component({
   selector: 'app-blocks-list',
@@ -25,7 +25,6 @@ export class BlocksList implements OnInit {
 
   isMempoolModule = false;
   indexingAvailable = false;
-  auditAvailable = false;
   isLoading = true;
   fromBlockHeight = undefined;
   lastBlockHeightFetched = -1;
@@ -63,18 +62,13 @@ export class BlocksList implements OnInit {
   ngOnInit(): void {
     this.indexingAvailable = (this.stateService.env.BASE_MODULE === 'mempool' &&
       this.stateService.env.MINING_DASHBOARD === true);
-    this.auditAvailable = this.indexingAvailable && this.stateService.env.AUDIT;
 
     if (!this.widget) {
       this.websocketService.want(['blocks']);
 
       this.seoService.setTitle($localize`:@@8a7b4bd44c0ac71b2e72de0398b303257f7d2f54:Blocks`);
-      this.ogService.setManualOgImage('recent-blocks.jpg');
-      if( this.stateService.network==='liquid'||this.stateService.network==='liquidtestnet' ) {
-        this.seoService.setDescription($localize`:@@meta.description.liquid.blocks:See the most recent Liquid${seoDescriptionNetwork(this.stateService.network)} blocks along with basic stats such as block height, block size, and more.`);
-      } else {
-        this.seoService.setDescription($localize`:@@meta.description.bitcoin.blocks:See the most recent Bitcoin${seoDescriptionNetwork(this.stateService.network)} blocks along with basic stats such as block height, block reward, block size, and more.`);
-      }
+      this.ogService.setManualOgImage('blocks.jpg');
+      this.seoService.setDescription('See the most recent Monero blocks with height, timestamp, reward, fees, transaction count, and block size.');
 
       this.blocksCountInitializedSubscription = combineLatest([this.blocksCountInitialized$, this.route.params]).pipe(
         filter(([blocksCountInitialized, _]) => blocksCountInitialized),
@@ -173,14 +167,6 @@ export class BlocksList implements OnInit {
           }
           return acc;
         }, []),
-        switchMap((blocks) => {
-          if (this.isMempoolModule && this.auditAvailable) {
-            blocks.forEach(block => {
-              block.extras.feeDelta = block.extras.expectedFees ? (block.extras.totalFees - block.extras.expectedFees) / block.extras.expectedFees : 0;
-            });
-          }
-          return of(blocks);
-        })
       );
   }
 
@@ -190,6 +176,10 @@ export class BlocksList implements OnInit {
 
   trackByBlock(index: number, block: BlockExtended): number {
     return block.height;
+  }
+
+  blockWeightProgress(block: BlockExtended): string {
+    return getVisualBlockWeightPercentStyle(block.weight);
   }
 
   isEllipsisActive(e): boolean {

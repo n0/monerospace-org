@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, NgZone, OnInit } from '@angular/core';
 import { SeoService } from '@app/services/seo.service';
-import { ApiService } from '@app/services/api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { delay, Observable, of, switchMap, tap, zip } from 'rxjs';
 import { AssetsService } from '@app/services/assets.service';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
@@ -48,7 +48,7 @@ export class NodesChannelsMap implements OnInit {
 
   constructor(
     private seoService: SeoService,
-    private apiService: ApiService,
+    private apiService: LightningApiService,
     public stateService: StateService,
     private assetsService: AssetsService,
     private router: Router,

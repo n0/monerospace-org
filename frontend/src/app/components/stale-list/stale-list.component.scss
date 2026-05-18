@@ -75,7 +75,7 @@
   transform: translateX(-12px);
 }
 
-.bitcoin-block {
+.xmr-block {
   --block-size: 125px;
   width: var(--block-size);
   height: var(--block-size);
@@ -90,7 +90,7 @@
 }
 
 .block-column.stale {
-  .bitcoin-block {
+  .xmr-block {
     opacity: 0.6;
     box-shadow: 0 0 10px rgba(255, 0, 0, 0.25), 0 0 10px rgba(255, 0, 0, 0.25);
     filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.25));
@@ -108,13 +108,13 @@
 }
 
 .block-column.canonical {
-  .bitcoin-block {
+  .xmr-block {
     box-shadow: 0 0 10px rgba(0, 255, 0, 0.25), 0 0 10px rgba(0, 255, 0, 0.25);
     filter: drop-shadow(0 0 10px rgba(0, 255, 0, 0.25));
   }
 }
 
-.bitcoin-block::after {
+.xmr-block::after {
   content: '';
   width: var(--block-size);
   height: calc(0.192 * var(--block-size));
@@ -126,7 +126,7 @@
   transform-origin: top;
 }
 
-.bitcoin-block::before {
+.xmr-block::before {
   content: '';
   width: calc(0.16 * var(--block-size));
   height: var(--block-size);
@@ -151,9 +151,11 @@
 }
 
 .fee-span {
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.15;
   margin-bottom: 5px;
   color: var(--yellow);
+  white-space: nowrap;
 }
 
 .block-size {

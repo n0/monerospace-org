@@ -14,6 +14,7 @@ import { StateService } from '@app/services/state.service';
 import { CacheService } from '@app/services/cache.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
 import { ApiService } from '@app/services/api.service';
+import { TransactionToolsApiService } from '@app/services/transaction-tools-api.service';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 import { CpfpInfo } from '@interfaces/node-api.interface';
@@ -52,6 +53,7 @@ export class TransactionPreviewComponent implements OnInit, OnDestroy {
     private stateService: StateService,
     private cacheService: CacheService,
     private apiService: ApiService,
+    private transactionToolsApiService: TransactionToolsApiService,
     private seoService: SeoService,
     private openGraphService: OpenGraphService,
   ) {}
@@ -69,7 +71,7 @@ export class TransactionPreviewComponent implements OnInit, OnDestroy {
     this.fetchCpfpSubscription = this.fetchCpfp$
       .pipe(
         switchMap((txId) =>
-          this.apiService.getCpfpinfo$(txId).pipe(
+          this.transactionToolsApiService.getCpfpinfo$(txId).pipe(
             catchError((err) => {
               return of(null);
             })
@@ -89,7 +91,7 @@ export class TransactionPreviewComponent implements OnInit, OnDestroy {
           this.ogSession = this.openGraphService.waitFor('tx-data-' + this.txId);
           this.ogSession = this.openGraphService.waitFor('tx-time-' + this.txId);
           this.seoService.setTitle(
-            $localize`:@@bisq.transaction.browser-title:Transaction: ${this.txId}:INTERPOLATION:`
+            $localize`:@@xmr.transaction.browser-title:Transaction: ${this.txId}:INTERPOLATION:`
           );
           const network = this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet' ? 'Liquid' : 'Bitcoin';
           const seoDescription = seoDescriptionNetwork(this.stateService.network);

@@ -1,88 +1,125 @@
-.container-xl {
+.pool-page {
   max-width: 1400px;
   padding-bottom: 100px;
 }
 
-@media (min-width: 768px) {
-  .d-md-block {
-      display: table-cell !important;
-  }
+.pool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
 }
-@media (min-width: 992px) {
-  .d-lg-block {
-      display: table-cell !important;
+
+.pool-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+
+  h1 {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
-.formRadioGroup {
-  margin-top: 6px;
-  display: flex;
-  flex-direction: column;
-  @media (min-width: 830px) {
-    flex-direction: row;
-    float: right;
-    margin-top: 0px;
+.pool-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.summary-cell {
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 1px solid var(--transparent-fg);
+  border-radius: 4px;
+  background: var(--secondary);
+
+  span {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--transparent-fg);
+    font-size: 13px;
   }
-  .btn-sm {
-    font-size: 9px;
-    @media (min-width: 830px) {
-      font-size: 14px;
-    }
+
+  strong {
+    display: block;
+    color: var(--fg);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  small {
+    color: var(--transparent-fg);
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  .tags {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
 .chart {
-  margin-top: 10px;
-  margin-bottom: 20px;
   height: 400px;
+  margin: 10px 0 22px;
+
   @media (max-width: 768px) {
-    margin-bottom: 10px;
+    height: 300px;
+    margin-bottom: 14px;
   }
 }
 
-div.scrollable {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: auto;
-  max-height: 75px;
+.loadingGraphs {
+  position: absolute;
+  left: calc(50% - 15px);
+  top: 355px;
+  z-index: 99;
 }
 
-.pool-details {
-  @media (min-width: 767.98px) {
-    min-height: 187px;
+.pool-blocks-table {
+  .height {
+    width: 10%;
   }
 
-  .label {
-    width: 25%;
-    @media (min-width: 767.98px) {
-      vertical-align: middle;
+  .timestamp {
+    @media (max-width: 625px) {
+      display: none;
     }
-    @media (max-width: 767.98px) {
-      font-weight: bold;
-    }
-  }
-  .label.addresses {
-    vertical-align: top;
-    padding-top: 25px;
-  }
-  .addresses-data {
-    vertical-align: top;
-    font-family: monospace;
-    font-size: 14px;
   }
 
-  .data {
-    text-align: right;
-    padding-left: 5%;
-    @media (max-width: 992px) {
-      text-align: left;
-      padding-left: 12px;
+  .mined {
+    width: 13%;
+  }
+
+  .txs {
+    padding-right: 40px;
+
+    @media (max-width: 938px) {
+      display: none;
     }
-    @media (max-width: 450px) {
-      text-align: right;
+  }
+
+  .reward {
+    @media (max-width: 1035px) {
+      display: none;
     }
+  }
+
+  .fees {
+    @media (max-width: 780px) {
+      display: none;
+    }
+  }
+
+  .size {
+    min-width: 80px;
+    width: 12%;
   }
 }
 
@@ -90,202 +127,17 @@ div.scrollable {
   background-color: var(--secondary);
 }
 
-.coinbase {
-  width: 20%;
-  @media (max-width: 875px) {
-    display: none;
-  }
-}
-
-.health {
-  @media (max-width: 1150px) {
-  display: none;    
-  }
-}
-
-.height {
-  width: 10%;
-}
-
-.timestamp {
-  @media (max-width: 875px) {
-    padding-left: 50px;
-  }
-  @media (max-width: 625px) {
-    display: none;
-  }
-}
-
-.mined {
-  width: 13%;
-}
-
-.txs {
-  padding-right: 40px;
-  @media (max-width: 1100px) {
-    padding-right: 10px;
-  }
-  @media (max-width: 875px) {
-    padding-right: 20px;
-  }
-  @media (max-width: 567px) {
-    padding-right: 10px;
-  }
-  @media (max-width: 938px) {
-    display: none;
-  }
-}
-
-.size {
-  min-width: 80px;
-  width: 12%;
-  @media (max-width: 1000px) {
-    width: 15%;
-  }
-}
-
-.scriptmessage {
-  max-width: 340px;
-  overflow: hidden;
-  display: inline-block;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-  width: auto;
-  text-align: left;
-}
-
-.reward {
-  @media (max-width: 1035px) {
-    display: none;
-  }
-}
-
 .skeleton-loader {
   max-width: 200px;
 }
-.skeleton-loader.data {
-  max-width: 70px;
-  background-color: var(--skeleton-bg);
+
+.skeleton-loader.logo {
+  width: 50px;
+  height: 50px;
+  margin-right: 12px;
 }
 
-
-.loadingGraphs {
-  position: absolute;
-  left: calc(50% - 15px);
-  z-index: 99;
-  top: 475px;
-  @media (max-width: 992px) {
-    top: 600px;
-  }
-}
-
-.small-button {
+.skeleton-loader.title {
+  width: 150px;
   height: 20px;
-  font-size: 10px;
-  padding-top: 0;
-  padding-bottom: 0;
-  outline: none;
-  box-shadow: none;
-}
-.small-button.mobile {
-  transform: translateY(-20px);
-  @media (min-width: 767.98px) {
-    transform: translateY(-17px);
-  }
-}
-
-.data-title {
-  color: var(--title-fg);
-  font-size: 14px;
-}
-
-.clip {
-  @media (max-width: 576px) {
-    max-width: 85px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-.table-data tr {
-  background-color: transparent;
-}
-.table-data td {
-  text-align: left;
-  @media (max-width: 767.98px) {
-    text-align: center;
-  }
-}
-
-.taller-row {
-  height: 75px;
-}
-
-.stratum-table {
-  width: 100%;
-
-  .merkle {
-    width: 100px;
-    text-align: center;
-  }
-
-  .empty-branch {
-    outline: solid 1px white;
-    outline-offset: -1px;
-
-    &::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 0;
-      height: 100%;
-      width: 100%;
-      background: linear-gradient(to top left, transparent, transparent 48%, white 49%, white 51%, transparent 52%, transparent);
-    }
-  }
-
-  td {
-    position: relative;
-    height: 2em;
-
-    .cell-link {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      color: inherit;
-      text-decoration: none;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-  }
-}
-
-.job-table {
-  td, th {
-    width: 25%;
-    max-width: 25%;
-    min-width: 25%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 0.1rem 0.2rem;
-  }
-
-  @media (max-width: 767.98px) {
-    .expected, .timestamp, .clean, .job-received {
-      display: none;
-    }
-  }
-}
-
-.title-link, .title-link:hover, .title-link:focus, .title-link:active {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-}
-
-.health-badge {
-  padding: 0.25em 0.4em;
 }

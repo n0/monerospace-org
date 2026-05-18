@@ -2,8 +2,7 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { Position } from '@components/block-overview-graph/sprite-types.js';
 import { Price } from '@app/services/price.service';
 import { TransactionStripped } from '@interfaces/node-api.interface.js';
-import { Filter, FilterMode, TransactionFlags, toFilters } from '@app/shared/filters.utils';
-import { Block } from '@interfaces/electrs.interface.js';
+import { Filter, FilterMode, toFilters } from '@app/shared/filters.utils';
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -27,9 +26,6 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   value = 0;
   vsize = 1;
   feeRate = 0;
-  effectiveRate;
-  acceleration;
-  hasEffectiveRate: boolean = false;
   timeMode: 'mempool' | 'mined' | 'missed' | 'after' = 'mempool';
   filters: Filter[] = [];
   activeFilters: { [key: string]: boolean } = {};
@@ -66,11 +62,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       this.value = this.tx.value || 0;
       this.vsize = this.tx.vsize || 1;
       this.feeRate = this.fee / this.vsize;
-      this.effectiveRate = this.tx.rate;
       const txFlags = BigInt(this.tx.flags) || 0n;
-      this.acceleration = this.tx.acc || (txFlags & TransactionFlags.acceleration);
-      this.hasEffectiveRate = this.tx.acc || !(Math.abs((this.fee / this.vsize) - this.effectiveRate) <= 0.1 && Math.abs((this.fee / Math.ceil(this.vsize)) - this.effectiveRate) <= 0.1)
-        || (txFlags && (txFlags & (TransactionFlags.cpfp_child | TransactionFlags.cpfp_parent)) > 0n);
       this.filters = this.tx.flags ? toFilters(txFlags).filter(f => f.tooltip) : [];
       this.activeFilters = {};
       for (const filter of this.filters) {

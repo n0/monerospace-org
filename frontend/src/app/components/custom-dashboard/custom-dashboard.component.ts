@@ -2,15 +2,16 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, H
 import { combineLatest, merge, Observable, of, Subject, Subscription } from 'rxjs';
 import { catchError, filter, map, scan, share, shareReplay, startWith, switchMap, tap } from 'rxjs/operators';
 import { BlockExtended, OptimizedMempoolStats, TransactionStripped } from '@interfaces/node-api.interface';
-import { MempoolInfo, ReplacementInfo } from '@interfaces/websocket.interface';
+import { MempoolInfo } from '@interfaces/websocket.interface';
 import { ApiService } from '@app/services/api.service';
 import { StateService } from '@app/services/state.service';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 import { SeoService } from '@app/services/seo.service';
 import { ActiveFilter, FilterMode, GradientMode, toFlags } from '@app/shared/filters.utils';
 import { detectWebGL } from '@app/shared/graphs.utils';
 import { Address, AddressTxSummary } from '@interfaces/electrs.interface';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
+import { getVisualBlockWeightPercentStyle } from '@app/shared/block-weight.utils';
 
 interface MempoolBlocksData {
   blocks: number;
@@ -19,7 +20,7 @@ interface MempoolBlocksData {
 
 interface MempoolInfoData {
   memPoolInfo: MempoolInfo;
-  vBytesPerSecond: number;
+  bytesPerSecond: number;
   progressWidth: string;
   progressColor: string;
 }
@@ -27,6 +28,16 @@ interface MempoolInfoData {
 interface MempoolStatsData {
   mempool: OptimizedMempoolStats[];
   weightPerSecond: any;
+}
+
+interface ReplacementWidgetRow {
+  mined: boolean;
+  fullRbf: boolean;
+  txid: string;
+  oldFee: number;
+  oldVsize: number;
+  newFee: number;
+  newVsize: number;
 }
 
 @Component({
@@ -41,10 +52,10 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
   mempoolBlocksData$: Observable<MempoolBlocksData>;
   mempoolInfoData$: Observable<MempoolInfoData>;
   mempoolLoadingStatus$: Observable<number>;
-  vBytesPerSecondLimit = 1667;
+  bytesPerSecondLimit = 1667;
   transactions$: Observable<TransactionStripped[]>;
   blocks$: Observable<BlockExtended[]>;
-  replacements$: Observable<ReplacementInfo[]>;
+  replacements$: Observable<ReplacementWidgetRow[]>;
   latestBlockHeight: number;
   mempoolTransactionsWeightPerSecondData: any;
   mempoolStats$: Observable<MempoolStatsData>;
@@ -86,8 +97,8 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
   constructor(
     public stateService: StateService,
     private apiService: ApiService,
-    private electrsApiService: ElectrsApiService,
-    private websocketService: WebsocketService,
+    private addressApiService: AddressApiService,
+    private websocketService: LegacyWebsocketTrackingService,
     private seoService: SeoService,
     private cd: ChangeDetectorRef,
   ) {
@@ -103,7 +114,6 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
     this.filterSubscription.unsubscribe();
     this.mempoolInfoSubscription.unsubscribe();
     this.currencySubscription.unsubscribe();
-    this.websocketService.stopTrackRbfSummary();
     if (this.addressSubscription) {
       this.addressSubscription.unsubscribe();
       this.websocketService.stopTrackingAddress();
@@ -123,7 +133,6 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
     this.seoService.resetTitle();
     this.seoService.resetDescription();
     this.websocketService.want(['blocks', 'stats', 'mempool-blocks', 'live-2h-chart']);
-    this.websocketService.startTrackRbfSummary();
     this.network$ = merge(of(''), this.stateService.networkChanged$);
     this.mempoolLoadingStatus$ = this.stateService.loadingIndicators$
       .pipe(
@@ -158,16 +167,16 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
 
     this.mempoolInfoData$ = combineLatest([
       this.stateService.mempoolInfo$,
-      this.stateService.vbytesPerSecond$
+      this.stateService.bytesPerSecond$
     ]).pipe(
-      map(([mempoolInfo, vbytesPerSecond]) => {
-        const percent = Math.round((Math.min(vbytesPerSecond, this.vBytesPerSecondLimit) / this.vBytesPerSecondLimit) * 100);
+      map(([mempoolInfo, bytesPerSecond]) => {
+        const percent = Math.round((Math.min(bytesPerSecond, this.bytesPerSecondLimit) / this.bytesPerSecondLimit) * 100);
 
         let progressColor = 'bg-success';
-        if (vbytesPerSecond > 1667) {
+        if (bytesPerSecond > 1667) {
           progressColor = 'bg-warning';
         }
-        if (vbytesPerSecond > 3000) {
+        if (bytesPerSecond > 3000) {
           progressColor = 'bg-danger';
         }
 
@@ -181,7 +190,7 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
 
         return {
           memPoolInfo: mempoolInfo,
-          vBytesPerSecond: vbytesPerSecond,
+          bytesPerSecond,
           progressWidth: percent + '%',
           progressColor: progressColor,
           mempoolSizeProgress: mempoolSizeProgress,
@@ -223,7 +232,7 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
         })
       );
 
-    this.replacements$ = this.stateService.rbfLatestSummary$;
+    this.replacements$ = of([]);
 
     this.mempoolStats$ = this.stateService.connectionState$
       .pipe(
@@ -283,6 +292,10 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
     return block.height;
   }
 
+  blockWeightProgress(block: BlockExtended): string {
+    return getVisualBlockWeightPercentStyle(block.weight);
+  }
+
   getArrayFromNumber(num: number): number[] {
     return Array.from({ length: num }, (_, i) => i + 1);
   }
@@ -299,8 +312,8 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
 
       this.addressSubscription = (
         addressString.match(/04[a-fA-F0-9]{128}|(02|03)[a-fA-F0-9]{64}/)
-        ? this.electrsApiService.getPubKeyAddress$(addressString)
-        : this.electrsApiService.getAddress$(addressString)
+        ? this.addressApiService.getPubKeyAddress$(addressString)
+        : this.addressApiService.getAddress$(addressString)
       ).pipe(
           catchError((err) => {
             console.log(err);
@@ -315,8 +328,8 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
 
       this.addressSummary$ = (
         addressString.match(/04[a-fA-F0-9]{128}|(02|03)[a-fA-F0-9]{64}/)
-        ? this.electrsApiService.getScriptHashSummary$((addressString.length === 66 ? '21' : '41') + addressString + 'ac')
-        : this.electrsApiService.getAddressSummary$(addressString)).pipe(
+        ? this.addressApiService.getScriptHashSummary$((addressString.length === 66 ? '21' : '41') + addressString + 'ac')
+        : this.addressApiService.getAddressSummary$(addressString)).pipe(
         catchError(e => {
           return of(null);
         }),
@@ -370,11 +383,11 @@ export class CustomDashboardComponent implements OnInit, OnDestroy, AfterViewIni
       const walletName = this.stateService.env.customize.dashboard.widgets.find(w => w.props?.wallet).props.wallet;
       this.websocketService.startTrackingWallet(walletName);
 
-      this.walletSummary$ =  this.apiService.getWallet$(walletName).pipe(
+      this.walletSummary$ =  this.addressApiService.getWallet$(walletName).pipe(
         catchError(e => {
           return of({});
         }),
-        switchMap(wallet => this.stateService.walletTransactions$.pipe(
+        switchMap(wallet => this.websocketService.walletTransactions$.pipe(
           startWith([]),
           scan((summaries, newTransactions) => {
             const newSummaries: AddressTxSummary[] = [];

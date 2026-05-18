@@ -25,7 +25,7 @@
             <div class="block-column stale">
               <div class="block-label" i18n="chain-tips.stale-block"><span class="badge bg-secondary">Stale</span></div>
               <div class="block-wrapper">
-                <div class="bitcoin-block mined-block stale-block" [style.background]="getBlockGradient(chainTip.stale)" [routerLink]="[('/block/' + chainTip.stale.id) | relativeUrl]"></div>
+                <div class="xmr-block mined-block stale-block" [style.background]="getBlockGradient(chainTip.stale)" [routerLink]="[('/block/' + chainTip.stale.id) | relativeUrl]"></div>
                 <div class="block-body">
                   <div *ngIf="chainTip.stale?.extras; else emptyStaleBlockFees" class="fees">
                     ~<app-fee-rate [fee]="chainTip.stale.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
@@ -36,9 +36,7 @@
                     </div>
                   </ng-template>
                   <div *ngIf="chainTip.stale?.extras?.minFee != null && chainTip.stale?.extras?.maxFee != null; else emptyStaleBlockFeeSpan" class="fee-span">
-                    <app-fee-rate [fee]="chainTip.stale.extras.minFee" [showUnit]="false" unitClass=""></app-fee-rate>
-                    -
-                    <app-fee-rate [fee]="chainTip.stale.extras.maxFee" unitClass=""></app-fee-rate>
+                    {{ compactFeeRange(chainTip.stale.extras.minFee, chainTip.stale.extras.maxFee) }} <span class="symbol">&#x0271;/B</span>
                   </div>
                   <ng-template #emptyStaleBlockFeeSpan>
                     <div class="fee-span">
@@ -71,7 +69,7 @@
 
             <div class="block-column canonical">
               <div class="block-label" i18n="chain-tips.winning-block"><span class="badge bg-success">Winning</span></div>
-              <div class="bitcoin-block mined-block canonical-block" [style.background]="getBlockGradient(chainTip.canonical)" [routerLink]="[('/block/' + chainTip.canonical.id) | relativeUrl]">
+              <div class="xmr-block mined-block canonical-block" [style.background]="getBlockGradient(chainTip.canonical)" [routerLink]="[('/block/' + chainTip.canonical.id) | relativeUrl]">
                 <div class="block-body">
                   <div *ngIf="chainTip.canonical?.extras; else emptyCanonicalBlockFees" class="fees">
                     ~<app-fee-rate [fee]="chainTip.canonical.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
@@ -82,9 +80,7 @@
                     </div>
                   </ng-template>
                   <div *ngIf="chainTip.canonical?.extras?.minFee != null && chainTip.canonical?.extras?.maxFee != null; else emptyCanonicalBlockFeeSpan" class="fee-span">
-                    <app-fee-rate [fee]="chainTip.canonical.extras.minFee" [showUnit]="false" unitClass=""></app-fee-rate>
-                    -
-                    <app-fee-rate [fee]="chainTip.canonical.extras.maxFee" unitClass=""></app-fee-rate>
+                    {{ compactFeeRange(chainTip.canonical.extras.minFee, chainTip.canonical.extras.maxFee) }} <span class="symbol">&#x0271;/B</span>
                   </div>
                   <ng-template #emptyCanonicalBlockFeeSpan>
                     <div class="fee-span">

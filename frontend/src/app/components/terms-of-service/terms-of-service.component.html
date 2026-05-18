@@ -1,114 +1,49 @@
 <div class="container-xl">
   <div class="text-center">
-    <br />
-    @if (isLightMode) {
-      <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger-light.png' : '/resources/mempool-logo-bigger-light.png'" style="width: 250px;height:63px;">
-    } @else {
-      <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger.png' : '/resources/mempool-logo-bigger.png'" style="width: 250px;height:63px;">
-    }
-    <br /><br />
+    <br>
+    <app-svg-images name="mempoolSpace" viewBox="0 0 500 126" style="display: inline-block; width: 250px; max-width: 80%;"></app-svg-images>
+    <br><br>
 
     <h2>Terms of Service</h2>
-    <h6>Updated: July 10, 2024</h6>
+    <h6>Updated: May 16, 2026</h6>
 
     <br><br>
 
     <div class="text-start">
+      <p>MoneroSpace is an open-source Monero block and mempool explorer forked from <a href="https://github.com/mempool/mempool" target="_blank" rel="noopener noreferrer">mempool/mempool</a>. This instance provides public blockchain data from its configured Monero daemon and does not provide wallet, custody, exchange, investment, tax, legal, or transaction acceleration services.</p>
 
-        <p *ngIf="officialMempoolSpace">The <a href="https://mempool.space/">mempool.space</a> website, the <a href="https://liquid.network/">liquid.network</a> website, the <a href="https://bitcoin.gob.sv/">bitcoin.gob.sv</a> website, their associated API services, and related network and server infrastructure (collectively, the "Website") are operated by Mempool Holdings S.A. de C.V. in El Salvador ("Mempool", "We", or "Us") and self-hosted from <a href="https://bgp.tools/as/142052#connectivity">AS142052</a>.</p>
+      <h5>By accessing this website, you agree to the following terms:</h5>
 
-        <p *ngIf="!officialMempoolSpace">This website and its API service (collectively, the "Website") are operated by a member of the Bitcoin community ("We" or "Us"). Mempool Holdings S.A. de C.V. in El Salvador ("Mempool") has no affiliation with the operator of this Website, and does not sponsor or endorse the information provided herein.</p>
+      <br>
 
-        <h5>By accessing this Website, you agree to the following Terms of Service:</h5>
+      <h4>No Warranty</h4>
+      <p>This website is provided on an "as is" and "as available" basis, without warranties or representations of any kind. Blockchain data, mempool data, fiat conversions, estimates, charts, and derived labels may be incomplete, delayed, unavailable, or inaccurate. You are responsible for independently verifying any data before relying on it.</p>
 
-        <br>
+      <br>
 
-        <h4>NO WARRANTY</h4>
+      <h4>No Liability</h4>
+      <p>We are not liable for losses or damages that result from use of this website, its API, its data, unavailable service, delayed updates, incorrect interpretation, or any other content shown here. MoneroSpace does not control the Monero network, does not mine blocks, does not relay privileged transactions, and cannot recover funds.</p>
 
-        <p>THIS WEBSITE IS PROVIDED ON AN "AS IS, AS AVAILABLE" BASIS, WITHOUT ANY WARRANTY OR REPRESENTATIONS; EXPRESS OR IMPLIED, WITHOUT EVEN THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, CONTINUOUS AVAILABILITY, OR UNINTERRUPTED SERVICE. WE MAKE NO GUARANTEE TO THE ACCURACY OF ANY DATA ON THIS WEBSITE, AND IT IS YOUR RESPONSIBILITY TO VERIFY ALL DATA OBTAINED FOR INACCURACIES AND OMISSIONS.</p>
+      <br>
 
-        <br>
+      <h4>Privacy Limits</h4>
+      <p>Monero hides recipient addresses and transaction amounts by design. MoneroSpace only shows public chain data and intentionally does not create address histories, wallet histories, UTXO-style views, payment-channel views, or fee-bump workflows. If you submit a tx_proof signature for verification, the signature and recipient address are sent to this instance's backend verifier; private view keys and tx secret keys should stay local.</p>
 
-        <h4>NO LIABILITY</h4>
+      <br>
 
-        <p>WE WILL NOT BE HELD LIABLE FOR ANY LOSS OR DAMAGES, WHETHER DIRECT, INDIRECT, OR ANY OTHER NATURE, THAT ARE DEEMED OR ALLEGED TO HAVE RESULTED FROM OR BEEN CAUSED BY THIS WEBSITE OR ITS CONTENTS, INCLUDING, BUT WITHOUT LIMITATION TO, ERRORS, INACCURACIES OR AMBIGUITY IN THIS WEBSITE OR ITS CONTENTS, FAILURES, MALFUNCTIONS, DELAYS OR INTERRUPTIONS IN OPERATION OR TRANSMISSION, ANY PERSONS USE OR MISUSE OF THIS WEBSITE OR ITS CONTENT, ANY ERRORS OR OMISSIONS IN CONTENT, DAMAGE FOR LOSS OF BITCOIN OR OTHER CRYPTO ASSETS, LOSS OF BUSINESS, LOSS OF PROFITS, BUSINESS INTERRUPTION, LOSS OF INFORMATION, OR ANY OTHER PECUNIARY OR CONSEQUENTIAL LOSS OR DAMAGE (EVEN IF WE HAVE BEEN NOTIFIED OF SUCH RISK OF LOSS OR DAMAGE).</p>
+      <h4>External Links</h4>
+      <p>This site may link to Monero documentation, upstream source code, license information, or infrastructure dependencies. External websites have their own terms and policies.</p>
 
-        <br>
+      <br>
 
-        <h4>NO ADVERTISING</h4>
+      <h4>Open Source Attribution</h4>
+      <p>MoneroSpace inherits the AGPLv3 licensing obligations of its upstream project. Mempool trademarks and logos remain property of their respective owners; MoneroSpace is not affiliated with or endorsed by Mempool Holdings S.A. de C.V.</p>
 
-        <p>Out of respect for the Bitcoin community, this website does not display advertising, and generally does not link to external websites. However, external links are made for references to Bitcoin's technical documentation, for acknowledgements of individual members and open-source projects within the Bitcoin community, and for direct contributors and supporters of <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a>, as follows:</p>
-        <ul>
-          <li>In order to refer to Bitcoin technical documentation, external links may by added where applicable, to informational websites that respect that Bitcoin community and do not display advertising, altcoins, or third-party trackers, such as <a href="https://en.bitcoin.it/">bitcoin.it</a> and <a href="https://bitcoin.org/">bitcoin.org</a>.</li>
-          <br>
-          <li>In order to acknowledge individual contributors to <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a> who have made <a href="https://github.com/mempool/mempool/graphs/contributors">at least 5 contributions visible on GitHub</a>, the contributor's GitHub profile photo will automatically be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to their GitHub profile</u>.</li>
-          <br>
-          <li>In order to acknowledge members of the Bitcoin community who have made a one-time donation of at least 0.01 BTC to <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a> on <a href="https://mempool.space/about">mempool.space/about</a>, the Bitcoin community members's Twitter profile photo will automatically be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to their Twitter profile</u>.</li>
-          <br>
-          <li>In order to acknowledge members of the Bitcoin community who have or have committed to making recurring donations of at least $100 USD per month to <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a> through <a href="https://github.com/sponsors/mempool">our GitHub Sponsors program</a> for at least 6 months, the Bitcoin community member's GitHub profile photo will automatically be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to their GitHub profile</u>.</li>
-          <br>
-          <li>In order to acknowledge open source projects that benefit the Bitcoin community and have integrated <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a> into their software, the open source project's logo may be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to the project's GitHub repository</u>.</li>
-          <br>
-          <li>In order to acknowledge federations or alliances within the Bitcoin community that have a relationship to <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a>, the federation or alliance logo may be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to the alliance website</u>.</li>
-          <br>
-          <li>In order to acknowledge the enterprise organizations within the Bitcoin community that have or have committed to making recurring donations of at least $1000 USD per month to <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a> through <a href="https://github.com/sponsors/mempool">our GitHub Sponsors program</a> for at least 25 months, the organization's logo may be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to the organization's website</u>.</li>
-          <br>
-          <li>In order to acknowledge the enterprise organizations within the Bitcoin community that have made a significant one-time donation of at least $25,000 USD to <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a>, the organization's logo may be displayed on <a href="https://mempool.space/about">mempool.space/about</a>, with <u>a link to the organization's website</u>.</li>
-        </ul>
-        <p>However, we reserve the right to remove any links from our website that in our sole discretion are inappropriate. All donations are non-refundable.</p>
+      <br>
 
-        <br>
-
-        <ng-container *ngIf="officialMempoolSpace">
-
-          <h4>NO ALTCOINS</h4>
-
-          <p>The <a href="https://mempool.space/">mempool.space</a> explorer is Bitcoin Only.</p>
-
-          <p>Unfortunately, the <a href="https://liquid.network/">liquid.network</a> explorer cannot be considered Bitcoin Only, as they may display altcoins as part of their core network functionality. We do not endorse any altcoins and encourage you to stay Bitcoin Only. Please see <a href="https://bitcoin-only.com/">bitcoin-only.com</a> for more Bitcoin Only resources.</p>
-
-          <br>
-
-        </ng-container>
-
-        <h4>MEMPOOL ACCELERATOR&reg;</h4>
-
-        <p><a href="https://mempool.space/accelerator">Mempool Accelerator&reg;</a> enables members of the Bitcoin community to submit requests for transaction prioritization. </p>
-        <ul>
-
-          <li>Mempool will use reasonable commercial efforts to relay user acceleration requests to Mempool's mining pool partners, but it is at the discretion of Mempool and Mempool's mining pool partners to accept acceleration requests. </li>
-
-          <br>
-          
-          <li>Acceleration requests cannot be canceled by the user once submitted. </li>
-
-          <br>
-
-          <li>Mempool reserves the right to cancel acceleration requests for any reason, including but not limited to the ejection of an accelerated transaction from Mempool's mempool. Canceled accelerations will not be refunded.</li>
-
-          <br>
-          
-          <li>All acceleration payments and Mempool Accelerator&reg; account credit top-ups are non-refundable. </li>
-
-          <br>
-
-          <li>Mempool Accelerator&reg; account credit top-ups are prepayment for future accelerations and cannot be withdrawn or transferred.</li>
-          
-          <br>
-          
-          <li>Mempool does not provide acceleration services to persons in Cuba, Iran, North Korea, Russia, Syria, Crimea, Donetsk or Luhansk Regions of Ukraine.</li>
-      
-
-        </ul>
-
-        <br>
-
-        <p>EOF</p>
-
-      </div>
-
+      <p>EOF</p>
+    </div>
   </div>
 
   <br><br>
-
 </div>

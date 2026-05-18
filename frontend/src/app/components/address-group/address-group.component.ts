@@ -1,12 +1,11 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, HostListener } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { switchMap, catchError } from 'rxjs/operators';
 import { Address, Transaction } from '@interfaces/electrs.interface';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 import { StateService } from '@app/services/state.service';
 import { AudioService } from '@app/services/audio.service';
-import { ApiService } from '@app/services/api.service';
 import { of, Subscription, forkJoin } from 'rxjs';
 import { SeoService } from '@app/services/seo.service';
 import { AddressInformation } from '@interfaces/node-api.interface';
@@ -41,11 +40,10 @@ export class AddressGroupComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
-    private electrsApiService: ElectrsApiService,
-    private websocketService: WebsocketService,
+    private addressApiService: AddressApiService,
+    private websocketService: LegacyWebsocketTrackingService,
     private stateService: StateService,
     private audioService: AudioService,
-    private apiService: ApiService,
     private seoService: SeoService,
     private cd: ChangeDetectorRef,
   ) { }
@@ -76,8 +74,8 @@ export class AddressGroupComponent implements OnInit, OnDestroy {
             const getLiquidInfo = ((this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') && /^([a-zA-HJ-NP-Z1-9]{26,35}|[a-z]{2,5}1[ac-hj-np-z02-9]{8,100}|[a-km-zA-HJ-NP-Z1-9]{80})$/.test(address));
             return forkJoin([
               of(address),
-              this.electrsApiService.getAddress$(address),
-              (getLiquidInfo ? this.apiService.validateAddress$(address) : of(null)),
+              this.addressApiService.getAddress$(address),
+              (getLiquidInfo ? this.addressApiService.validateAddress$(address) : of(null)),
             ]);
           }));
         }),
@@ -104,7 +102,7 @@ export class AddressGroupComponent implements OnInit, OnDestroy {
         this.pageChange(this.pageIndex);
       });
 
-    this.wsSubscription = this.stateService.multiAddressTransactions$.subscribe(update => {
+    this.wsSubscription = this.websocketService.multiAddressTransactions$.subscribe(update => {
       for (const address of Object.keys(update)) {
         for (const tx of update[address].mempool) {
           this.addTransaction(tx, false, false);

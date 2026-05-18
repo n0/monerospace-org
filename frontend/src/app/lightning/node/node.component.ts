@@ -3,7 +3,6 @@ import { ActivatedRoute, ParamMap } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap, tap, share } from 'rxjs/operators';
 import { SeoService } from '@app/services/seo.service';
-import { ApiService } from '@app/services/api.service';
 import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { GeolocationData } from '@app/shared/components/geolocation/geolocation.component';
 import { ILiquidityAd, parseLiquidityAdHex } from '@app/lightning/node/liquidity-ad';
@@ -43,7 +42,6 @@ export class NodeComponent implements OnInit {
   kmToMiles = kmToMiles;
 
   constructor(
-    private apiService: ApiService,
     private servicesApiService: ServicesApiServices,
     private lightningApiService: LightningApiService,
     private activatedRoute: ActivatedRoute,
@@ -137,7 +135,7 @@ export class NodeComponent implements OnInit {
     this.avgChannelDistance$ = this.activatedRoute.paramMap
     .pipe(
       switchMap((params: ParamMap) => {
-        return this.apiService.getChannelsGeo$(params.get('public_key'), 'nodepage');
+        return this.lightningApiService.getChannelsGeo$(params.get('public_key'), 'nodepage');
       }),
       map((channelsGeo) => {
         if (channelsGeo?.length) {

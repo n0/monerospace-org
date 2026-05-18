@@ -1,8 +1,8 @@
 import { Inject, Injectable, PLATFORM_ID, LOCALE_ID } from '@angular/core';
 import { ReplaySubject, BehaviorSubject, Subject, fromEvent, Observable } from 'rxjs';
 import { Transaction } from '@interfaces/electrs.interface';
-import { AccelerationDelta, HealthCheckHost, IBackendInfo, MempoolBlock, MempoolBlockUpdate, MempoolInfo, Recommendedfees, ReplacedTransaction, ReplacementInfo, StratumJob, isMempoolState } from '@interfaces/websocket.interface';
-import { Acceleration, AccelerationPosition, BlockExtended, CpfpInfo, DifficultyAdjustment, MempoolPosition, OptimizedMempoolStats, RbfTree, TransactionStripped } from '@interfaces/node-api.interface';
+import { HealthCheckHost, IBackendInfo, MempoolBlock, MempoolBlockUpdate, MempoolInfo, Recommendedfees, isMempoolState } from '@interfaces/websocket.interface';
+import { BlockExtended, CpfpInfo, DifficultyAdjustment, MempoolPosition, OptimizedMempoolStats, TransactionStripped } from '@interfaces/node-api.interface';
 import { Router, NavigationStart, NavigationEnd } from '@angular/router';
 import { isPlatformBrowser } from '@angular/common';
 import { filter, map, scan, share, shareReplay } from 'rxjs/operators';
@@ -16,10 +16,11 @@ export interface MarkBlockState {
   mempoolBlockIndex?: number;
   txFeePerVSize?: number;
   mempoolPosition?: MempoolPosition;
-  accelerationPositions?: AccelerationPosition[];
 }
 
 export interface ILoadingIndicators { [name: string]: number; }
+
+export type ViewAmountMode = 'xmr' | 'atomic' | 'fiat';
 
 export interface Customization {
   theme: string;
@@ -68,28 +69,16 @@ export interface Env {
   MEMPOOL_WEBSITE_URL: string;
   LIQUID_WEBSITE_URL: string;
   MINING_DASHBOARD: boolean;
-  LIGHTNING: boolean;
-  AUDIT: boolean;
-  MAINNET_BLOCK_AUDIT_START_HEIGHT: number;
-  TESTNET_BLOCK_AUDIT_START_HEIGHT: number;
-  TESTNET4_BLOCK_AUDIT_START_HEIGHT: number;
-  SIGNET_BLOCK_AUDIT_START_HEIGHT: number;
-  REGTEST_BLOCK_AUDIT_START_HEIGHT: number;
   MAINNET_TX_FIRST_SEEN_START_HEIGHT: number;
   TESTNET_TX_FIRST_SEEN_START_HEIGHT: number;
   TESTNET4_TX_FIRST_SEEN_START_HEIGHT: number;
   SIGNET_TX_FIRST_SEEN_START_HEIGHT: number;
   REGTEST_TX_FIRST_SEEN_START_HEIGHT: number;
   HISTORICAL_PRICE: boolean;
-  ACCELERATOR: boolean;
-  ACCELERATOR_BUTTON: boolean;
-  PUBLIC_ACCELERATIONS: boolean;
   ADDITIONAL_CURRENCIES: boolean;
   GIT_COMMIT_HASH_MEMPOOL_SPACE?: string;
   PACKAGE_JSON_VERSION_MEMPOOL_SPACE?: string;
-  STRATUM_ENABLED: boolean;
   SERVICES_API?: string;
-  TWIDGET_API?: string;
   customize?: Customization;
   PROD_DOMAINS: string[];
 }
@@ -114,36 +103,24 @@ const defaultEnv: Env = {
   'MEMPOOL_BLOCKS_AMOUNT': 8,
   'GIT_COMMIT_HASH': '',
   'PACKAGE_JSON_VERSION': '',
-  'MEMPOOL_WEBSITE_URL': 'https://mempool.space',
-  'LIQUID_WEBSITE_URL': 'https://liquid.network',
+  'MEMPOOL_WEBSITE_URL': '',
+  'LIQUID_WEBSITE_URL': '',
   // xmr-space: enabled now that XmrChainIndexer hydrates per-block
   // size/fees/reward from xmrchain.net and difficulty from monerod.
-  // Pool-related dropdowns (pools-ranking, pools-dominance) are
-  // stripped from graphs.component.html since Monero has no canonical
-  // pool tagging in coinbase txs — the rest are real.
+  // Pool-related dropdowns (pools-ranking, pools-dominance) stay stripped
+  // from graphs.component.html until the best-effort pool stats have a
+  // retargeted frontend surface; the non-pool mining graphs are real.
   'MINING_DASHBOARD': true,
-  'LIGHTNING': false,
-  'AUDIT': false,
-  'MAINNET_BLOCK_AUDIT_START_HEIGHT': 0,
-  'TESTNET_BLOCK_AUDIT_START_HEIGHT': 0,
-  'TESTNET4_BLOCK_AUDIT_START_HEIGHT': 0,
-  'SIGNET_BLOCK_AUDIT_START_HEIGHT': 0,
-  'REGTEST_BLOCK_AUDIT_START_HEIGHT': 0,
   'MAINNET_TX_FIRST_SEEN_START_HEIGHT': 0,
   'TESTNET_TX_FIRST_SEEN_START_HEIGHT': 0,
   'TESTNET4_TX_FIRST_SEEN_START_HEIGHT': 0,
   'SIGNET_TX_FIRST_SEEN_START_HEIGHT': 0,
   'REGTEST_TX_FIRST_SEEN_START_HEIGHT': 0,
-  // xmr-space: no historical XMR price oracle wired up; the price
-  // graph + sidebar dropdowns silently degrade if false.
-  'HISTORICAL_PRICE': false,
-  'ACCELERATOR': false,
-  'ACCELERATOR_BUTTON': true,
-  'PUBLIC_ACCELERATIONS': false,
+  // xmr-space: current XMR fiat conversions are wired over the websocket,
+  // while /api/v1/historical-price serves the durable local XMR price series.
+  'HISTORICAL_PRICE': true,
   'ADDITIONAL_CURRENCIES': false,
-  'STRATUM_ENABLED': false,
-  'SERVICES_API': 'https://mempool.space/api/v1/services',
-  'TWIDGET_API': 'https://mempool.ninja',
+  'SERVICES_API': '/api/v1/services',
   'PROD_DOMAINS': [],
 };
 
@@ -157,8 +134,6 @@ export class StateService {
   isProdDomain: boolean;
   backend: 'esplora' | 'electrum' | 'none' = 'esplora';
   network = '';
-  lightningNetworks = ['', 'mainnet', 'bitcoin', 'testnet', 'signet'];
-  lightning = false;
   blockVSize: number;
   env: Env;
   latestBlockHeight = -1;
@@ -168,37 +143,23 @@ export class StateService {
 
   backend$ = new BehaviorSubject<'esplora' | 'electrum' | 'none'>('esplora');
   networkChanged$ = new ReplaySubject<string>(1);
-  lightningChanged$ = new ReplaySubject<boolean>(1);
   signaturesMode$: BehaviorSubject<SignaturesMode>;
   blocksSubject$ = new BehaviorSubject<BlockExtended[]>([]);
   blocks$: Observable<BlockExtended[]>;
   transactions$ = new BehaviorSubject<TransactionStripped[]>(null);
   conversions$ = new ReplaySubject<Record<string, number>>(1);
-  bsqPrice$ = new ReplaySubject<number>(1);
   mempoolInfo$ = new ReplaySubject<MempoolInfo>(1);
   mempoolBlocks$ = new ReplaySubject<MempoolBlock[]>(1);
   mempoolBlockUpdate$ = new Subject<MempoolBlockUpdate>();
   liveMempoolBlockTransactions$: Observable<{ block: number, transactions: { [txid: string]: TransactionStripped} }>;
-  accelerations$ = new Subject<AccelerationDelta>();
-  liveAccelerations$: Observable<Acceleration[]>;
-  stratumJobUpdate$ = new Subject<{ state: Record<string, StratumJob> } | { job: StratumJob }>();
-  stratumJobs$ = new BehaviorSubject<Record<string, StratumJob>>({});
   txConfirmed$ = new Subject<[string, BlockExtended]>();
-  txReplaced$ = new Subject<ReplacedTransaction>();
-  txRbfInfo$ = new Subject<RbfTree>();
-  rbfLatest$ = new Subject<RbfTree[]>();
-  rbfLatestSummary$ = new Subject<ReplacementInfo[]>();
-  utxoSpent$ = new Subject<object>();
   difficultyAdjustment$ = new ReplaySubject<DifficultyAdjustment>(1);
   mempoolTransactions$ = new Subject<Transaction>();
-  mempoolTxPosition$ = new BehaviorSubject<{ txid: string, position: MempoolPosition, cpfp: CpfpInfo | null, accelerationPositions?: AccelerationPosition[] }>(null);
-  mempoolRemovedTransactions$ = new Subject<Transaction>();
-  multiAddressTransactions$ = new Subject<{ [address: string]: { mempool: Transaction[], confirmed: Transaction[], removed: Transaction[] }}>();
+  mempoolTxPosition$ = new BehaviorSubject<{ txid: string, position: MempoolPosition, cpfp: CpfpInfo | null }>(null);
   blockTransactions$ = new Subject<Transaction>();
-  walletTransactions$ = new Subject<Transaction[]>();
   isLoadingWebSocket$ = new ReplaySubject<boolean>(1);
   isLoadingMempool$ = new BehaviorSubject<boolean>(true);
-  vbytesPerSecond$ = new ReplaySubject<number>(1);
+  bytesPerSecond$ = new ReplaySubject<number>(1);
   previousRetarget$ = new ReplaySubject<number>(1);
   backendInfo$ = new ReplaySubject<IBackendInfo>(1);
   servicesBackendInfo$ = new ReplaySubject<IBackendInfo>(1);
@@ -209,7 +170,7 @@ export class StateService {
 
   live2Chart$ = new Subject<OptimizedMempoolStats>();
 
-  viewAmountMode$: BehaviorSubject<'btc' | 'sats' | 'fiat'>;
+  viewAmountMode$: BehaviorSubject<ViewAmountMode>;
   timezone$: BehaviorSubject<string>;
   connectionState$ = new BehaviorSubject<0 | 1 | 2>(2);
   isTabHidden$: Observable<boolean>;
@@ -222,7 +183,6 @@ export class StateService {
   resetScroll$: Subject<boolean> = new Subject<boolean>();
   timeLtr: BehaviorSubject<boolean>;
   hideFlow: BehaviorSubject<boolean>;
-  hideAudit: BehaviorSubject<boolean>;
   fiatCurrency$: BehaviorSubject<string>;
   rateUnits$: BehaviorSubject<string>;
   blockDisplayMode$: BehaviorSubject<string>;
@@ -253,17 +213,11 @@ export class StateService {
       this.env.MINING_DASHBOARD = false;
     }
 
-    if (document.location.hostname.endsWith('.onion')) {
-      this.env.SERVICES_API = 'http://mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion/api/v1/services';
-    }
-
     if (this.isBrowser) {
       this.setNetworkBasedonUrl(window.location.pathname);
-      this.setLightningBasedonUrl(window.location.pathname);
       this.isTabHidden$ = fromEvent(document, 'visibilitychange').pipe(map(() => this.isHidden()), shareReplay());
     } else {
       this.setNetworkBasedonUrl('/');
-      this.setLightningBasedonUrl('/');
       this.isTabHidden$ = new BehaviorSubject(false);
     }
 
@@ -272,10 +226,8 @@ export class StateService {
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationStart) {
         this.setNetworkBasedonUrl(event.url);
-        this.setLightningBasedonUrl(event.url);
       } else if (event instanceof NavigationEnd) {
         this.setNetworkBasedonUrl(event.urlAfterRedirects);
-        this.setLightningBasedonUrl(event.urlAfterRedirects);
       }
     });
 
@@ -300,7 +252,6 @@ export class StateService {
         change.changed.forEach(tx => {
           if (acc.transactions[tx.txid]) {
             acc.transactions[tx.txid].rate = tx.rate;
-            acc.transactions[tx.txid].acc = tx.acc;
           }
         });
         this.mempoolBlockState = {
@@ -314,46 +265,8 @@ export class StateService {
     );
     this.liveMempoolBlockTransactions$.subscribe();
 
-    // Emits the full list of pending accelerations each time it changes
-    this.liveAccelerations$ = this.accelerations$.pipe(
-      scan((accelerations: { [txid: string]: Acceleration }, delta: AccelerationDelta) => {
-        if (delta.reset) {
-          accelerations = {};
-        } else {
-          for (const txid of delta.removed) {
-            delete accelerations[txid];
-          }
-        }
-        for (const acc of delta.added) {
-          accelerations[acc.txid] = acc;
-        }
-        return accelerations;
-      }, {}),
-      map((accMap) => Object.values(accMap).sort((a,b) => b.added - a.added))
-    );
-
-    this.stratumJobUpdate$.pipe(
-      scan((acc: Record<string, StratumJob>, update: { state: Record<string, StratumJob> } | { job: StratumJob }) => {
-        if ('state' in update) {
-          // Replace the entire state
-          return update.state;
-        } else {
-          // Update or create a single job entry
-          return {
-            ...acc,
-            [update.job.pool]: update.job
-          };
-        }
-      }, {}),
-      shareReplay(1)
-    ).subscribe(val => {
-      this.stratumJobs$.next(val);
-    });
-
     this.networkChanged$.subscribe((network) => {
       this.transactions$ = new BehaviorSubject<TransactionStripped[]>(null);
-      this.stratumJobs$ = new BehaviorSubject<Record<string, StratumJob>>({});
-      this.stratumJobUpdate$.next({ state: {} });
       this.blocksSubject$.next([]);
     });
 
@@ -381,12 +294,6 @@ export class StateService {
       }
     });
 
-    const savedAuditPreference = this.storageService.getValue('audit-preference');
-    this.hideAudit = new BehaviorSubject<boolean>(savedAuditPreference === 'hide');
-    this.hideAudit.subscribe((hide) => {
-      this.storageService.setValue('audit-preference', hide ? 'hide' : 'show');
-    });
-
     const fiatPreference = this.storageService.getValue('fiat-preference');
     this.fiatCurrency$ = new BehaviorSubject<string>(fiatPreference || 'USD');
 
@@ -396,8 +303,12 @@ export class StateService {
     const blockDisplayModePreference = this.storageService.getValue('block-display-mode-preference');
     this.blockDisplayMode$ = new BehaviorSubject<string>(blockDisplayModePreference || 'fees');
 
-    const viewAmountModePreference = this.storageService.getValue('view-amount-mode') as 'btc' | 'sats' | 'fiat';
-    this.viewAmountMode$ = new BehaviorSubject<'btc' | 'sats' | 'fiat'>(viewAmountModePreference || 'btc');
+    const storedViewAmountMode = this.storageService.getValue('view-amount-mode');
+    const viewAmountModePreference: ViewAmountMode =
+      storedViewAmountMode === 'atomic' ? 'atomic' :
+      storedViewAmountMode === 'fiat' ? 'fiat' :
+      'xmr';
+    this.viewAmountMode$ = new BehaviorSubject<ViewAmountMode>(viewAmountModePreference);
 
     const timezonePreference = this.storageService.getValue('timezone-preference');
     this.timezone$ = new BehaviorSubject<string>(timezonePreference || 'local');
@@ -407,88 +318,15 @@ export class StateService {
     });
   }
 
-  setNetworkBasedonUrl(url: string) {
-    if (this.env.BASE_MODULE !== 'mempool' && this.env.BASE_MODULE !== 'liquid') {
-      return;
-    }
-    // horrible network regex breakdown:
-    // /^\/                                         starts with a forward slash...
-    // (?:[a-z]{2}(?:-[A-Z]{2})?\/)?                optional locale prefix (non-capturing)
-    // (?:preview\/)?                               optional "preview" prefix (non-capturing)
-    // (testnet|signet)/                            network string (captured as networkMatches[1])
-    // ($|\/)                                       network string must end or end with a slash
-    let networkMatches: object = url.match(/^\/(?:[a-z]{2}(?:-[A-Z]{2})?\/)?(?:preview\/)?(testnet4?|signet|regtest)($|\/)/);
-
-    if (!networkMatches && this.env.ROOT_NETWORK) {
-      networkMatches = { 1: this.env.ROOT_NETWORK };
-    }
-
-    switch (networkMatches && networkMatches[1]) {
-      case 'signet':
-        if (this.network !== 'signet') {
-          this.network = 'signet';
-          this.networkChanged$.next('signet');
-        }
-        return;
-      case 'testnet':
-        if (this.network !== 'testnet' && this.network !== 'liquidtestnet') {
-          if (this.env.BASE_MODULE === 'liquid') {
-            this.network = 'liquidtestnet';
-            this.networkChanged$.next('liquidtestnet');
-          } else {
-            this.network = 'testnet';
-            this.networkChanged$.next('testnet');
-          }
-        }
-        return;
-      case 'testnet4':
-        if (this.network !== 'testnet4') {
-          this.network = 'testnet4';
-          this.networkChanged$.next('testnet4');
-        }
-        return;
-      case 'regtest':
-        if (this.network !== 'regtest') {
-          this.network = 'regtest';
-          this.networkChanged$.next('regtest');
-        }
-        return;
-      default:
-        if (this.env.BASE_MODULE !== 'mempool') {
-          if (this.network !== this.env.BASE_MODULE) {
-            this.network = this.env.BASE_MODULE;
-            this.networkChanged$.next(this.env.BASE_MODULE);
-          }
-        } else if (this.network !== '') {
-          this.network = '';
-          this.networkChanged$.next('');
-        }
+  setNetworkBasedonUrl(_url: string) {
+    if (this.network !== '') {
+      this.network = '';
+      this.networkChanged$.next('');
     }
   }
 
-  setLightningBasedonUrl(url: string) {
-    if (this.env.BASE_MODULE !== 'mempool') {
-      return;
-    }
-    const networkMatches = url.match(/\/lightning\//);
-    this.lightning = !!networkMatches;
-    this.lightningChanged$.next(this.lightning);
-  }
-
-  networkSupportsLightning() {
-    return this.env.LIGHTNING && this.lightningNetworks.includes(this.network);
-  }
   get networkDisplayName(): string {
-    const labels: Record<string, string> = {
-      '': 'Mainnet',
-      'signet': 'Signet',
-      'testnet': 'Testnet3',
-      'testnet4': 'Testnet4',
-      'regtest': 'Regtest',
-      'liquid': 'Liquid',
-      'liquidtestnet': 'Liquid Testnet',
-    };
-    return labels[this.network] ?? this.network;
+    return 'Mainnet';
   }
   getHiddenProp(){
     const prefixes = ['webkit', 'moz', 'ms', 'o'];
@@ -511,16 +349,12 @@ export class StateService {
     this.blockScrolling$.next(value);
   }
 
-  isLiquid() {
-    return this.network === 'liquid' || this.network === 'liquidtestnet';
-  }
-
   isMainnet(): boolean {
-    return this.env.ROOT_NETWORK === '' && this.network === '';
+    return true;
   }
 
   isAnyTestnet(): boolean {
-    return ['testnet', 'testnet4', 'signet', 'regtest', 'liquidtestnet'].includes(this.network);
+    return false;
   }
   resetChainTip() {
     this.latestBlockHeight = -1;

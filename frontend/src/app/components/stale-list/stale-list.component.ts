@@ -2,10 +2,12 @@ import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { StaleTip, BlockExtended } from '@interfaces/node-api.interface';
-import { ApiService } from '@app/services/api.service';
+import { ChainTipsApiService } from '@app/services/chain-tips-api.service';
 import { StateService } from '@app/services/state.service';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
+import { getVisualBlockWeightPercent } from '@app/shared/block-weight.utils';
+import { formatCompactFeeRateRange } from '@app/shared/fee-rate.utils';
 
 @Component({
   selector: 'app-stale-list',
@@ -31,13 +33,13 @@ export class StaleList implements OnInit {
   };
 
   constructor(
-    private apiService: ApiService,
+    private chainTipsApiService: ChainTipsApiService,
     public stateService: StateService,
     private seoService: SeoService,
   ) { }
 
   ngOnInit(): void {
-    this.chainTips$ = this.apiService.getStaleTips$().pipe(
+    this.chainTips$ = this.chainTipsApiService.getStaleTips$().pipe(
       map((chainTips) => {
         const filtered = chainTips.filter((chainTip) => chainTip.status !== 'active') as StaleTip[];
 
@@ -68,7 +70,7 @@ export class StaleList implements OnInit {
       return 'var(--secondary)';
     }
 
-    const backgroundHeight = 100 - (block.weight / this.stateService.env.BLOCK_WEIGHT_UNITS) * 100;
+    const backgroundHeight = 100 - getVisualBlockWeightPercent(block.weight);
     const network = this.stateService.network || '';
 
     return `repeating-linear-gradient(
@@ -95,5 +97,9 @@ export class StaleList implements OnInit {
       return block.extras.feeRange[block.extras.feeRange.length - 1];
     }
     return 0;
+  }
+
+  compactFeeRange(minFee: number | null | undefined, maxFee: number | null | undefined): string {
+    return formatCompactFeeRateRange(minFee, maxFee);
   }
 }

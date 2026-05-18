@@ -2,14 +2,13 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { switchMap, catchError, map, tap, shareReplay, startWith, scan } from 'rxjs/operators';
 import { Address, AddressTxSummary, ChainStats, Transaction } from '@interfaces/electrs.interface';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 import { StateService } from '@app/services/state.service';
-import { ApiService } from '@app/services/api.service';
 import { of, Observable, Subscription } from 'rxjs';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 import { WalletAddress } from '@interfaces/node-api.interface';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { AudioService } from '@app/services/audio.service';
 import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
 import { WalletStats } from '@app/shared/wallet-stats';
@@ -50,10 +49,9 @@ export class WalletComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private websocketService: WebsocketService,
+    private websocketService: LegacyWebsocketTrackingService,
     private stateService: StateService,
-    private apiService: ApiService,
-    private electrsApiService: ElectrsApiService,
+    private addressApiService: AddressApiService,
     private audioService: AudioService,
     private seoService: SeoService,
     private relativeUrlPipe: RelativeUrlPipe,
@@ -70,7 +68,7 @@ export class WalletComponent implements OnInit, OnDestroy {
         this.seoService.setTitle($localize`:@@wallet.component.browser-title:Wallet: ${walletName}:INTERPOLATION:`);
         this.seoService.setDescription($localize`:@@meta.description.bitcoin.wallet:See mempool transactions, confirmed transactions, balance, and more for ${this.stateService.network==='liquid'||this.stateService.network==='liquidtestnet'?'Liquid':'Bitcoin'}${seoDescriptionNetwork(this.stateService.network)} wallet ${walletName}:INTERPOLATION:.`);
       }),
-      switchMap((walletName: string) => this.apiService.getWallet$(walletName).pipe(
+      switchMap((walletName: string) => this.addressApiService.getWallet$(walletName).pipe(
         catchError((err) => {
           this.error = err;
           console.log(err);
@@ -100,7 +98,7 @@ export class WalletComponent implements OnInit, OnDestroy {
         }
         return walletInfo;
       }),
-      switchMap(initial => this.stateService.walletTransactions$.pipe(
+      switchMap(initial => this.websocketService.walletTransactions$.pipe(
         startWith(null),
         tap((transactions) => {
           if (!transactions?.length) {
@@ -160,7 +158,7 @@ export class WalletComponent implements OnInit, OnDestroy {
     });
 
     this.walletSummary$ = this.wallet$.pipe(
-      switchMap(wallet => this.stateService.walletTransactions$.pipe(
+      switchMap(wallet => this.websocketService.walletTransactions$.pipe(
         startWith([]),
         scan((summaries, newTransactions) => {
           const newSummaries: AddressTxSummary[] = [];
@@ -203,7 +201,7 @@ export class WalletComponent implements OnInit, OnDestroy {
     this.walletStats$ = this.wallet$.pipe(
       switchMap(wallet => {
         const walletStats = new WalletStats(Object.values(wallet).map(w => w.stats), Object.keys(wallet));
-        return this.stateService.walletTransactions$.pipe(
+        return this.websocketService.walletTransactions$.pipe(
           startWith([]),
           scan((stats, newTransactions) => {
             for (const tx of newTransactions) {
@@ -218,7 +216,7 @@ export class WalletComponent implements OnInit, OnDestroy {
     this.transactionSubscription = this.wallet$.pipe(
       switchMap(wallet => {
         const addresses = Object.keys(wallet).map(addr => this.normalizeAddress(addr));
-        return this.electrsApiService.getAddressesTransactions$(addresses);
+        return this.addressApiService.getAddressesTransactions$(addresses);
       }),
       map(transactions => {
         // only confirmed transactions supported for now
@@ -246,7 +244,7 @@ export class WalletComponent implements OnInit, OnDestroy {
     }
     this.isLoadingTransactions = true;
     this.retryLoadMore = false;
-    this.electrsApiService.getAddressesTransactions$(this.addressStrings, this.transactions[this.transactions.length - 1].txid)
+    this.addressApiService.getAddressesTransactions$(this.addressStrings, this.transactions[this.transactions.length - 1].txid)
       .subscribe((transactions: Transaction[]) => {
         if (transactions && transactions.length) {
           this.transactions = this.transactions.concat(transactions.sort((a, b) => b.status.block_height - a.status.block_height));

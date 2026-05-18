@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
 import { StorageService } from '@app/services/storage.service';
-import { StateService } from '@app/services/state.service';
+import { StateService, ViewAmountMode } from '@app/services/state.service';
 
 @Component({
   selector: 'app-amount-selector',
@@ -12,7 +12,7 @@ import { StateService } from '@app/services/state.service';
 })
 export class AmountSelectorComponent implements OnInit {
   amountForm: UntypedFormGroup;
-  modes = ['btc', 'sats', 'fiat'];
+  modes: ViewAmountMode[] = ['xmr', 'atomic', 'fiat'];
 
   constructor(
     private formBuilder: UntypedFormBuilder,
@@ -22,7 +22,7 @@ export class AmountSelectorComponent implements OnInit {
 
   ngOnInit() {
     this.amountForm = this.formBuilder.group({
-      mode: ['btc']
+      mode: ['xmr']
     });
     this.stateService.viewAmountMode$.subscribe((mode) => {
       this.amountForm.get('mode')?.setValue(mode);
@@ -30,7 +30,7 @@ export class AmountSelectorComponent implements OnInit {
   }
 
   changeMode() {
-    const newMode = this.amountForm.get('mode')?.value;
+    const newMode = this.amountForm.get('mode')?.value as ViewAmountMode;
     this.storageService.setValue('view-amount-mode', newMode);
     this.stateService.viewAmountMode$.next(newMode);
   }

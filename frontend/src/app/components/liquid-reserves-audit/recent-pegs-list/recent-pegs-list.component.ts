@@ -2,7 +2,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Component, OnInit, ChangeDetectionStrategy, Input, Inject, LOCALE_ID, ChangeDetectorRef } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, Subscription, combineLatest, of, timer } from 'rxjs';
 import { delayWhen, filter, map, share, shareReplay, switchMap, take, takeUntil, tap, throttleTime } from 'rxjs/operators';
-import { ApiService } from '@app/services/api.service';
+import { LiquidApiService } from '@app/services/liquid-api.service';
 import { Env, StateService } from '@app/services/state.service';
 import { AuditStatus, CurrentPegs, PegsVolume, RecentPeg } from '@interfaces/node-api.interface';
 import { WebsocketService } from '@app/services/websocket.service';
@@ -45,7 +45,7 @@ export class RecentPegsListComponent implements OnInit {
   private destroy$ = new Subject();
 
   constructor(
-    private apiService: ApiService,
+    private liquidApiService: LiquidApiService,
     private cd: ChangeDetectorRef,
     public stateService: StateService,
     private websocketService: WebsocketService,
@@ -103,14 +103,14 @@ export class RecentPegsListComponent implements OnInit {
         throttleTime(40000),
         delayWhen(_ => this.isLoad ? timer(0) : timer(2000)),
         tap(() => this.isLoad = false),
-        switchMap(() => this.apiService.federationAuditSynced$()),
+        switchMap(() => this.liquidApiService.federationAuditSynced$()),
         shareReplay(1)
       );
 
       this.currentPeg$ = this.auditStatus$.pipe(
         filter(auditStatus => auditStatus.isAuditSynced === true),
         switchMap(_ =>
-          this.apiService.liquidPegs$().pipe(
+          this.liquidApiService.liquidPegs$().pipe(
             filter((currentPegs) => currentPegs.lastBlockUpdate >= this.lastPegBlockUpdate),
             tap((currentPegs) => {
               this.lastPegBlockUpdate = currentPegs.lastBlockUpdate;
@@ -142,7 +142,7 @@ export class RecentPegsListComponent implements OnInit {
       this.pegsCount$ = this.auditUpdated$.pipe(
         filter(auditUpdated => auditUpdated === true),
         tap(() => this.isPegCountLoading = true),
-        switchMap(_ => this.apiService.pegsCount$()),
+        switchMap(_ => this.liquidApiService.pegsCount$()),
         map((data) => data.pegs_count),
         tap((pegsCount) => {
           this.isPegCountLoading = false;
@@ -154,7 +154,7 @@ export class RecentPegsListComponent implements OnInit {
       this.pegsVolume$ = this.auditUpdated$.pipe(
         filter(auditUpdated => auditUpdated === true),
         throttleTime(40000),
-        switchMap(_ => this.apiService.pegsVolume$()),
+        switchMap(_ => this.liquidApiService.pegsVolume$()),
         share()
       );
 
@@ -173,7 +173,7 @@ export class RecentPegsListComponent implements OnInit {
           this.currentIndex = startingIndex;
           this.isLoading = true;
         }),
-        switchMap(([_, __, startingIndex]) => this.apiService.recentPegsList$(startingIndex)),
+        switchMap(([_, __, startingIndex]) => this.liquidApiService.recentPegsList$(startingIndex)),
         tap(() => this.isLoading = false),
         share()
       );

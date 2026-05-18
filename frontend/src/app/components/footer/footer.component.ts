@@ -11,7 +11,7 @@ interface MempoolBlocksData {
 
 interface MempoolInfoData {
   memPoolInfo: MempoolInfo;
-  vBytesPerSecond: number;
+  bytesPerSecond: number;
   progressWidth: string;
   progressColor: string;
 }
@@ -28,7 +28,7 @@ export class FooterComponent implements OnInit {
 
   mempoolBlocksData$: Observable<MempoolBlocksData>;
   mempoolInfoData$: Observable<MempoolInfoData>;
-  vBytesPerSecondLimit = 1667;
+  bytesPerSecondLimit = 1667;
   isLoadingWebSocket$: Observable<boolean>;
   mempoolLoadingStatus$: Observable<number>;
 
@@ -45,26 +45,26 @@ export class FooterComponent implements OnInit {
 
       this.mempoolInfoData$ = combineLatest([
         this.stateService.mempoolInfo$,
-        this.stateService.vbytesPerSecond$
+        this.stateService.bytesPerSecond$
       ])
       .pipe(
-        map(([mempoolInfo, vbytesPerSecond]) => {
-          const percent = Math.round((Math.min(vbytesPerSecond, this.vBytesPerSecondLimit) / this.vBytesPerSecondLimit) * 100);
+        map(([mempoolInfo, bytesPerSecond]) => {
+          const percent = Math.round((Math.min(bytesPerSecond, this.bytesPerSecondLimit) / this.bytesPerSecondLimit) * 100);
 
           let progressColor = '#7CB342';
-          if (vbytesPerSecond > 1667) {
+          if (bytesPerSecond > 1667) {
             progressColor = '#FDD835';
           }
-          if (vbytesPerSecond > 2000) {
+          if (bytesPerSecond > 2000) {
             progressColor = '#FFB300';
           }
-          if (vbytesPerSecond > 2500) {
+          if (bytesPerSecond > 2500) {
             progressColor = '#FB8C00';
           }
-          if (vbytesPerSecond > 3000) {
+          if (bytesPerSecond > 3000) {
             progressColor = '#F4511E';
           }
-          if (vbytesPerSecond > 3500) {
+          if (bytesPerSecond > 3500) {
             progressColor = '#D81B60';
           }
 
@@ -78,7 +78,7 @@ export class FooterComponent implements OnInit {
 
           return {
             memPoolInfo: mempoolInfo,
-            vBytesPerSecond: vbytesPerSecond,
+            bytesPerSecond,
             progressWidth: percent + '%',
             progressColor: progressColor,
             mempoolSizeProgress: mempoolSizeProgress,

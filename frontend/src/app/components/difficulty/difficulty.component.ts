@@ -46,6 +46,7 @@ export class DifficultyComponent implements OnInit {
   @Input() showProgress = true;
   @Input() showHalving = false;
   @Input() showTitle = true;
+  isMonero = true;
 
   @ViewChild('epochSvg') epochSvgElement: ElementRef<SVGElement>;
 
@@ -103,14 +104,18 @@ export class DifficultyComponent implements OnInit {
           colorPreviousAdjustments = 'var(--transparent-fg)';
         }
 
-        const blocksUntilHalving = 210000 - (maxHeight % 210000);
-        const timeUntilHalving = new Date().getTime() + (blocksUntilHalving * 600000);
-        const newEpochStart = Math.floor(this.stateService.latestBlockHeight / EPOCH_BLOCK_LENGTH) * EPOCH_BLOCK_LENGTH;
-        const newExpectedHeight = Math.floor(newEpochStart + da.expectedBlocks);
+        const blocksUntilHalving = this.isMonero ? 0 : 210000 - (maxHeight % 210000);
+        const timeUntilHalving = this.isMonero ? 0 : new Date().getTime() + (blocksUntilHalving * 600000);
+        const newEpochStart = this.isMonero
+          ? this.stateService.latestBlockHeight
+          : Math.floor(this.stateService.latestBlockHeight / EPOCH_BLOCK_LENGTH) * EPOCH_BLOCK_LENGTH;
+        const newExpectedHeight = this.isMonero
+          ? this.stateService.latestBlockHeight + 1
+          : Math.floor(newEpochStart + da.expectedBlocks);
         this.now = new Date().getTime();
         this.nextSubsidy = getNextBlockSubsidy(maxHeight);
 
-        if (blocksUntilHalving < da.remainingBlocks && !this.userSelectedMode) {
+        if (!this.isMonero && blocksUntilHalving < da.remainingBlocks && !this.userSelectedMode) {
           this.mode = 'halving';
         }
 
@@ -118,33 +123,42 @@ export class DifficultyComponent implements OnInit {
           this.epochStart = newEpochStart;
           this.expectedHeight = newExpectedHeight;
           this.currentHeight = this.stateService.latestBlockHeight;
-          this.currentIndex = this.currentHeight - this.epochStart;
-          this.expectedIndex = Math.min(this.expectedHeight - this.epochStart, 2016) - 1;
+          this.currentIndex = this.isMonero ? 1 : this.currentHeight - this.epochStart;
+          this.expectedIndex = this.isMonero ? 1 : Math.min(this.expectedHeight - this.epochStart, 2016) - 1;
           this.difference = this.currentIndex - this.expectedIndex;
 
-          this.shapes = [];
-          this.shapes = this.shapes.concat(this.blocksToShapes(
-            0, Math.min(this.currentIndex, this.expectedIndex), 'mined', true
-          ));
-          this.shapes = this.shapes.concat(this.blocksToShapes(
-            this.currentIndex + 1, this.expectedIndex, 'behind', true
-          ));
-          this.shapes = this.shapes.concat(this.blocksToShapes(
-            this.expectedIndex + 1, this.currentIndex, 'ahead', false
-          ));
-          if (this.currentIndex < 2015) {
+          if (this.isMonero) {
+            this.shapes = [
+              { x: 0, y: 0, w: 112, h: 9, status: 'mined', expected: true },
+              { x: 112, y: 0, w: 112, h: 9, status: 'next', expected: true },
+            ];
+          } else {
+            this.shapes = [];
             this.shapes = this.shapes.concat(this.blocksToShapes(
-              this.currentIndex + 1, this.currentIndex + 1, 'next', (this.expectedIndex > this.currentIndex)
+              0, Math.min(this.currentIndex, this.expectedIndex), 'mined', true
+            ));
+            this.shapes = this.shapes.concat(this.blocksToShapes(
+              this.currentIndex + 1, this.expectedIndex, 'behind', true
+            ));
+            this.shapes = this.shapes.concat(this.blocksToShapes(
+              this.expectedIndex + 1, this.currentIndex, 'ahead', false
+            ));
+            if (this.currentIndex < 2015) {
+              this.shapes = this.shapes.concat(this.blocksToShapes(
+                this.currentIndex + 1, this.currentIndex + 1, 'next', (this.expectedIndex > this.currentIndex)
+              ));
+            }
+            this.shapes = this.shapes.concat(this.blocksToShapes(
+              Math.max(this.currentIndex + 2, this.expectedIndex + 1), 2105, 'remaining', false
             ));
           }
-          this.shapes = this.shapes.concat(this.blocksToShapes(
-            Math.max(this.currentIndex + 2, this.expectedIndex + 1), 2105, 'remaining', false
-          ));
         }
 
 
         let retargetDateString;
-        if (da.remainingBlocks > 1870) {
+        if (this.isMonero) {
+          retargetDateString = `height ${da.nextRetargetHeight}`;
+        } else if (da.remainingBlocks > 1870) {
           retargetDateString = (new Date(da.estimatedRetargetDate)).toLocaleDateString(this.locale, { month: 'long', day: 'numeric' });
         } else {
           retargetDateString = (new Date(da.estimatedRetargetDate)).toLocaleTimeString(this.locale, { month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });

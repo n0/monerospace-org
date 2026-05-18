@@ -3,13 +3,13 @@ import { ActivatedRoute, ParamMap } from '@angular/router';
 import { switchMap, catchError, map, tap, shareReplay, startWith, scan } from 'rxjs/operators';
 import { Address, AddressTxSummary, ChainStats, Transaction } from '@interfaces/electrs.interface';
 import { StateService } from '@app/services/state.service';
-import { ApiService } from '@app/services/api.service';
 import { of, Observable, Subscription } from 'rxjs';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 import { WalletAddress } from '@interfaces/node-api.interface';
 import { OpenGraphService } from '@app/services/opengraph.service';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
+import { AddressApiService } from '@app/services/address-api.service';
 
 class WalletStats implements ChainStats {
   addresses: string[];
@@ -131,9 +131,9 @@ export class WalletPreviewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private stateService: StateService,
-    private apiService: ApiService,
+    private addressApiService: AddressApiService,
     private seoService: SeoService,
-    private websocketService: WebsocketService,
+    private websocketService: LegacyWebsocketTrackingService,
     private openGraphService: OpenGraphService,
   ) { }
 
@@ -150,7 +150,7 @@ export class WalletPreviewComponent implements OnInit, OnDestroy {
         this.seoService.setTitle($localize`:@@wallet.component.browser-title:Wallet: ${walletName}:INTERPOLATION:`);
         this.seoService.setDescription($localize`:@@meta.description.bitcoin.wallet:See mempool transactions, confirmed transactions, balance, and more for ${this.stateService.network==='liquid'||this.stateService.network==='liquidtestnet'?'Liquid':'Bitcoin'}${seoDescriptionNetwork(this.stateService.network)} wallet ${walletName}:INTERPOLATION:.`);
       }),
-      switchMap((walletName: string) => this.apiService.getWallet$(walletName).pipe(
+      switchMap((walletName: string) => this.addressApiService.getWallet$(walletName).pipe(
         catchError((err) => {
           this.error = err;
           this.seoService.logSoft404();
@@ -201,7 +201,7 @@ export class WalletPreviewComponent implements OnInit, OnDestroy {
     this.walletStats$ = this.wallet$.pipe(
       switchMap(wallet => {
         const walletStats = new WalletStats(Object.values(wallet).map(w => w.stats), Object.keys(wallet));
-        return this.stateService.walletTransactions$.pipe(
+        return this.websocketService.walletTransactions$.pipe(
           startWith([]),
           scan((stats, newTransactions) => {
             for (const tx of newTransactions) {

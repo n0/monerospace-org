@@ -23,6 +23,7 @@ import { MoneroWs } from './monero-ws';
 import { MoneroStats } from './monero-stats';
 import { XmrChainIndexer } from './xmr-chain-indexer';
 import { XmrMiningRoutes } from './xmr-mining.routes';
+import { moneroWalletRpcFromEnv } from './monero-wallet-rpc';
 
 function main(): void {
   const app = express();
@@ -42,12 +43,14 @@ function main(): void {
     }
     next();
   });
+  app.use(express.json({ limit: '256kb' }));
 
   app.get('/healthz', (_req: Request, res: Response) => {
     res.json({ ok: true, service: 'xmr-space-backend' });
   });
 
   const api = moneroApiFromEnv();
+  const walletRpc = moneroWalletRpcFromEnv();
 
   const rpcUrl = process.env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081';
   const bus = new MoneroEventBus(
@@ -67,8 +70,8 @@ function main(): void {
   new MoneroSseRoutes(bus).initRoutes(app);
 
   // Rolling 1-minute mempool-stats samples for the Incoming
-  // Transactions chart. Backfills empty; chart fills over the first
-  // ~2 h of uptime — honest UX, no fake history.
+  // Transactions chart. Persists recent samples under XMR_INDEX_DIR so
+  // restarts keep the chart history; first boot fills naturally.
   const stats = new MoneroStats(api, bus);
   stats.start();
   stats.initRoutes(app);
@@ -92,13 +95,15 @@ function main(): void {
 
   // REST routes after ws so /api/v1/init-data can mirror the ws
   // first-message snapshot without duplicating the shaping logic.
-  new MoneroRoutes(api, ws).initRoutes(app);
+  new MoneroRoutes(api, ws, walletRpc).initRoutes(app);
 
   httpServer.listen(port, host, () => {
     // eslint-disable-next-line no-console
     console.log(`[xmr-space] listening on http://${host}:${port}`);
     // eslint-disable-next-line no-console
     console.log(`[xmr-space] daemon: ${process.env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081'}`);
+    // eslint-disable-next-line no-console
+    console.log(`[xmr-space] wallet-rpc proofs: ${walletRpc ? 'enabled' : 'disabled (set MONERO_WALLET_RPC_URL)'}`);
   });
 }
 

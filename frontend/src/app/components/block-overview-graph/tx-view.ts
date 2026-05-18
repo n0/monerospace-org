@@ -4,7 +4,6 @@ import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from '@components
 import { hexToColor } from '@components/block-overview-graph/utils';
 import BlockScene from '@components/block-overview-graph/block-scene';
 import { TransactionStripped } from '@interfaces/node-api.interface';
-import { TransactionFlags } from '@app/shared/filters.utils';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
@@ -28,12 +27,11 @@ export default class TxView implements TransactionStripped {
   vsize: number;
   value: number;
   feerate: number;
-  acc?: boolean;
   rate?: number;
   flags: number;
-  bigintFlags?: bigint | null = 0b00000100_00000000_00000000_00000000n;
+  bigintFlags?: bigint | null = 0n;
   time?: number;
-  status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'added_prioritized' | 'prioritized' | 'added_deprioritized' | 'deprioritized' | 'censored' | 'selected' | 'rbf' | 'accelerated' | 'matched' | 'unmatched';
+  status?: 'found' | 'missing' | 'fresh' | 'added' | 'added_prioritized' | 'prioritized' | 'added_deprioritized' | 'deprioritized' | 'censored' | 'selected' | 'matched' | 'unmatched';
   context?: 'projected' | 'actual' | 'stale' | 'canonical';
   scene?: BlockScene;
 
@@ -59,11 +57,10 @@ export default class TxView implements TransactionStripped {
     this.vsize = tx.vsize;
     this.value = tx.value;
     this.feerate = tx.rate || (tx.fee / tx.vsize); // sort by effective fee rate where available
-    this.acc = tx.acc;
     this.rate = tx.rate;
     this.status = tx.status;
     this.flags = tx.flags || 0;
-    this.bigintFlags = tx.flags ? (BigInt(tx.flags) | (this.acc ? TransactionFlags.acceleration : 0n)): 0n;
+    this.bigintFlags = tx.flags ? BigInt(tx.flags) : 0n;
     this.initialised = false;
     this.vertexArray = scene.vertexArray;
 

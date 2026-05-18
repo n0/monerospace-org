@@ -165,8 +165,6 @@ export interface SinglePoolStats {
   emptyBlockRatio: string;
   logo: string;
   slug: string;
-  avgMatchRate: number;
-  avgFeeDelta: number;
 }
 export interface PoolsStats {
   blockCount: number;
@@ -183,8 +181,8 @@ export interface PoolInfo {
   id: number | null; // mysql row id
   name: string;
   link: string;
-  regexes: string; // JSON array
-  addresses: string; // JSON array
+  regexes: string | string[]; // JSON array or decoded backend list
+  addresses: string | string[]; // JSON array or decoded backend list
   emptyBlocks: number;
   slug: string;
   poolUniqueId: number;
@@ -203,7 +201,6 @@ export interface PoolStat {
     '1w': number,
   };
   estimatedHashrate: number;
-  avgBlockHealth: number;
   totalReward: number;
 }
 
@@ -215,16 +212,13 @@ export interface BlockExtension {
   feeRange?: number[];
   reward?: number;
   coinbaseRaw?: string;
-  matchRate?: number;
-  expectedFees?: number;
-  expectedWeight?: number;
-  feeDelta?: number;
   similarity?: number;
   pool?: {
     id: number;
     name: string;
     slug: string;
     minerNames: string[] | null;
+    logo?: string;
   }
   orphans?: {
     height: number;
@@ -235,27 +229,10 @@ export interface BlockExtension {
 }
 
 export interface BlockExtended extends Block {
+  major_version?: number;
+  minor_version?: number;
+  miner_tx_hash?: string;
   extras?: BlockExtension;
-}
-
-export interface BlockAudit extends BlockExtended {
-  version: number,
-  unseenTxs?: string[],
-  missingTxs: string[],
-  addedTxs: string[],
-  prioritizedTxs: string[],
-  freshTxs: string[],
-  sigopTxs: string[],
-  fullrbfTxs: string[],
-  acceleratedTxs: string[],
-  matchRate: number,
-  expectedFees: number,
-  expectedWeight: number,
-  feeDelta?: number,
-  weightDelta?: number,
-  txDelta?: number,
-  template: TransactionStripped[],
-  transactions: TransactionStripped[],
 }
 
 export interface TransactionStripped {
@@ -264,10 +241,9 @@ export interface TransactionStripped {
   vsize: number;
   value: number;
   rate?: number; // effective fee rate
-  acc?: boolean;
   flags?: number | null;
   time?: number;
-  status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'added_prioritized' | 'prioritized' | 'added_deprioritized' | 'deprioritized' | 'censored' | 'selected' | 'rbf' | 'accelerated' | 'matched' | 'unmatched';
+  status?: 'found' | 'missing' | 'fresh' | 'added' | 'added_prioritized' | 'prioritized' | 'added_deprioritized' | 'deprioritized' | 'censored' | 'selected' | 'matched' | 'unmatched';
   context?: 'projected' | 'actual' | 'stale' | 'canonical';
 }
 
@@ -293,6 +269,7 @@ export interface AccelerationPosition extends MempoolPosition {
 export interface RewardStats {
   startBlock: number;
   endBlock: number;
+  blockCount: number;
   totalReward: number;
   totalFee: number;
   totalTx: number;
@@ -309,11 +286,6 @@ export interface BlockSizesAndWeights {
     avgHeight: number;
     avgWeight: number;
   }[];
-}
-
-export interface AuditScore {
-  hash: string;
-  matchRate?: number;
 }
 
 export interface ITopNodesPerChannels {

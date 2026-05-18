@@ -9,6 +9,7 @@ import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pip
 import { AssetsService } from '@app/services/assets.service';
 import { environment } from '@environments/environment';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 
 interface SvgLine {
   path: string;
@@ -106,6 +107,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
     public stateService: StateService,
     private electrsApiService: ElectrsApiService,
     private assetsService: AssetsService,
+    private websocketService: LegacyWebsocketTrackingService,
     @Inject(LOCALE_ID) private locale: string,
   ) {
     if (this.locale.startsWith('ar') || this.locale.startsWith('fa') || this.locale.startsWith('he')) {
@@ -139,7 +141,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
             this.outspends = outspends[0];
           }),
         ),
-      this.stateService.utxoSpent$
+      this.websocketService.utxoSpent$
         .pipe(
           tap((utxoSpent) => {
             for (const i in utxoSpent) {

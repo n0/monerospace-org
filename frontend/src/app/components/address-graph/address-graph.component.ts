@@ -3,7 +3,7 @@ import { echarts, EChartsOption } from '@app/graphs/echarts';
 import { BehaviorSubject, Observable, Subscription, combineLatest, of } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { AddressTxSummary, ChainStats } from '@interfaces/electrs.interface';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
 import { Router } from '@angular/router';
 import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
@@ -76,7 +76,7 @@ export class AddressGraphComponent implements OnChanges, OnDestroy {
   constructor(
     @Inject(LOCALE_ID) public locale: string,
     public stateService: StateService,
-    private electrsApiService: ElectrsApiService,
+    private addressApiService: AddressApiService,
     private router: Router,
     private amountShortenerPipe: AmountShortenerPipe,
     private cd: ChangeDetectorRef,
@@ -101,8 +101,8 @@ export class AddressGraphComponent implements OnChanges, OnDestroy {
       this.subscription = combineLatest([
         this.redraw$,
         (this.addressSummary$ || (this.isPubkey
-          ? this.electrsApiService.getScriptHashSummary$((this.address.length === 66 ? '21' : '41') + this.address + 'ac')
-          : this.electrsApiService.getAddressSummary$(this.address)).pipe(
+          ? this.addressApiService.getScriptHashSummary$((this.address.length === 66 ? '21' : '41') + this.address + 'ac')
+          : this.addressApiService.getAddressSummary$(this.address)).pipe(
           catchError(e => {
             this.error = `Failed to fetch address balance history: ${e?.status || ''} ${e?.statusText || 'unknown error'}`;
             return of(null);

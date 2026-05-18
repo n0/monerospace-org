@@ -17,8 +17,8 @@
       ngbTooltip="Avg Block Fees" placement="bottom" #rewardsperblock [disableTooltip]="!isEllipsisActive(rewardsperblock)">Avg Block Fees</h5>
       <div class="card-text" i18n-ngbTooltip="mining.fees-per-block-desc" ngbTooltip="Average fees per block in the past 144 blocks" placement="bottom">
         <div class="fee-text">
-          {{ (rewardStats.feePerBlock / 100000000) | amountShortener: 4 }}
-          <span i18n="shared.btc-block|BTC/block">BTC/block</span>
+          <app-amount [satoshis]="rewardStats.feePerBlock" digitsInfo="1.4-4" [noFiat]="true" [ignoreViewMode]="true"></app-amount>
+          <span>/block</span>
         </div>
         <span class="fiat">
           <app-fiat [value]="rewardStats.feePerBlock"></app-fiat>
@@ -29,8 +29,9 @@
       <h5 class="card-title" i18n="mining.average-fee" i18n-ngbTooltip="mining.average-fee"
       ngbTooltip="Avg Tx Fee" placement="bottom" #averagefee [disableTooltip]="!isEllipsisActive(averagefee)">Avg Tx Fee</h5>
       <div class="card-text" i18n-ngbTooltip="mining.average-fee" ngbTooltip="Fee paid on average for each transaction in the past 144 blocks" placement="bottom">
-        <div class="fee-text">{{ rewardStats.feePerTx | amountShortener: 2 }}
-          <span i18n="shared.sat-vbyte|sat/vB">sats/tx</span>
+        <div class="fee-text">
+          <app-amount [satoshis]="rewardStats.feePerTx" digitsInfo="1.6-6" [noFiat]="true" [ignoreViewMode]="true"></app-amount>
+          <span>/tx</span>
         </div>
         <span class="fiat">
           <app-fiat [value]="rewardStats.feePerTx"></app-fiat>

@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ValidatorFn, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { ServicesApiServices } from '@app/services/services-api.service';
+import type { FaucetStatus } from '@app/services/services-api.service';
 import { getRegex } from '@app/shared/regex.utils';
 import { StateService } from '@app/services/state.service';
 import { WebsocketService } from '@app/services/websocket.service';
@@ -20,13 +21,8 @@ export class FaucetComponent implements OnInit, OnDestroy {
   user: any = undefined;
   txid: string = '';
 
-  faucetStatusSubscription: Subscription;
-  status: {
-    min: number; // minimum amount to request at once (in sats)
-    max: number; // maximum amount to request at once
-    address?: string; // faucet address
-    code: 'ok' | 'faucet_not_available' | 'faucet_maximum_reached' | 'faucet_too_soon' | 'faucet_not_available_no_utxo';
-  } | null = null;
+  userSubscription: Subscription;
+  status: FaucetStatus | null = null;
   faucetForm: FormGroup;
 
   mempoolPositionSubscription: Subscription;
@@ -46,6 +42,9 @@ export class FaucetComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.stateService.markBlock$.next({});
     this.websocketService.stopTrackingTransaction();
+    if (this.userSubscription) {
+      this.userSubscription.unsubscribe();
+    }
     if (this.mempoolPositionSubscription) {
       this.mempoolPositionSubscription.unsubscribe();
     }
@@ -55,7 +54,7 @@ export class FaucetComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.servicesApiService.userSubject$.subscribe(user => {
+    this.userSubscription = this.servicesApiService.userSubject$.subscribe(user => {
       this.user = user;
       if (!user) {
         this.loading = false;
@@ -113,7 +112,7 @@ export class FaucetComponent implements OnInit, OnDestroy {
     if (this.isDisabled()) {
       return;
     }
-    this.error = null;
+    this.error = '';
     this.txid = '';
     this.stateService.markBlock$.next({});
     this.servicesApiService.requestTestnet4Coins$(this.faucetForm.get('address')?.value, parseInt(this.faucetForm.get('satoshis')?.value))
@@ -135,21 +134,21 @@ export class FaucetComponent implements OnInit, OnDestroy {
     return !(this.user && this.status?.code === 'ok' && !this.error);
   }
 
-  getNotFaucetAddressValidator(faucetAddress: string): ValidatorFn {
+  getNotFaucetAddressValidator(faucetAddress: string | null | undefined): ValidatorFn {
     return faucetAddress ? (control: AbstractControl): ValidationErrors | null => {
       const forbidden = control.value === faucetAddress;
       return forbidden ? { forbiddenAddress: { value: control.value } } : null;
     }: () => null;
   }
 
-  initForm(min: number, max: number, faucetAddress: string): void {
+  initForm(min: number, max: number, faucetAddress: string | null | undefined): void {
     this.faucetForm = this.formBuilder.group({
       'address': ['', [Validators.required, Validators.pattern(getRegex('address', 'testnet4')), this.getNotFaucetAddressValidator(faucetAddress)]],
       'satoshis': [min, [Validators.required, Validators.min(min), Validators.max(max)]]
     });
   }
 
-  updateForm(min, max, faucetAddress: string): void {
+  updateForm(min: number, max: number, faucetAddress: string | null | undefined): void {
     if (!this.faucetForm) {
       this.initForm(min, max, faucetAddress);
     } else {

@@ -1,6 +1,5 @@
 import { Component, OnInit, Input, Inject, LOCALE_ID, ChangeDetectionStrategy, OnChanges } from '@angular/core';
-import { VbytesPipe } from '@app/shared/pipes/bytes-pipe/vbytes.pipe';
-import { WuBytesPipe } from '@app/shared/pipes/bytes-pipe/wubytes.pipe';
+import { BytesPipe } from '@app/shared/pipes/bytes-pipe/bytes.pipe';
 import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
 import { formatNumber } from '@angular/common';
 import { OptimizedMempoolStats } from '@interfaces/node-api.interface';
@@ -58,13 +57,11 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
   chartColorsOrdered = chartColors;
   inverted: boolean;
   chartInstance: any = undefined;
-  weightMode: boolean = false;
   isWidget: boolean = false;
   showCount: boolean = false;
 
   constructor(
-    private vbytesPipe: VbytesPipe,
-    private wubytesPipe: WuBytesPipe,
+    private bytesPipe: BytesPipe,
     private amountShortenerPipe: AmountShortenerPipe,
     public stateService: StateService,
     private storageService: StorageService,
@@ -245,7 +242,7 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
             formatter: (params: any) => {
               if (params.axisDimension === 'y') {
                 if (params.axisIndex === 0) {
-                  return this.vbytesPipe.transform(params.value, 2, 'vB', 'MvB', true);
+                  return this.bytesPipe.transform(params.value, 2, 'B', 'MB', true);
                 } else {
                   return this.amountShortenerPipe.transform(params.value, 2, undefined, true);
                 }
@@ -290,7 +287,7 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
                   <span class="symbol" style="color: #ffffffbb">%</span>
                 </span>
                 <span class="total-parcial-vbytes">
-                  ${this.vbytesPipe.transform(sum, 2, 'vB', 'MvB', false)}
+                  ${this.bytesPipe.transform(sum, 2, 'B', 'MB', false)}
                 </span>
                 <div class="total-percentage-bar">
                   <span class="total-percentage-bar-background">
@@ -314,12 +311,12 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
               </td>
               <td class="total-progress-sum">
                 <span>
-                  ${(item.value[1] / 1_000_000).toFixed(2)} <span class="symbol" style="color: #ffffffbb">MvB</span>
+                  ${(item.value[1] / 1_000_000).toFixed(2)} <span class="symbol" style="color: #ffffffbb">MB</span>
                 </span>
               </td>
               <td class="total-progress-sum">
                 <span>
-                  ${(totalValueArray[index] / 1_000_000).toFixed(2)} <span class="symbol" style="color: #ffffffbb">MvB</span>
+                  ${(totalValueArray[index] / 1_000_000).toFixed(2)} <span class="symbol" style="color: #ffffffbb">MB</span>
                 </span>
               </td>
               <td class="total-progress-sum-bar">
@@ -341,7 +338,7 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
             <div class="title">
               ${axisValueLabel}
               <span class="total-value">
-                ${this.vbytesPipe.transform(totalValue, 2, 'vB', 'MvB', false)}
+                ${this.bytesPipe.transform(totalValue, 2, 'B', 'MB', false)}
               </span>
             </div>
             ` +
@@ -438,7 +435,7 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
         axisLine: { onZero: false },
         axisLabel: {
           fontSize: 11,
-          formatter: (value: number) => (`${this.vbytesPipe.transform(value, 2, 'vB', 'MvB', true)}`),
+          formatter: (value: number) => (`${this.bytesPipe.transform(value, 2, 'B', 'MB', true)}`),
         },
         splitLine: {
           lineStyle: {
@@ -483,18 +480,10 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
         this.feeLimitIndex = i;
       }
       if (feeLevels[i] <= feeLevels[this.maxFeeIndex]) {
-        if (this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') {
-          if (i === maxIndex || feeLevels[i] == null) {
-            this.feeLevelsOrdered.push(`${(feeLevels[i] / 10).toFixed(1)}+`);
-          } else {
-            this.feeLevelsOrdered.push(`${(feeLevels[i] / 10).toFixed(1)} - ${(feeLevels[i + 1]  / 10).toFixed(1)}`);
-          }
+        if (i === maxIndex || feeLevels[i] == null) {
+          this.feeLevelsOrdered.push(`${feeLevels[i]}+`);
         } else {
-          if (i === maxIndex || feeLevels[i] == null) {
-            this.feeLevelsOrdered.push(`${feeLevels[i]}+`);
-          } else {
-            this.feeLevelsOrdered.push(`${feeLevels[i]} - ${feeLevels[i + 1]}`);
-          }
+          this.feeLevelsOrdered.push(`${feeLevels[i]} - ${feeLevels[i + 1]}`);
         }
       }
     }
@@ -523,4 +512,3 @@ export class MempoolGraphComponent implements OnInit, OnChanges {
     this.chartInstance.setOption(this.mempoolVsizeFeesOptions);
   }
 }
-

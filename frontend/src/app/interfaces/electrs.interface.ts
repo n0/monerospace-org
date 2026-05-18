@@ -37,6 +37,22 @@ export interface Transaction {
   largeOutput?: boolean;
 }
 
+export interface TxProofRequest {
+  address: string;
+  signature: string;
+  message?: string;
+}
+
+export interface TxProofResponse {
+  ok: boolean;
+  good?: boolean;
+  amount?: number;
+  received?: number;
+  confirmations?: number;
+  in_pool?: boolean;
+  message?: string;
+}
+
 export interface TransactionChannels {
   inputs: { [vin: number]: IChannel };
   outputs: { [vout: number]: IChannel };
@@ -83,6 +99,22 @@ export interface Vin {
   inner_simplicityscript?: string;
   // parsed taproot info
   taprootInfo?: ParsedTaproot;
+  // xmr-space: Monero RingCT public input metadata
+  ringct?: boolean;
+  ring_size?: number;
+  key_image?: string;
+  ring_offsets?: number[];
+  ring_members?: XmrRingMember[];
+  ring_members_truncated?: boolean;
+}
+
+export interface XmrRingMember {
+  amount: number;
+  global_index: number;
+  height: number | null;
+  txid: string | null;
+  unlocked: boolean | null;
+  age_blocks: number | null;
 }
 
 interface Issuance {
@@ -109,6 +141,8 @@ export interface Vout {
   pegout?: Pegout;
   // Ord
   isRunestone?: boolean;
+  // xmr-space: output amount/address hidden by RingCT
+  ringct?: boolean;
 }
 
 interface Pegout {

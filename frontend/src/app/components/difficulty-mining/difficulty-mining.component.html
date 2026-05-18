@@ -4,7 +4,7 @@
     <div class="card-body more-padding">
       <div class="difficulty-adjustment-container" *ngIf="(isLoadingWebSocket$ | async) === false && (difficultyEpoch$ | async) as epochData; else loadingDifficulty">
         <div class="item">
-          <h5 class="card-title" i18n="difficulty-box.remaining">Remaining</h5>
+          <h5 class="card-title">{{ isMonero ? 'Next adjustment' : 'Remaining' }}</h5>
           <div class="card-text">
             <ng-container *ngTemplateOutlet="epochData.remainingBlocks === 1 ? blocksSingular : blocksPlural; context: {$implicit: epochData.remainingBlocks }"></ng-container>
             <ng-template #blocksPlural let-i i18n="shared.blocks">{{ i }} <span class="shared-block">blocks</span></ng-template>
@@ -13,7 +13,7 @@
           <div class="symbol"><app-time kind="until" [time]="epochData.estimatedRetargetDate" [fastRender]="true" [precision]="1"></app-time></div>
         </div>
         <div class="item">
-          <h5 class="card-title" i18n="difficulty-box.estimate">Estimate</h5>
+          <h5 class="card-title">{{ isMonero ? 'Last block' : 'Estimate' }}</h5>
           <div class="card-text" [ngStyle]="{'color': epochData.colorAdjustments}">
             <span *ngIf="epochData.change > 0; else arrowDownDifficulty" >
               <fa-icon class="retarget-sign" [icon]="['fas', 'caret-up']" [fixedWidth]="true"></fa-icon>
@@ -25,7 +25,7 @@
             <span class="symbol">%</span>
           </div>
           <div class="symbol">
-            <span i18n="difficulty-box.previous">Previous</span>:
+            <span>{{ isMonero ? 'Previous block' : 'Previous' }}</span>:
             <span [ngStyle]="{'color': epochData.colorPreviousAdjustments}">
               <span *ngIf="epochData.previousRetarget > 0; else arrowDownPreviousDifficulty" >
                 <fa-icon class="previous-retarget-sign" [icon]="['fas', 'caret-up']" [fixedWidth]="true"></fa-icon>
@@ -43,7 +43,7 @@
             <div class="progress-bar" role="progressbar" style="width: 15%; background-color: var(--primary)" [ngStyle]="{'width': epochData.base}">&nbsp;</div>
           </div>
         </div>
-        <div class="item" *ngIf="showHalving">
+        <div class="item" *ngIf="showHalving && !isMonero">
           <h5 class="card-title" i18n="difficulty-box.next-halving">Next Halving</h5>
           <div class="card-text" i18n-ngbTooltip="mining.average-fee" [ngbTooltip]="halvingBlocksLeft" [tooltipContext]="{ epochData: epochData }" placement="bottom">
             <span>{{ timeUntilHalving | date }}</span>

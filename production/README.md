@@ -1,3 +1,27 @@
+# xmr-space Production Notes
+
+This production guide is still the preserved upstream mempool.space operating
+runbook for Bitcoin/Liquid infrastructure. It is useful historical context, but
+it is not a complete xmr-space deployment recipe.
+
+For this fork, the active production path is:
+
+- run the standalone Monero backend from `backend/src/api/monero/xmr-server.ts`
+  via `backend/package.json`'s `start-production` script;
+- point `MONEROD_RPC_URL` at a trusted, synced monerod RPC endpoint;
+- optionally configure `MONERO_WALLET_RPC_URL` only if tx_proof verification
+  should be enabled;
+- enable `XMR_DATABASE_ENABLED=true` or `DATABASE_ENABLED=true` for durable XMR
+  mempool-stat and price-history persistence, with `XMR_INDEX_DIR` JSON files
+  retained as a fallback;
+- serve the localized frontend build behind the same-origin `/api` reverse
+  proxy so the browser does not fall back to upstream mempool.space services.
+
+The Docker notes in `../docker/README.md` are closer to the current xmr-space
+deployment shape. The upstream README follows below for historical context.
+
+---
+
 # Deploying an Enterprise Production Instance
 
 These instructions are for setting up a serious production Mempool website for Bitcoin (mainnet, testnet, signet), Liquid (mainnet, testnet).

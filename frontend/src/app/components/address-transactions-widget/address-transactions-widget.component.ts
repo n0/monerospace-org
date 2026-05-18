@@ -1,7 +1,7 @@
 import { Component, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from '@angular/core';
 import { StateService } from '@app/services/state.service';
 import { Address, AddressTxSummary } from '@interfaces/electrs.interface';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { Observable, Subscription, catchError, map, of, switchMap, zip } from 'rxjs';
 import { PriceService } from '@app/services/price.service';
 
@@ -27,7 +27,7 @@ export class AddressTransactionsWidgetComponent implements OnInit, OnChanges, On
 
   constructor(
     public stateService: StateService,
-    private electrsApiService: ElectrsApiService,
+    private addressApiService: AddressApiService,
     private priceService: PriceService,
   ) { }
 
@@ -48,8 +48,8 @@ export class AddressTransactionsWidgetComponent implements OnInit, OnChanges, On
       return;
     }
     this.transactions$ = (this.addressSummary$ || (this.isPubkey
-      ? this.electrsApiService.getScriptHashSummary$((this.address.length === 66 ? '21' : '41') + this.address + 'ac')
-      : this.electrsApiService.getAddressSummary$(this.address)).pipe(
+      ? this.addressApiService.getScriptHashSummary$((this.address.length === 66 ? '21' : '41') + this.address + 'ac')
+      : this.addressApiService.getAddressSummary$(this.address)).pipe(
       catchError(e => {
         this.error = `Failed to fetch address history: ${e?.status || ''} ${e?.statusText || 'unknown error'}`;
         return of(null);

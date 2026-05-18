@@ -1,7 +1,7 @@
 import { Component, OnInit, ChangeDetectionStrategy, Input } from '@angular/core';
 import { Observable, Subject, combineLatest, of, timer } from 'rxjs';
 import { delayWhen, filter, map, share, shareReplay, switchMap, takeUntil, tap, throttleTime } from 'rxjs/operators';
-import { ApiService } from '@app/services/api.service';
+import { LiquidApiService } from '@app/services/liquid-api.service';
 import { Env, StateService } from '@app/services/state.service';
 import { AuditStatus, CurrentPegs, FederationAddress } from '@interfaces/node-api.interface';
 import { WebsocketService } from '@app/services/websocket.service';
@@ -34,7 +34,7 @@ export class FederationAddressesListComponent implements OnInit {
   private destroy$ = new Subject();
 
   constructor(
-    private apiService: ApiService,
+    private liquidApiService: LiquidApiService,
     public stateService: StateService,
     private websocketService: WebsocketService
   ) {
@@ -51,14 +51,14 @@ export class FederationAddressesListComponent implements OnInit {
         throttleTime(40000),
         delayWhen(_ => this.isLoad ? timer(0) : timer(2000)),
         tap(() => this.isLoad = false),
-        switchMap(() => this.apiService.federationAuditSynced$()),
+        switchMap(() => this.liquidApiService.federationAuditSynced$()),
         shareReplay(1)
       );
 
       this.currentPeg$ = this.auditStatus$.pipe(
         filter(auditStatus => auditStatus.isAuditSynced === true),
         switchMap(_ =>
-          this.apiService.liquidPegs$().pipe(
+          this.liquidApiService.liquidPegs$().pipe(
             filter((currentPegs) => currentPegs.lastBlockUpdate >= this.lastPegBlockUpdate),
             tap((currentPegs) => {
               this.lastPegBlockUpdate = currentPegs.lastBlockUpdate;
@@ -90,7 +90,7 @@ export class FederationAddressesListComponent implements OnInit {
       this.federationAddresses$ = this.auditUpdated$.pipe(
         filter(auditUpdated => auditUpdated === true),
         throttleTime(40000),
-        switchMap(_ => this.apiService.federationAddresses$()),
+        switchMap(_ => this.liquidApiService.federationAddresses$()),
         tap(_ => this.isLoading = false),
         share()
       );

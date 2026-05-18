@@ -2,11 +2,10 @@ import { Component } from '@angular/core';
 
 /**
  * Single-page Monero-focused docs replacing upstream's tabbed
- * FAQ/REST/WebSocket/Electrum docs. The upstream `api-docs-data.ts` is
- * ~13k lines of Bitcoin-shaped tables, examples, and FAQ entries —
- * retargeting in-place would have taken many iterations and produced a
- * fragile mess. This new component covers the only docs that actually
- * apply to xmr-space: the FAQ + REST endpoints we serve.
+ * FAQ/REST/WebSocket/Electrum docs. The old upstream `api-docs-data.ts`
+ * dataset was removed because it was a large Bitcoin-shaped surface.
+ * This component covers the docs that actually apply to xmr-space:
+ * the FAQ + REST endpoints we serve.
  */
 @Component({
   selector: 'app-xmr-docs',

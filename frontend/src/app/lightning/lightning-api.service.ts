@@ -89,6 +89,22 @@ export class LightningApiService {
     return this.httpClient.get<any>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/channels', { params, observe: 'response' });
   }
 
+  getChannelByTxIds$(txIds: string[]): Observable<any[]> {
+    let params = new HttpParams();
+    txIds.forEach((txId: string) => {
+      params = params.append('txId[]', txId);
+    });
+    return this.httpClient.get<any[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/channels/txids/', { params });
+  }
+
+  lightningSearch$(searchText: string): Observable<{ nodes: any[], channels: any[] }> {
+    const params = new HttpParams().set('searchText', searchText);
+    if (searchText.length < 3) {
+      return of({ nodes: [], channels: [] });
+    }
+    return this.httpClient.get<{ nodes: any[], channels: any[] }>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/search', { params });
+  }
+
   getLatestStatistics$(): Observable<any> {
     return this.httpClient.get<any>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/statistics/latest');
   }
@@ -103,6 +119,34 @@ export class LightningApiService {
 
   getNodesRanking$(): Observable<INodesRanking> {
     return this.httpClient.get<INodesRanking>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/nodes/rankings');
+  }
+
+  getNodesPerIsp(): Observable<any> {
+    return this.httpClient.get<any[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/nodes/isp-ranking');
+  }
+
+  getNodeForCountry$(country: string): Observable<any> {
+    return this.httpClient.get<any[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/nodes/country/' + country);
+  }
+
+  getNodeForISP$(isp: string): Observable<any> {
+    return this.httpClient.get<any[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/nodes/isp/' + isp);
+  }
+
+  getNodesPerCountry$(): Observable<any> {
+    return this.httpClient.get<any[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/nodes/countries');
+  }
+
+  getWorldNodes$(): Observable<any> {
+    return this.httpClient.get<any[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/nodes/world');
+  }
+
+  getChannelsGeo$(publicKey?: string, style?: 'graph' | 'nodepage' | 'widget' | 'channelpage'): Observable<any> {
+    return this.httpClient.get<any[]>(
+      this.apiBaseUrl + this.apiBasePath + '/api/v1/lightning/channels-geo' +
+        (publicKey !== undefined ? `/${publicKey}`   : '') +
+        (style     !== undefined ? `?style=${style}` : '')
+    );
   }
 
   listChannelStats$(publicKey: string): Observable<any> {

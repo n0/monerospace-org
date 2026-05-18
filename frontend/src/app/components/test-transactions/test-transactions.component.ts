@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
-import { ApiService } from '@app/services/api.service';
+import { TransactionToolsApiService } from '@app/services/transaction-tools-api.service';
 import { StateService } from '@app/services/state.service';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
@@ -21,7 +21,7 @@ export class TestTransactionsComponent implements OnInit {
 
   constructor(
     private formBuilder: UntypedFormBuilder,
-    private apiService: ApiService,
+    private transactionToolsApiService: TransactionToolsApiService,
     public stateService: StateService,
     private seoService: SeoService,
     private ogService: OpenGraphService,
@@ -67,7 +67,7 @@ export class TestTransactionsComponent implements OnInit {
     this.isLoading = true;
     this.error = '';
     this.results = [];
-    this.apiService.testTransactions$(txs, maxfeerate === 0.1 ? null : maxfeerate)
+    this.transactionToolsApiService.testTransactions$(txs, maxfeerate === 0.1 ? null : maxfeerate)
       .subscribe((result) => {
         this.isLoading = false;
         this.results = result || [];

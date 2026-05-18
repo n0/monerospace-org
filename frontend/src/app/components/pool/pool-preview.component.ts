@@ -4,11 +4,11 @@ import { echarts, EChartsOption } from '@app/graphs/echarts';
 import { Observable, of } from 'rxjs';
 import { map, switchMap, catchError } from 'rxjs/operators';
 import { PoolStat } from '@interfaces/node-api.interface';
-import { ApiService } from '@app/services/api.service';
 import { StateService } from '@app/services/state.service';
 import { formatNumber } from '@angular/common';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
+import { MiningPoolApiService } from '@app/services/mining-pool-api.service';
 
 @Component({
   selector: 'app-pool-preview',
@@ -35,7 +35,7 @@ export class PoolPreviewComponent implements OnInit {
 
   constructor(
     @Inject(LOCALE_ID) public locale: string,
-    private apiService: ApiService,
+    private miningPoolApiService: MiningPoolApiService,
     private route: ActivatedRoute,
     public stateService: StateService,
     private seoService: SeoService,
@@ -54,7 +54,7 @@ export class PoolPreviewComponent implements OnInit {
           this.ogSession = this.openGraphService.waitFor('pool-stats-' + this.slug);
           this.ogSession = this.openGraphService.waitFor('pool-chart-' + this.slug);
           this.ogSession = this.openGraphService.waitFor('pool-img-' + this.slug);
-          return this.apiService.getPoolHashrate$(this.slug)
+          return this.miningPoolApiService.getPoolHashrate$(this.slug)
             .pipe(
               switchMap((data) => {
                 this.isLoading = false;
@@ -71,7 +71,7 @@ export class PoolPreviewComponent implements OnInit {
             );
         }),
         switchMap((slug) => {
-          return this.apiService.getPoolStats$(slug).pipe(
+          return this.miningPoolApiService.getPoolStats$(slug).pipe(
             catchError(() => {
               this.isLoading = false;
               this.seoService.logSoft404();

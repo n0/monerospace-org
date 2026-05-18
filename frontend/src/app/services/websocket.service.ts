@@ -2,8 +2,7 @@ import { Injectable } from '@angular/core';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { WebsocketResponse } from '@interfaces/websocket.interface';
 import { StateService } from '@app/services/state.service';
-import { Transaction } from '@interfaces/electrs.interface';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ApiService } from '@app/services/api.service';
 import { take } from 'rxjs/operators';
 import { TransferState, makeStateKey } from '@angular/core';
@@ -29,14 +28,6 @@ export class WebsocketService {
   private isTrackingTx = false;
   private trackingTxId: string;
   private isTrackingMempoolBlock = false;
-  private isTrackingRbf: 'all' | 'fullRbf' | false = false;
-  private isTrackingRbfSummary = false;
-  private isTrackingAddress: string | false = false;
-  private isTrackingAddresses: string[] | false = false;
-  private isTrackingAccelerations: boolean = false;
-  private isTrackingWallet: boolean = false;
-  private trackingWalletName: string;
-  private isTrackingStratum: string | number | false = false;
   private trackingMempoolBlock: number;
   private trackingMempoolBlockNetwork: string;
   private stoppingTrackMempoolBlock: any | null = null;
@@ -126,27 +117,6 @@ export class WebsocketService {
           if (this.isTrackingMempoolBlock) {
             this.startTrackMempoolBlock(this.trackingMempoolBlock, true);
           }
-          if (this.isTrackingRbf) {
-            this.startTrackRbf(this.isTrackingRbf);
-          }
-          if (this.isTrackingRbfSummary) {
-            this.startTrackRbfSummary();
-          }
-          if (this.isTrackingAddress) {
-            this.startTrackAddress(this.isTrackingAddress);
-          }
-          if (this.isTrackingAddresses) {
-            this.startTrackAddresses(this.isTrackingAddresses);
-          }
-          if (this.isTrackingAccelerations) {
-            this.startTrackAccelerations();
-          }
-          if (this.isTrackingWallet) {
-            this.startTrackingWallet(this.trackingWalletName);
-          }
-          if (this.isTrackingStratum !== false) {
-            this.startTrackStratum(this.isTrackingStratum);
-          }
           this.stateService.connectionState$.next(2);
         }
 
@@ -186,46 +156,6 @@ export class WebsocketService {
     this.isTrackingTx = false;
   }
 
-  startTrackAddress(address: string) {
-    this.websocketSubject.next({ 'track-address': address });
-    this.isTrackingAddress = address;
-  }
-
-  stopTrackingAddress() {
-    this.websocketSubject.next({ 'track-address': 'stop' });
-    this.isTrackingAddress = false;
-  }
-
-  startTrackAddresses(addresses: string[]) {
-    this.websocketSubject.next({ 'track-addresses': addresses });
-    this.isTrackingAddresses = addresses;
-  }
-
-  stopTrackingAddresses() {
-    this.websocketSubject.next({ 'track-addresses': [] });
-    this.isTrackingAddresses = false;
-  }
-
-  startTrackingWallet(walletName: string) {
-    this.websocketSubject.next({ 'track-wallet': walletName });
-    this.isTrackingWallet = true;
-    this.trackingWalletName = walletName;
-  }
-
-  stopTrackingWallet() {
-    this.websocketSubject.next({ 'track-wallet': 'stop' });
-    this.isTrackingWallet = false;
-    this.trackingWalletName = '';
-  }
-
-  startTrackAsset(asset: string) {
-    this.websocketSubject.next({ 'track-asset': asset });
-  }
-
-  stopTrackingAsset() {
-    this.websocketSubject.next({ 'track-asset': 'stop' });
-  }
-
   startTrackMempoolBlock(block: number, force: boolean = false): boolean {
     if (this.stoppingTrackMempoolBlock) {
       clearTimeout(this.stoppingTrackMempoolBlock);
@@ -254,57 +184,6 @@ export class WebsocketService {
     }, 2000);
   }
 
-  startTrackRbf(mode: 'all' | 'fullRbf') {
-    this.websocketSubject.next({ 'track-rbf': mode });
-    this.isTrackingRbf = mode;
-  }
-
-  stopTrackRbf() {
-    this.websocketSubject.next({ 'track-rbf': 'stop' });
-    this.isTrackingRbf = false;
-  }
-
-  startTrackRbfSummary() {
-    this.initRbfSummary();
-    this.websocketSubject.next({ 'track-rbf-summary': true });
-    this.isTrackingRbfSummary = true;
-  }
-
-  stopTrackRbfSummary() {
-    this.websocketSubject.next({ 'track-rbf-summary': false });
-    this.isTrackingRbfSummary = false;
-  }
-
-  startTrackAccelerations() {
-    this.websocketSubject.next({ 'track-accelerations': true });
-    this.isTrackingAccelerations = true;
-  }
-
-  stopTrackAccelerations() {
-    if (this.isTrackingAccelerations) {
-      this.websocketSubject.next({ 'track-accelerations': false });
-      this.isTrackingAccelerations = false;
-    }
-  }
-
-  ensureTrackAccelerations() {
-    if (!this.isTrackingAccelerations) {
-      this.startTrackAccelerations();
-    }
-  }
-
-  startTrackStratum(pool: number | string) {
-    this.websocketSubject.next({ 'track-stratum': pool });
-    this.isTrackingStratum = pool;
-  }
-
-  stopTrackStratum() {
-    if (this.isTrackingStratum) {
-      this.websocketSubject.next({ 'track-stratum': null });
-      this.isTrackingStratum = false;
-    }
-  }
-
   fetchStatistics(historicalDate: string) {
     this.websocketSubject.next({ historicalDate });
   }
@@ -318,6 +197,13 @@ export class WebsocketService {
     }
     this.websocketSubject.next({action: 'want', data: data});
     this.lastWant = JSON.stringify(data);
+  }
+
+  send(message: object) {
+    if (!this.stateService.isBrowser) {
+      return;
+    }
+    this.websocketSubject.next(message as WebsocketResponse);
   }
 
   goOffline() {
@@ -387,40 +273,12 @@ export class WebsocketService {
       this.stateService.conversions$.next(response.conversions);
     }
 
-    if (response.rbfTransaction) {
-      this.stateService.txReplaced$.next(response.rbfTransaction);
-    }
-
-    if (response.rbfInfo) {
-      this.stateService.txRbfInfo$.next(response.rbfInfo);
-    }
-
-    if (response.rbfLatest) {
-      this.stateService.rbfLatest$.next(response.rbfLatest);
-    }
-
-    if (response.rbfLatestSummary !== undefined) {
-      this.stateService.rbfLatestSummary$.next(response.rbfLatestSummary || []);
-    }
-
-    if (response.txReplaced) {
-      this.stateService.txReplaced$.next(response.txReplaced);
-    }
-
     if (response['mempool-blocks']) {
       this.stateService.mempoolBlocks$.next(response['mempool-blocks']);
     }
 
     if (response.transactions) {
       this.stateService.transactions$.next(response.transactions.slice(0, 6));
-    }
-
-    if (response['bsq-price']) {
-      this.stateService.bsqPrice$.next(response['bsq-price']);
-    }
-
-    if (response.utxoSpent) {
-      this.stateService.utxoSpent$.next(response.utxoSpent);
     }
 
     if (response.da) {
@@ -447,25 +305,9 @@ export class WebsocketService {
       }
     }
 
-    if (response['address-transactions']) {
-      response['address-transactions'].forEach((addressTransaction: Transaction) => {
-        this.stateService.mempoolTransactions$.next(addressTransaction);
-      });
-    }
-
-    if (response['address-removed-transactions']) {
-      response['address-removed-transactions'].forEach((addressTransaction: Transaction) => {
-        this.stateService.mempoolRemovedTransactions$.next(addressTransaction);
-      });
-    }
-
-    if (response['multi-address-transactions']) {
-      this.stateService.multiAddressTransactions$.next(response['multi-address-transactions']);
-    }
-
     if (response['block-transactions']) {
-      response['block-transactions'].forEach((addressTransaction: Transaction) => {
-        this.stateService.blockTransactions$.next(addressTransaction);
+      response['block-transactions'].forEach((transaction) => {
+        this.stateService.blockTransactions$.next(transaction);
       });
     }
 
@@ -489,22 +331,6 @@ export class WebsocketService {
       }
     }
 
-    if (response['wallet-transactions']) {
-      this.stateService.walletTransactions$.next(response['wallet-transactions']);
-    }
-
-    if (response['accelerations']) {
-      if (response['accelerations'].accelerations) {
-        this.stateService.accelerations$.next({
-          added: response['accelerations'].accelerations,
-          removed: [],
-          reset: true,
-        });
-      } else {
-        this.stateService.accelerations$.next(response['accelerations']);
-      }
-    }
-
     if (response['live-2h-chart']) {
       this.stateService.live2Chart$.next(response['live-2h-chart']);
     }
@@ -522,20 +348,12 @@ export class WebsocketService {
       this.stateService.mempoolInfo$.next(response.mempoolInfo);
     }
 
-    if (response.vBytesPerSecond !== undefined) {
-      this.stateService.vbytesPerSecond$.next(response.vBytesPerSecond);
+    if (response.bytesPerSecond !== undefined) {
+      this.stateService.bytesPerSecond$.next(response.bytesPerSecond);
     }
 
     if (response.previousRetarget !== undefined) {
       this.stateService.previousRetarget$.next(response.previousRetarget);
-    }
-
-    if (response.stratumJobs) {
-      this.stateService.stratumJobUpdate$.next({ state: response.stratumJobs });
-    }
-
-    if (response.stratumJob) {
-      this.stateService.stratumJobUpdate$.next({ job: response.stratumJob });
     }
 
     if (response['tomahawk']) {
@@ -551,29 +369,4 @@ export class WebsocketService {
     }
   }
 
-  async initRbfSummary(): Promise<void> {
-    if (!this.stateService.isBrowser) {
-      const rbfList = await firstValueFrom(this.apiService.getRbfList$(false));
-      if (rbfList) {
-        const rbfSummary = rbfList.slice(0, 6).map(rbfTree => {
-          let oldFee = 0;
-          let oldVsize = 0;
-          for (const replaced of rbfTree.replaces) {
-            oldFee += replaced.tx.fee;
-            oldVsize += replaced.tx.vsize;
-          }
-          return {
-            txid: rbfTree.tx.txid,
-            mined: !!rbfTree.tx.mined,
-            fullRbf: !!rbfTree.tx.fullRbf,
-            oldFee,
-            oldVsize,
-            newFee: rbfTree.tx.fee,
-            newVsize: rbfTree.tx.vsize,
-          };
-        });
-        this.stateService.rbfLatestSummary$.next(rbfSummary);
-      }
-    }
-  }
 }

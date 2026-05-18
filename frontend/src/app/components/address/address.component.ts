@@ -1,10 +1,10 @@
 import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { switchMap, filter, catchError, map, tap } from 'rxjs/operators';
 import { Address, ChainStats, Transaction, Utxo, Vin } from '@interfaces/electrs.interface';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 import { StateService } from '@app/services/state.service';
 import { AudioService } from '@app/services/audio.service';
 import { ApiService } from '@app/services/api.service';
@@ -126,8 +126,6 @@ export class AddressComponent implements OnInit, OnDestroy {
   taprootPsbtExpanded: boolean = false;
   psbtForm: UntypedFormGroup;
   psbtError?: string;
-  accelerationsSubscription: Subscription;
-  acceleratedTxids: Set<string> | null = null;
 
   fullyLoaded = false;
   chainStats: AddressStats;
@@ -144,8 +142,8 @@ export class AddressComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
-    private electrsApiService: ElectrsApiService,
-    private websocketService: WebsocketService,
+    private addressApiService: AddressApiService,
+    private websocketService: LegacyWebsocketTrackingService,
     public stateService: StateService,
     private audioService: AudioService,
     private apiService: ApiService,
@@ -157,7 +155,6 @@ export class AddressComponent implements OnInit, OnDestroy {
     this.network = this.stateService.network;
     this.networkChangeSubscription = this.stateService.networkChanged$.subscribe((network) => {
       this.network = network;
-      this.updateAccelerationSubscription();
     });
     this.websocketService.want(['blocks']);
     this.psbtForm = this.formBuilder.group({ psbt: [''], tapleaf: [''], taptree: [''], ikey: [''] });
@@ -177,8 +174,6 @@ export class AddressComponent implements OnInit, OnDestroy {
         switchMap(() => this.stateService.loadingIndicators$),
         map((indicators) => indicators['address-' + this.addressString] !== undefined ? indicators['address-' + this.addressString] : 0)
       );
-
-    this.updateAccelerationSubscription();
 
     this.mainSubscription = this.route.paramMap
       .pipe(
@@ -214,8 +209,8 @@ export class AddressComponent implements OnInit, OnDestroy {
           .pipe(
             switchMap(() => (
               this.addressString.match(/04[a-fA-F0-9]{128}|(02|03)[a-fA-F0-9]{64}/)
-              ? this.electrsApiService.getPubKeyAddress$(this.addressString)
-              : this.electrsApiService.getAddress$(this.addressString)
+              ? this.addressApiService.getPubKeyAddress$(this.addressString)
+              : this.addressApiService.getAddress$(this.addressString)
             ).pipe(
                 catchError((err) => {
                   this.isLoadingAddress = false;
@@ -233,7 +228,7 @@ export class AddressComponent implements OnInit, OnDestroy {
         filter((address) => !!address),
         tap((address: Address) => {
           if ((this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') && /^([a-zA-HJ-NP-Z1-9]{26,35}|[a-z]{2,5}1[ac-hj-np-z02-9]{8,100}|[a-km-zA-HJ-NP-Z1-9]{80})$/.test(address.address)) {
-            this.apiService.validateAddress$(address.address)
+            this.addressApiService.validateAddress$(address.address)
               .subscribe((addressInfo) => {
                 this.addressInfo = addressInfo;
                 this.websocketService.startTrackAddress(addressInfo.unconfidential);
@@ -250,11 +245,11 @@ export class AddressComponent implements OnInit, OnDestroy {
           const utxoCount = this.chainStats.utxos + this.mempoolStats.utxos;
           return forkJoin([
             address.is_pubkey
-              ? this.electrsApiService.getScriptHashTransactions$((address.address.length === 66 ? '21' : '41') + address.address + 'ac')
-              : this.electrsApiService.getAddressTransactions$(address.address),
+              ? this.addressApiService.getScriptHashTransactions$((address.address.length === 66 ? '21' : '41') + address.address + 'ac')
+              : this.addressApiService.getAddressTransactions$(address.address),
             (utxoCount > 2 && utxoCount <= 500 ? (address.is_pubkey
-              ? this.electrsApiService.getScriptHashUtxos$((address.address.length === 66 ? '21' : '41') + address.address + 'ac')
-              : this.electrsApiService.getAddressUtxos$(address.address)) : of(null)).pipe(
+              ? this.addressApiService.getScriptHashUtxos$((address.address.length === 66 ? '21' : '41') + address.address + 'ac')
+              : this.addressApiService.getAddressUtxos$(address.address)) : of(null)).pipe(
                 catchError(() => {
                   return of(null);
                 })
@@ -351,7 +346,7 @@ export class AddressComponent implements OnInit, OnDestroy {
         this.mempoolStats.addTx(tx);
       });
 
-    this.mempoolRemovedTxSubscription = this.stateService.mempoolRemovedTransactions$
+    this.mempoolRemovedTxSubscription = this.websocketService.mempoolRemovedTransactions$
       .subscribe(tx => {
         this.removeTransaction(tx);
         this.mempoolStats.removeTx(tx);
@@ -494,8 +489,8 @@ export class AddressComponent implements OnInit, OnDestroy {
     this.isLoadingTransactions = true;
     this.retryLoadMore = false;
     (this.address.is_pubkey
-    ? this.electrsApiService.getScriptHashTransactions$((this.address.address.length === 66 ? '21' : '41') + this.address.address + 'ac', this.lastTransactionTxId)
-    : this.electrsApiService.getAddressTransactions$(this.address.address, this.lastTransactionTxId))
+    ? this.addressApiService.getScriptHashTransactions$((this.address.address.length === 66 ? '21' : '41') + this.address.address + 'ac', this.lastTransactionTxId)
+    : this.addressApiService.getAddressTransactions$(this.address.address, this.lastTransactionTxId))
       .subscribe((transactions: Transaction[]) => {
         if (transactions && transactions.length) {
           this.lastTransactionTxId = transactions[transactions.length - 1].txid;
@@ -624,34 +619,6 @@ export class AddressComponent implements OnInit, OnDestroy {
     this.isMobile = window.innerWidth < 768;
   }
 
-  private updateAccelerationSubscription(): void {
-    if (this.stateService.env.ACCELERATOR_BUTTON && this.network === '') {
-      if (!this.accelerationsSubscription) {
-        this.websocketService.ensureTrackAccelerations();
-        this.acceleratedTxids = new Set();
-        this.accelerationsSubscription = this.stateService.accelerations$.subscribe((delta) => {
-          if (!this.acceleratedTxids) {
-            this.acceleratedTxids = new Set();
-          }
-          if (delta.reset) {
-            this.acceleratedTxids.clear();
-          } else {
-            for (const txid of delta.removed) {
-              this.acceleratedTxids.delete(txid);
-            }
-          }
-          for (const acceleration of delta.added) {
-            this.acceleratedTxids.add(acceleration.txid);
-          }
-        });
-      }
-    } else {
-      this.accelerationsSubscription?.unsubscribe();
-      this.accelerationsSubscription = null;
-      this.acceleratedTxids = null;
-    }
-  }
-
   ngOnDestroy(): void {
     this.mainSubscription.unsubscribe();
     this.mempoolTxSubscription.unsubscribe();
@@ -660,7 +627,5 @@ export class AddressComponent implements OnInit, OnDestroy {
     this.websocketService.stopTrackingAddress();
     this.fragmentSubscription?.unsubscribe();
     this.networkChangeSubscription?.unsubscribe();
-    this.accelerationsSubscription?.unsubscribe();
-    this.websocketService.stopTrackAccelerations();
   }
 }

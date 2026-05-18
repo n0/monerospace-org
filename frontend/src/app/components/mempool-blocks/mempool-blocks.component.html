@@ -7,7 +7,7 @@
           class="spotlight-bottom"
           [style.right]="mempoolBlockStyles[i].right"
         ></div>
-        <div @blockEntryTrigger [@.disabled]="i > 0 || !animateEntry" [attr.data-cy]="'mempool-block-' + i" class="bitcoin-block text-center mempool-block" [class.hide-block]="count && i >= count" id="mempool-block-{{ i }}" [ngStyle]="mempoolBlockStyles[i]" [class.blink-bg]="projectedBlock.blink" [style]="blockTransformation">
+        <div @blockEntryTrigger [@.disabled]="i > 0 || !animateEntry" [attr.data-cy]="'mempool-block-' + i" class="xmr-block text-center mempool-block" [class.hide-block]="count && i >= count" id="mempool-block-{{ i }}" [ngStyle]="mempoolBlockStyles[i]" [class.blink-bg]="projectedBlock.blink" [style]="blockTransformation">
           <a draggable="false" [routerLink]="[getHref(i) | relativeUrl]"
             class="blockLink" [ngClass]="{'disabled': (this.stateService.blockScrolling$ | async)}">&nbsp;</a>
           <div class="block-body">
@@ -16,9 +16,7 @@
                 ~<app-fee-rate [fee]="projectedBlock.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
               </div>
               <div [attr.data-cy]="'mempool-block-' + i + '-fee-span'" class="fee-span">
-                <app-fee-rate [fee]="projectedBlock.feeRange[0]" [showUnit]="false" unitClass=""></app-fee-rate>
-                -
-                <app-fee-rate [fee]="projectedBlock.feeRange[projectedBlock.feeRange.length - 1]" unitClass=""></app-fee-rate>
+                {{ compactFeeRange(projectedBlock.feeRange) }} <span class="symbol">&#x0271;/B</span>
               </div>
               <div *ngIf="blockDisplayMode === 'fees'; else noMiningInfo" class="block-size">
                 <app-amount [attr.data-cy]="'mempool-block-' + i + '-total-fees'" [satoshis]="projectedBlock.totalFees" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
@@ -31,17 +29,12 @@
                 <ng-template #transactionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} transaction</ng-template>
                 <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} transactions</ng-template>
               </div>
-              <div [attr.data-cy]="'mempool-block-' + i + '-time'" class="time-difference" *ngIf="projectedBlock.blockVSize <= stateService.blockVSize; else mergedBlock">
-                <ng-template [ngIf]="network === 'liquid' || network === 'liquidtestnet'" [ngIfElse]="timeDiffMainnet">
-                  <app-time kind="until" [time]="(1 * i) + now + 61000" [fastRender]="false" [fixedRender]="true" [precision]="1" minUnit="minute"></app-time>
-                </ng-template>
-                <ng-template #timeDiffMainnet>
-                  <app-time kind="until" [time]="da.adjustedTimeAvg * (i + 1) + now + da.timeOffset" [fastRender]="false" [fixedRender]="true" [precision]="1" minUnit="minute"></app-time>
-                </ng-template>
+              <div [attr.data-cy]="'mempool-block-' + i + '-time'" class="time-difference" *ngIf="projectedBlock.blockVSize <= visualBlockWeightLimit; else mergedBlock">
+                <app-time kind="until" [time]="da.adjustedTimeAvg * (i + 1) + now + da.timeOffset" [fastRender]="false" [fixedRender]="true" [precision]="1" minUnit="minute"></app-time>
               </div>
               <ng-template #mergedBlock>
                 <div [attr.data-cy]="'mempool-block-' + i + '-blocks'" class="time-difference">
-                  <b>(<ng-container *ngTemplateOutlet="blocksPlural; context: {$implicit: projectedBlock.blockVSize / stateService.blockVSize | ceil }"></ng-container>)</b>
+                  <b>(<ng-container *ngTemplateOutlet="blocksPlural; context: {$implicit: blockSpan(projectedBlock.blockVSize) }"></ng-container>)</b>
                   <ng-template #blocksPlural let-i i18n="shared.blocks">{{ i }} <span class="shared-block">blocks</span></ng-template>
                 </div>
               </ng-template>
@@ -51,8 +44,7 @@
         </div>
       </ng-template>
     </div>
-    <app-acceleration-sparkles [style]="{ position: 'absolute', right: 0}" [arrow]="arrowElement" [run]="acceleratingArrow"></app-acceleration-sparkles>
-    <div *ngIf="arrowVisible" #arrowUp id="arrow-up" [ngStyle]="{'right': rightPosition + (blockWidth * 0.3) + containerOffset + 'px', transition: transition }" [class.blink]="txPosition?.accelerated"></div>
+    <div *ngIf="arrowVisible" id="arrow-up" [ngStyle]="{'right': rightPosition + (blockWidth * 0.3) + containerOffset + 'px', transition: transition }"></div>
   </div>
 </ng-container>
 
@@ -60,7 +52,7 @@
   <div class="mempool-blocks-container" [class.time-ltr]="timeLtr" [style.--block-size]="blockWidth+'px'">
     <div class="flashing">
       <ng-template ngFor let-projectedBlock [ngForOf]="mempoolEmptyBlocks" let-i="index" [ngForTrackBy]="trackByFn">
-        <div class="bitcoin-block text-center mempool-block" [class.hide-block]="count && i >= count" id="mempool-block-{{ i }}" [ngStyle]="mempoolEmptyBlockStyles[i]"></div>
+        <div class="xmr-block text-center mempool-block" [class.hide-block]="count && i >= count" id="mempool-block-{{ i }}" [ngStyle]="mempoolEmptyBlockStyles[i]"></div>
       </ng-template>
     </div>
   </div>

@@ -1,4 +1,29 @@
-# Docker Installation
+# xmr-space Docker Installation
+
+This fork's Docker setup starts the standalone Monero backend, not the
+upstream Bitcoin bootstrap. The default compose file connects to a public
+monerod endpoint and stores XMR mempool/price history in MariaDB plus
+`./data` JSON fallbacks.
+
+```bash
+docker-compose up
+```
+
+Important XMR overrides live in `docker-compose.yml` under `api.environment`:
+
+- `MONEROD_RPC_URL`, `MONEROD_RPC_USER`, `MONEROD_RPC_PASSWORD`
+- `MONEROD_RPC_TIMEOUT_MS`
+- `XMR_INDEX_DIR`
+- `DATABASE_ENABLED`
+
+The frontend container keeps runtime service URLs same-origin by default; it
+does not proxy xmr-space users to mempool.space services unless you explicitly
+override those env vars. The upstream README below is preserved for historical
+context only and still describes Bitcoin Core/Electrum deployment.
+
+---
+
+# Upstream Docker Installation Notes
 
 This directory contains the Dockerfiles used to build and release the official images, as well as a `docker-compose.yml` to configure environment variables and other settings.
 

@@ -1,12 +1,11 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { AddressApiService } from '@app/services/address-api.service';
 import { switchMap, filter, catchError, map, tap } from 'rxjs/operators';
 import { Address, Transaction } from '@interfaces/electrs.interface';
 import { StateService } from '@app/services/state.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
 import { AudioService } from '@app/services/audio.service';
-import { ApiService } from '@app/services/api.service';
 import { of, merge, Subscription, Observable } from 'rxjs';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
@@ -41,9 +40,8 @@ export class AddressPreviewComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
-    private electrsApiService: ElectrsApiService,
+    private addressApiService: AddressApiService,
     private stateService: StateService,
-    private apiService: ApiService,
     private seoService: SeoService,
     private openGraphService: OpenGraphService,
   ) { }
@@ -75,8 +73,8 @@ export class AddressPreviewComponent implements OnInit, OnDestroy {
           this.seoService.setDescription($localize`:@@meta.description.bitcoin.address:See mempool transactions, confirmed transactions, balance, and more for ${this.stateService.network==='liquid'||this.stateService.network==='liquidtestnet'?'Liquid':'Bitcoin'}${seoDescriptionNetwork(this.stateService.network)} address ${this.addressString}:INTERPOLATION:.`);
 
           return (this.addressString.match(/04[a-fA-F0-9]{128}|(02|03)[a-fA-F0-9]{64}/)
-              ? this.electrsApiService.getPubKeyAddress$(this.addressString)
-              : this.electrsApiService.getAddress$(this.addressString)
+              ? this.addressApiService.getPubKeyAddress$(this.addressString)
+              : this.addressApiService.getAddress$(this.addressString)
             ).pipe(
               catchError((err) => {
                 this.isLoadingAddress = false;
@@ -92,7 +90,7 @@ export class AddressPreviewComponent implements OnInit, OnDestroy {
         filter((address) => !!address),
         tap((address: Address) => {
           if ((this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') && /^([m-zA-HJ-NP-Z1-9]{26,35}|[a-z]{2,5}1[ac-hj-np-z02-9]{8,100}|[a-km-zA-HJ-NP-Z1-9]{80})$/.test(address.address)) {
-            this.apiService.validateAddress$(address.address)
+            this.addressApiService.validateAddress$(address.address)
               .subscribe((addressInfo) => {
                 this.addressInfo = addressInfo;
               });

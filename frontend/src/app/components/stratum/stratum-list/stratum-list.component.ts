@@ -1,9 +1,8 @@
 import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { StateService } from '@app/services/state.service';
-import { WebsocketService } from '@app/services/websocket.service';
+import { LegacyWebsocketTrackingService } from '@app/services/legacy-websocket-tracking.service';
 import { map, Observable } from 'rxjs';
-import { StratumJob } from '@interfaces/websocket.interface';
-import { MiningService } from '@app/services/mining.service';
+import { StratumJob } from '@interfaces/legacy-websocket.interface';
+import { MiningPoolService } from '@app/services/mining-pool.service';
 import { SinglePoolStats } from '@interfaces/node-api.interface';
 
 type MerkleCellType = ' ' | '┬' | '├' | '└' | '│' | '─' | 'leaf';
@@ -75,15 +74,14 @@ export class StratumList implements OnInit, OnDestroy {
   poolsReady: boolean = false;
 
   constructor(
-    private stateService: StateService,
-    private websocketService: WebsocketService,
-    private miningService: MiningService,
+    private websocketService: LegacyWebsocketTrackingService,
+    private miningPoolService: MiningPoolService,
     private cd: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
     this.websocketService.want(['stats', 'blocks', 'mempool-blocks']);
-    this.miningService.getPools().subscribe(pools => {
+    this.miningPoolService.getPools().subscribe(pools => {
       this.pools = {};
       for (const pool of pools) {
         this.pools[pool.unique_id] = pool;
@@ -91,7 +89,7 @@ export class StratumList implements OnInit, OnDestroy {
       this.poolsReady = true;
       this.cd.markForCheck();
     });
-    this.rows$ = this.stateService.stratumJobs$.pipe(
+    this.rows$ = this.websocketService.stratumJobs$.pipe(
       map((jobs) => this.processJobs(jobs)),
     );
     this.websocketService.startTrackStratum('all');

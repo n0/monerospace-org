@@ -4,14 +4,7 @@ import { Routes, RouterModule } from '@angular/router';
 import { TransactionComponent } from '@components/transaction/transaction.component';
 import { TransactionDetailsComponent } from '@components/transaction/transaction-details/transaction-details.component';
 import { SharedModule } from '@app/shared/shared.module';
-import { TxBowtieModule } from '@components/tx-bowtie-graph/tx-bowtie.module';
 import { TransactionExtrasModule } from '@components/transaction/transaction-extras.module';
-import { GraphsModule } from '@app/graphs/graphs.module';
-import { AccelerateCheckout } from '@components/accelerate-checkout/accelerate-checkout.component';
-import { AccelerateFeeGraphComponent } from '@components/accelerate-checkout/accelerate-fee-graph.component';
-import { TransactionRawComponent } from '@components/transaction/transaction-raw.component';
-import { CpfpInfoComponent } from '@components/transaction/cpfp-info.component';
-import { ClusterDiagramComponent } from '@components/cluster-diagram/cluster-diagram.component';
 
 const routes: Routes = [
   {
@@ -20,8 +13,22 @@ const routes: Routes = [
     pathMatch: 'full',
   },
   {
+    // xmr-space: upstream's raw transaction preview / push / test
+    // pages decode Bitcoin PSBT/raw-tx shapes. Keep these child routes
+    // from falling through to the generic :id transaction route.
     path: 'preview',
-    component: TransactionRawComponent,
+    redirectTo: '/',
+    pathMatch: 'full',
+  },
+  {
+    path: 'push',
+    redirectTo: '/',
+    pathMatch: 'full',
+  },
+  {
+    path: 'test',
+    redirectTo: '/',
+    pathMatch: 'full',
   },
   {
     path: ':id',
@@ -47,32 +54,18 @@ export class TransactionRoutingModule { }
     CommonModule,
     TransactionRoutingModule,
     SharedModule,
-    GraphsModule,
-    TxBowtieModule,
     TransactionExtrasModule,
   ],
   declarations: [
     TransactionComponent,
     TransactionDetailsComponent,
-    AccelerateCheckout,
-    AccelerateFeeGraphComponent,
-    TransactionRawComponent,
-    CpfpInfoComponent,
-    ClusterDiagramComponent,
   ],
   exports: [
     TransactionComponent,
     TransactionDetailsComponent,
-    AccelerateCheckout,
-    AccelerateFeeGraphComponent,
-    CpfpInfoComponent,
-    ClusterDiagramComponent,
   ]
 })
 export class TransactionModule { }
-
-
-
 
 
 

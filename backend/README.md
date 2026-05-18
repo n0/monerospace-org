@@ -1,3 +1,41 @@
+# xmr-space Backend
+
+This fork's active backend entrypoint is the Monero server at
+`src/api/monero/xmr-server.ts`.
+
+```sh
+cd backend
+npm install --no-install-links
+npm run build
+MONEROD_RPC_URL=https://xmr-node.cakewallet.com:18081 npm run start
+```
+
+`npm run start` and `npm run start-production` launch
+`dist/api/monero/xmr-server.js`. They do not launch the upstream Bitcoin
+bootstrap. Use `npm run start-upstream` only when intentionally debugging the
+preserved upstream code.
+
+Useful runtime env:
+
+- `MONEROD_RPC_URL`, `MONEROD_RPC_USER`, `MONEROD_RPC_PASSWORD`,
+  `MONEROD_RPC_TIMEOUT_MS`
+- `MONERO_WALLET_RPC_URL` plus optional wallet-RPC credentials for tx_proof
+  verification
+- `XMR_HOST`, `XMR_PORT`, `XMR_INDEX_DIR`
+- `XMR_DATABASE_ENABLED=true` or `DATABASE_ENABLED=true` for MySQL-backed XMR
+  mempool stats and price history, with JSON fallback files under `XMR_INDEX_DIR`
+
+Payment verification backend boundaries:
+
+- `POST /api/v1/tx/:hash/verify-proof` is the only backend wallet-verification route and accepts only public `tx_proof` fields.
+- Browser-local view-key and `tx_secret_key` checks use the same-origin public monerod bridge under `/api/v1/monerod`.
+- The monerod bridge exposes only allowlisted public daemon methods and rejects secret-shaped JSON body keys such as private view/spend keys, tx secret keys, seeds, mnemonics, and passwords before proxying.
+- Do not add backend routes that accept private wallet-scanning material.
+
+The upstream README follows below for historical context.
+
+---
+
 # Mempool Backend
 
 These instructions are mostly intended for developers. 

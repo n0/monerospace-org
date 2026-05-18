@@ -1,278 +1,51 @@
-
 .about-page {
   text-align: center;
 
-  .image {
-    width: 80px;
-    height: 80px;
-    background-size: 100%, 100%;
-    border-radius: 50%;
-    margin: 25px;
-    line-height: 32px;
-  }
-
-  .image.not-rounded {
-    border-radius: 0;
-  }
-
   .intro {
+    width: min(320px, 90vw);
     margin: 25px auto 30px;
-    margin-top: 25px;
-    width: 250px;
     display: flex;
     flex-direction: column;
-    .logo {
-      height: 62.5px;
-      width: 250px;
-      margin: auto;
-    }
-    .version {
-      text-align: right;
-      font-size: 10px;
-      margin-top: -10px;
-    }
+    align-items: center;
   }
 
-  .about-text {
-    max-width: 550px;
-    margin: auto;
+  .mempool-logo {
+    width: min(250px, 80vw);
+    display: block;
+  }
+
+  .version {
+    width: 100%;
+    text-align: right;
+    font-size: 10px;
+    margin-top: -10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .version-sub {
+    color: var(--tooltip-grey);
+  }
+
+  .about-text,
+  .contributors {
+    max-width: 650px;
+    margin: 0 auto;
     padding: 10px 15px 15px;
-  }
-
-  video {
-    width: 640px;
-    max-width: 90%;
-    margin-top: 0;
-    @media (min-width: 768px) {
-      height: 360px;
-    }
-  }
-
-  .social-icons {
-    a {
-      margin: auto 10px;
-    }
-  }
-
-  .alliances,
-  .enterprise-sponsor,
-  .community-integrations-sponsor,
-  .maintainers,
-  .managers {
-    margin-top: 30px;
-    margin-bottom: 68px;
-    scroll-margin: 30px;
-
-    @media (min-width: 768px) {
-      margin-top: 68px;
-    }
-  }
-
-  .maintainers,
-  .managers {
-    margin-bottom: 50px;
-  }
-
-  .community-sponsor, .project-translators {
-    display: flex;
-    flex-direction: column;
-    .wrapper {
-      margin: 20px auto;
-    }
-    .btn-primary {
-      max-width: 250px;
-      margin: auto;
-      height: 45px;
-      width: 100%;
-    }
-  }
-
-  .community-sponsor {
-    img {
-      width: 57px;
-      height: 57px;
-    }
-  }
-
-  .whale-sponsor {
-    img {
-      width: 70px;
-      height: 70px;
-    }
-  }
-
-  .alliances {
-    margin-bottom: 100px;
-    a {
-      &:nth-child(3) {
-        position: relative;
-        top: 10px;
-      }
-    }
-    img {
-      display: inline-block;
-      margin: 15px auto;
-      height: 62px;
-      @media (min-width: 425px) {
-        margin: 15px 60px;
-      }
-      @media (min-width: 576px) {
-        margin: 15px 120px;
-      }
-      @media (min-width: 850px) {
-        margin: 50px 30px 0px;
-      }
-    }
-    .liquid {
-      top: 7px;
-      position: relative;
-    }
-    .copa {
-      height: auto;
-      top: 23px;
-      position: relative;
-      width: 300px;
-    }
-    .sv {
-      height: 85px;
-      width: auto;
-      position: relative;
-    }
-  }
-
-  .enterprise-sponsor,
-  .contributors,
-  .community-sponsor,
-  .project-translators,
-  .community-integrations-sponsor,
-  .maintainers {
-    scroll-margin: 30px;
-    scroll-margin-top: 65px;
-    .wrapper {
-      display: inline-block;
-      a {
-        display: inline-block;
-        &:hover {
-          text-decoration: none;
-          img, svg {
-            transform: scale(1.1);
-          }
-        }
-        img, svg, span {
-          display: block;
-          transition: 150ms all;
-        }
-        img, svg {
-          margin: 40px 29px 10px;
-          &.image.coldcard {
-            border-radius: 0;
-            height: auto;
-            margin: 20px 29px 20px;
-          }
-        }
-      }
-    }
-  }
-
-  .community-sponsor .wrapper, .project-translators .wrapper {
-    margin: 10px auto 20px;
-    a img {
-      margin: 6px;
-    }
-  }
-
-  .project-translators .wrapper {
-    a img {
-      width: 72px;
-      height: 72px;
-    }
-  }
-
-  #project-members a.project-member-avatar img {
-    margin: 40px 20px 10px;
-  }
-
-  .copyright {
     text-align: left;
-    max-width: 620px;
-    padding: 0px 15px;
-    margin: auto;
-    line-height: 1.8;
-    font-size: 87.5%;
-    color: var(--pink);
-    word-wrap: break-word;
-    font-family: SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
-    ul {
-      list-style: none;
-      padding-left: 30px;
-      li {
-        margin-bottom: 20px;
-        margin-top: 20px;
-      }
-    }
-    .title {
-      text-align: center;
-      margin-bottom: 25px;
-    }
   }
 
-  .footer-links {
-    display: flex;
-    flex-direction: column;
-    a {
-      display: inline-block;
-      margin: 15px auto 0px;
-      &:last-child {
-        margin: 20px auto 30px;
-      }
-    }
-    .social-icons {
-      a {
-        margin: 45px 10px;
-      }
-      .bitcointv svg {
-        width: 36px;
-        height: auto;
-        vertical-align: bottom;
-        margin-bottom: 2px;
-        margin-left: 5px;
-      }
-      .bitcointv svg:hover {
-        opacity: 0.75;
-      }
-    }
+  .contributors {
+    margin-top: 10px;
+    margin-bottom: 35px;
   }
 
-  .footer-version {
-    font-size: 12px;
+  h5 {
+    margin-top: 18px;
   }
-}
 
-.no-about-margin {
-  height: 10px;
-}
-
-.community-integrations-sponsor {
-  max-width: 1110px;
-  margin: auto;
-}
-
-.community-integrations-sponsor img.image {
-  width: 64px;
-  height: 64px;
-}
-
-.wiz-logo {
-  width: 260px;
-  max-width: 90vw;
-  margin: auto;
-}
-
-.enterprise-sponsor {
-  .wrapper {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: 1050px;
+  li {
+    margin-bottom: 8px;
   }
 }

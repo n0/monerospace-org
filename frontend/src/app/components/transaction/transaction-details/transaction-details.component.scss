@@ -29,11 +29,6 @@
   vertical-align: top;
 }
 
-.badge.badge-accelerated {
-  background-color: var(--tertiary);
-  color: white;
-}
-
 .btn-small-height {
 	line-height: 1;
 }
@@ -134,21 +129,11 @@
   }
 }
 
-.accelerate {
-  @media (min-width: 850px) {
-    margin-left: auto;
-  }  
-}
-
 .etaDeepMempool {
   flex-wrap: wrap;
   @media (max-width: 849px) {
     justify-content: right !important;
   }
-}
-
-.accelerateDeepMempool {
-  margin-left: 5px;
 }
 
 .goggles-icon {

@@ -36,7 +36,7 @@
            '0.00 XMR' is misleading. The reveal flows on /tx/:hash give
            participants the legitimate path to see amounts. -->
       <th class="table-cell-txid" i18n="dashboard.latest-transactions.txid">TXID</th>
-      <th class="table-cell-vsize" *ngIf="!widget" i18n="transaction.vsize|Transaction Virtual Size">Size</th>
+      <th class="table-cell-size" *ngIf="!widget" i18n="transaction.vsize|Transaction Virtual Size">Size</th>
       <th class="table-cell-fees" i18n="transaction.fee|Transaction fee">Fee</th>
     </thead>
     <tbody data-cy="transactions-list" *ngIf="transactions$ | async as transactions; else skeleton">
@@ -46,24 +46,22 @@
             <app-truncate [text]="transaction.txid" [lastChars]="5"></app-truncate>
           </a>
         </td>
-        <td class="table-cell-vsize" *ngIf="!widget" [innerHTML]="'&lrm;' + (transaction.vsize | vbytes: 2)"></td>
+        <td class="table-cell-size" *ngIf="!widget" [innerHTML]="'&lrm;' + (transaction.vsize | bytes: 2)"></td>
         <td class="table-cell-fees">
           <!-- weight=vsize on Monero (no segwit) — pass it directly so
                fee-rate computes fee/weight for ɱ/B output. -->
           <app-fee-rate [fee]="transaction.fee" [weight]="transaction.vsize"></app-fee-rate>
         </td>
       </tr>
-      <tr *ngIf="!widget && transactions.length < (limit$ | async)" data-cy="transactions-skeleton-row">
-        <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
-        <td class="table-cell-vsize"><span class="skeleton-loader"></span></td>
-        <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
+      <tr *ngIf="!widget && transactions.length === 0" data-cy="transactions-empty-row">
+        <td class="text-muted" colspan="3" i18n="recent-transactions.empty">No transactions currently in the mempool.</td>
       </tr>
     </tbody>
     <ng-template #skeleton>
       <tbody>
         <tr *ngFor="let i of (widget ? [1,2,3,4,5,6] : [1])">
           <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
-          <td class="table-cell-vsize" *ngIf="!widget"><span class="skeleton-loader"></span></td>
+          <td class="table-cell-size" *ngIf="!widget"><span class="skeleton-loader"></span></td>
           <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
         </tr>
       </tbody>

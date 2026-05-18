@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { EChartsOption, PieSeriesOption } from '@app/graphs/echarts';
 import { map, Observable, share, tap } from 'rxjs';
 import { originalChartColors as chartColors } from '@app/app.constants';
-import { ApiService } from '@app/services/api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { SeoService } from '@app/services/seo.service';
 import { StateService } from '@app/services/state.service';
 import { download } from '@app/shared/graphs.utils';
@@ -34,7 +34,7 @@ export class NodesPerCountryChartComponent implements OnInit {
   nodesPerCountryObservable$: Observable<any>;
 
   constructor(
-    private apiService: ApiService,
+    private apiService: LightningApiService,
     private seoService: SeoService,
     private amountShortenerPipe: AmountShortenerPipe,
     private zone: NgZone,
@@ -235,4 +235,3 @@ export class NodesPerCountryChartComponent implements OnInit {
     return (e.offsetWidth < e.scrollWidth);
   }
 }
-

@@ -13,7 +13,7 @@ import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms
 import { ElectrsApiService } from '@app/services/electrs-api.service';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
-import { ApiService } from '@app/services/api.service';
+import { TransactionToolsApiService } from '@app/services/transaction-tools-api.service';
 import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
 import { CpfpInfo } from '@interfaces/node-api.interface';
 
@@ -79,7 +79,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     public websocketService: WebsocketService,
     public formBuilder: UntypedFormBuilder,
     public seoService: SeoService,
-    public apiService: ApiService,
+    public transactionToolsApiService: TransactionToolsApiService,
     public relativeUrlPipe: RelativeUrlPipe,
     public bytesPipe: BytesPipe,
     public vbytesPipe: VbytesPipe,
@@ -143,7 +143,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
         this.missingPrevouts = [];
         this.isLoadingPrevouts = true;
 
-        const prevouts: { prevout: Vout, unconfirmed: boolean }[] = await firstValueFrom(this.apiService.getPrevouts$(prevoutsToFetch));
+        const prevouts: { prevout: Vout, unconfirmed: boolean }[] = await firstValueFrom(this.transactionToolsApiService.getPrevouts$(prevoutsToFetch));
 
         if (prevouts?.length !== prevoutsToFetch.length) {
           throw new Error();
@@ -238,7 +238,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     if (this.hasPrevouts && this.fetchCpfp) {
       try {
         this.isLoadingCpfpInfo = true;
-        const cpfpInfo: CpfpInfo[] = await firstValueFrom(this.apiService.getCpfpLocalTx$([{
+        const cpfpInfo: CpfpInfo[] = await firstValueFrom(this.transactionToolsApiService.getCpfpLocalTx$([{
           txid: transaction.txid,
           weight: transaction.weight + this.weightFromMissingSig,
           sigops: transaction.sigops,
@@ -301,7 +301,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     this.isLoadingBroadcast = true;
     this.errorBroadcast = null;
 
-    this.broadcastSubscription = this.apiService.postTransaction$(this.rawHexTransaction).pipe(
+    this.broadcastSubscription = this.transactionToolsApiService.postTransaction$(this.rawHexTransaction).pipe(
       tap((txid: string) => {
         this.isLoadingBroadcast = false;
         this.successBroadcast = true;

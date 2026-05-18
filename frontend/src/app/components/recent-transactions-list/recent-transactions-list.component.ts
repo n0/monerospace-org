@@ -5,7 +5,6 @@ import { StateService } from '@app/services/state.service';
 import { WebsocketService } from '@app/services/websocket.service';
 import { SeoService } from '@app/services/seo.service';
 import { TransactionStripped } from '@interfaces/node-api.interface';
-import { seoDescriptionNetwork } from '@app/shared/common.utils';
 
 @Component({
   selector: 'app-recent-transactions-list',
@@ -93,7 +92,7 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
 
     if (!this.widget) {
       this.seoService.setTitle($localize`:@@recent-transactions-title:Recent Transactions`);
-      this.seoService.setDescription($localize`:@@meta.description.recent-transactions:See the most recent transactions on the Bitcoin${seoDescriptionNetwork(this.stateService.network)} network, updated in real-time.`);
+      this.seoService.setDescription($localize`:@@meta.description.xmr.recent-transactions:See the most recent Monero transactions known to this node's mempool, updated in real time.`);
     }
   }
 

@@ -2,11 +2,42 @@
 
 > **Forked from [mempool/mempool](https://github.com/mempool/mempool)** — used under **AGPLv3**, see [`LICENSE`](./LICENSE) and [`COPYING.md`](./COPYING.md).
 >
-> `xmr-space` retargets the upstream UX vocabulary (mempool wall, projected blocks, confirmed-block stream, fee-tier colors) onto Monero's data model: RingCT-hidden amounts, fixed ring size 16, the 4-tier `get_fee_estimate` model, and a tx-detail page whose private fields are blurred by default with three opt-in reveal flows (view-key, tx_proof, tx_secret_key) that run client-side via `monero-ts` so keys never touch the server.
+> `xmr-space` retargets the upstream UX vocabulary (mempool wall, projected blocks, confirmed-block stream, fee-tier colors) onto Monero's data model: RingCT-hidden amounts, fixed ring size 16, the 4-tier `get_fee_estimate` model, and a tx-detail page that exposes public RingCT metadata plus payment verification. Public `tx_proof` verification can use backend wallet RPC; private view-key receive scanning and `tx_secret_key` checks run browser-local through `monero-ts` and must never send or persist wallet secrets.
 >
 > See [`PROGRESS.md`](./PROGRESS.md) for the convergence log and current goal checklist.
 >
 > Upstream README follows below, preserved for license compliance and historical context.
+
+---
+
+## xmr-space backend entrypoint
+
+The active backend entrypoint is the standalone Monero server:
+
+```sh
+cd backend
+npm install --no-install-links
+npm run build
+MONEROD_RPC_URL=https://xmr-node.cakewallet.com:18081 npm run start
+```
+
+`npm run start` and `npm run start-production` intentionally launch `dist/api/monero/xmr-server.js`, not the upstream Bitcoin bootstrap at `dist/index.js`. The upstream entrypoint is still available as `npm run start-upstream` for historical/debug work only.
+
+Important runtime env:
+
+- `MONEROD_RPC_URL`, `MONEROD_RPC_USER`, `MONEROD_RPC_PASSWORD`, `MONEROD_RPC_TIMEOUT_MS`
+- `MONERO_WALLET_RPC_URL` plus optional wallet-RPC credentials for tx_proof verification
+- `XMR_HOST`, `XMR_PORT`, `XMR_INDEX_DIR`
+- `XMR_DATABASE_ENABLED=true` or `DATABASE_ENABLED=true` enables MySQL persistence for XMR mempool stats and price history, with JSON files under `XMR_INDEX_DIR` as fallback
+
+Payment verification notes:
+
+- `/tx/:hash` has three verification modes: `tx_proof`, `Received` with recipient address + private view key, and `tx_secret_key` with recipient address + transaction secret key.
+- Private view keys and `tx_secret_key` values stay in browser memory only. They are not valid backend inputs, are not placed in URLs, and are not written to local/session storage.
+- The browser scanner depends on the frontend `monero-ts` and `assert` packages. It talks only to same-origin public monerod proxy routes under `/api/v1/monerod`, which expose an allowlisted public daemon surface.
+- Subaddress receive scanning from only a subaddress + private view key is reported as unsupported in the view-key flow; use `tx_secret_key` for subaddress payment checks.
+
+Docker startup also runs the Monero entrypoint and checks `/healthz`.
 
 ---
 

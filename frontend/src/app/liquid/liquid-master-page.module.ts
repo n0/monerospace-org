@@ -133,13 +133,14 @@ const routes: Routes = [
         ]
       },
       {
+        // xmr-space: the upstream Bitcoin/Liquid docs module carried a
+        // large stale API dataset and is not part of this XMR build.
         path: 'docs',
-        loadChildren: () => import('../docs/docs.module').then(m => m.DocsModule),
-        data: { preload: true },
+        redirectTo: 'assets/featured',
       },
       {
         path: 'api',
-        loadChildren: () => import('../docs/docs.module').then(m => m.DocsModule)
+        redirectTo: 'assets/featured',
       },
     ],
   },

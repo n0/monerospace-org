@@ -25,38 +25,80 @@
     <p>Sixteen, since the August 2022 hard fork. Every input is signed against a ring of 16 outputs (1 real + 15 decoys) chosen from the chain's history. Older txs may have ring size 11, 7, 5, or 3. xmr-space flags inconsistent ring sizes within a tx as a privacy red flag.</p>
 
     <h4>How does the four-tier fee model work?</h4>
-    <p><code>monerod</code>'s <code>get_fee_estimate</code> returns four per-byte rates: slow / normal / fast / fastest. Wallets multiply by the tx weight to get the total fee. The mempool wall on the dashboard color-codes pending txs by which tier they fall into.</p>
+    <p><code>monerod</code>'s <code>get_fee_estimate</code> returns four per-byte rates: slow / normal / fast / fastest. Wallets multiply by the tx weight to get the total fee. The mempool wall projects one next-block candidate from the pending txs; extra projected blocks appear only when the pool is larger than one block.</p>
+
+    <h4>How are mining pools identified?</h4>
+    <p>The <code>/graphs/mining/pools</code> page uses public miner-tx <code>extra</code> markers only. P2Pool can be identified from merge-mining tags, clear-text pool tags are matched when miners publish them, and every unattributed block stays in the <code>Unknown</code> bucket.</p>
 
     <h4>Why is there no address page?</h4>
-    <p>Because Monero addresses can't be tracked from chain data alone. Outputs to an address are encrypted; only someone with the recipient's view key can scan the chain for them. The <a [routerLink]="['/tx']">tx-detail page</a>'s "I received this tx" reveal flow is the legitimate path for a recipient who wants to see what landed at their address.</p>
+    <p>Because Monero addresses can't be tracked from chain data alone. Outputs to an address are encrypted; only someone with the recipient's wallet/view key tooling can scan the chain for them. xmr-space does not build address histories from public chain data.</p>
 
-    <h4>Why no Lightning, accelerator, or RBF?</h4>
-    <p>None apply to Monero. Lightning is a Bitcoin L2 with no equivalent. There's no fee market accelerator on Monero. Replace-by-fee is a Bitcoin policy choice; Monero txs aren't mempool-replaceable in the same way.</p>
+    <h4>Can I verify a payment?</h4>
+    <p>Yes, on <code>/tx/:hash</code>. Public <code>tx_proof</code> checks can use the backend wallet-RPC verifier. Private view-key receive scans and <code>tx_secret_key</code> checks run in the browser with <code>monero-ts</code>; the secrets are not sent to the backend or stored by xmr-space. Subaddress receive scanning from only a subaddress plus private view key is explicitly unsupported, so use <code>tx_secret_key</code> for subaddress payment checks.</p>
+
+    <h4>Why no payment channels or fee-bump tools?</h4>
+    <p>Those upstream wallet and fee-market workflows do not apply to Monero. Monero transactions are not mempool-replaceable in the same way, and this explorer does not offer privileged transaction-priority services.</p>
 
     <h4>What daemon do you talk to?</h4>
     <p>By default <code>https://xmr-node.cakewallet.com:18081</code> — Cake Wallet's public node. Operators can point at any monerod via the <code>MONEROD_RPC_URL</code> environment variable.</p>
 
     <h4>How current is the data?</h4>
-    <p>The backend polls the daemon every 3 seconds. New blocks and mempool deltas are pushed over WebSocket within ~5s of the daemon publishing them. Historical mempool stats are sampled at 1-minute intervals; on a fresh boot the chart fills over the first ~2 hours.</p>
+    <p>The backend polls the daemon every 3 seconds. New blocks and mempool deltas are pushed over WebSocket within ~5s of the daemon publishing them. Mempool stats are sampled at 1-minute intervals and persisted locally so chart history survives backend restarts.</p>
   </section>
 
   <section id="rest">
     <h2>REST API</h2>
-    <p>All endpoints under <code>/api/v1/</code>. JSON responses; no auth.</p>
+    <p>Public endpoints are read-only and require no auth. Most JSON routes live under <code>/api/v1/</code>; a few <code>/api/...</code> aliases exist because the upstream Angular components still call electrs-style URLs.</p>
     <table class="xmr-api-table">
       <thead><tr><th>Method</th><th>Path</th><th>Returns</th></tr></thead>
       <tbody>
-        <tr><td>GET</td><td><code>/api/v1/info</code></td><td>height, difficulty, hashrate, mempool count</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/init-data</code></td><td>the same snapshot shape sent by WebSocket on connect: recent blocks, projected mempool blocks, fee tiers, conversions, and recent transactions</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/info</code></td><td>daemon status, sync height, difficulty, hashrate, mempool count, peers, version, storage</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/difficulty-adjustment</code></td><td>Monero every-block retarget metadata used by the dashboard cards</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/historical-price</code></td><td>latest or timestamped XMR fiat conversion series from the local price-history index</td></tr>
         <tr><td>GET</td><td><code>/api/v1/blocks?count=N</code></td><td>last N block headers (max 25)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/blocks/:height</code></td><td>paginated block list ending at a height, newest first</td></tr>
         <tr><td>GET</td><td><code>/api/v1/block/:hash</code></td><td>block detail (header + tx hashes)</td></tr>
-        <tr><td>GET</td><td><code>/api/v1/tx/:hash</code></td><td>public tx fields (size, fee, ring info, RCT type, …)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/block/:hash/summary</code></td><td>stripped per-tx data for the block visualization</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/block/:hash/txs</code>, <code>/api/block/:hash/txs/:index</code></td><td>upstream-compatible transaction rows with Monero public fields only; values and recipients remain hidden</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/block/:hash/raw</code>, <code>/api/block/:hash/raw</code></td><td>raw Monero block blob from the daemon</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/block/:hash/tx/:txid/summary</code></td><td>single stripped transaction summary for block visualizations</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/tx/:hash</code></td><td>public tx fields in the upstream tx shape, including ring size, key images, and public ring-member heights; amounts/addresses stay hidden</td></tr>
+        <tr><td>GET</td><td><code>/api/tx/:txid/hex</code></td><td>mempool tx blob or confirmed pruned transaction hex</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/tx/:hash/verify-proof</code></td><td>tx_proof verification used by the tx page when monero-wallet-rpc is configured; otherwise 503</td></tr>
         <tr><td>GET</td><td><code>/api/v1/mempool</code></td><td>full mempool snapshot (sorted by fee)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/fees/mempool-blocks</code></td><td>projected mempool blocks in the same shape pushed over WebSocket</td></tr>
         <tr><td>GET</td><td><code>/api/v1/fees/recommended</code></td><td>4-tier fee model</td></tr>
-        <tr><td>GET</td><td><code>/api/v1/statistics/2h</code> (24h, 1w, 1m)</td><td>mempool stats time series</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/statistics/2h</code> (24h, 3d, 1w, 1m)</td><td>persisted 1-minute mempool stats time series for charts</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/hashrate/:period</code></td><td>network hashrate and difficulty history derived from block difficulty</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/blocks/fees/:period</code></td><td>avg fee, reward, subsidy, and indexed fiat columns for mining fee charts</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/blocks/rewards/:period</code></td><td>avg block reward plus indexed fiat columns</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/blocks/fee-rates/:period</code></td><td>per-block fee-rate percentile buckets</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/blocks/sizes-weights/:period</code></td><td>block size and weight series; on Monero, weight equals size</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/difficulty-adjustments/:period</code></td><td>per-block difficulty deltas for the hashrate/difficulty table</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/reward-stats/:blockCount</code></td><td>dashboard reward, fee, and tx totals over an exact recent indexed block window</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/monerod/json_rpc</code>, <code>/api/v1/monerod/:method</code></td><td>same-origin bridge for allowlisted public daemon scan methods used by browser-local verification; rejects wallet/private methods and secret-shaped JSON fields</td></tr>
         <tr><td>GET</td><td><code>/healthz</code></td><td>liveness</td></tr>
       </tbody>
     </table>
     <p>Tx-detail responses NEVER include amounts, recipient addresses, or output one-time keys — RingCT-hidden by design.</p>
+
+    <h4>Compatibility endpoints</h4>
+    <p>Some upstream compatibility components call electrs-style helper URLs. xmr-space keeps the routes that make the live interface work, but upstream UTXO semantics return neutral payloads instead of fake Monero data.</p>
+    <table class="xmr-api-table">
+      <thead><tr><th>Method</th><th>Path</th><th>Monero behavior</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/block-height/:height</code></td><td>plain-text block hash for a height</td></tr>
+        <tr><td>GET</td><td><code>/api/blocks/tip/hash</code>, <code>/api/blocks/tip/height</code></td><td>plain-text current tip hash/height</td></tr>
+        <tr><td>GET</td><td><code>/api/block/:hash/header</code>, <code>/api/v1/block/:hash/header</code></td><td>same Monero block blob as <code>/raw</code>; Monero has no UTXO-chain-style standalone block header hex</td></tr>
+        <tr><td>GET</td><td><code>/api/mempool/recent</code></td><td>recent mempool tx hashes, fees, and sizes; amount is always <code>0</code> because RingCT hides values</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/transaction-times</code></td><td>mempool receive times when known; confirmed/unknown txs return <code>0</code></td></tr>
+        <tr><td>GET</td><td><code>/api/v1/txs/outspends</code>, <code>/api/tx/:txid/outspends</code></td><td>empty arrays; public Monero data cannot label outputs as spent/unspent</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/cpfp/:txid</code>, <code>/api/v1/tx/:txid/rbf</code></td><td>neutral/no-content responses; these are upstream UTXO fee-policy features</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/mining/pools/:period</code>, <code>/api/v1/mining/pool/:slug</code></td><td>best-effort pool stats from visible miner-tx extra markers, with unattributed blocks grouped as <code>Unknown</code></td></tr>
+        <tr><td>GET</td><td><code>/api/v1/accelerations*</code> and related fee-priority aliases</td><td>empty/disabled; Monero has no fee-market priority service in this explorer</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <section id="ws">
@@ -66,7 +108,7 @@
       <li><code>blocks</code> on connect — recent block headers (oldest-first; client reverses)</li>
       <li><code>block</code> on every new tip</li>
       <li><code>mempool-blocks</code> on every mempool change</li>
-      <li><code>mempoolInfo</code>, <code>fees</code>, <code>vBytesPerSecond</code>, <code>transactions</code></li>
+      <li><code>mempoolInfo</code>, <code>fees</code>, <code>bytesPerSecond</code>, <code>transactions</code></li>
       <li><code>projected-block-transactions</code> when subscribed via <code>&#123;"track-mempool-block": 0&#125;</code></li>
     </ul>
   </section>
@@ -85,10 +127,11 @@
   <section id="privacy">
     <h2>Privacy &amp; limitations</h2>
     <ul>
-      <li>Tx-detail reveal flows: keys never touch the server. Recipient (view key) and sender (tx_secret_key) decryption runs locally; only tx_proof verification crosses the wire, and tx_proof signatures are non-secret by design.</li>
-      <li>Fiat conversion: stub today. Real XMR/USD price feed is on the backlog; numbers in the fees-box are illustrative until then.</li>
-      <li>Mining-pool fingerprinting: stub (every block reads "unknown"). Parsing the coinbase <code>extra</code> field for known pool tags is a future iteration.</li>
-      <li>Ring decoy ages: the chain exposes raw delta-encoded global output indices on /tx/:hash. Resolving those to block heights via <code>/get_outs</code> for a "median decoy age" tooltip is on the backlog.</li>
+      <li>Participant proofs: private view keys and tx_secret_key material stay browser-local in the active tx page and are cleared on transaction reset. tx_proof verification can cross the wire because tx_proof signatures are non-secret by design, but it requires a configured monero-wallet-rpc backend.</li>
+      <li>Public daemon bridge: browser-local verification talks to same-origin <code>/api/v1/monerod</code> routes. Those routes allow only public monerod methods and reject secret-shaped JSON fields before proxying.</li>
+      <li>Fiat conversion: current and historical XMR prices are fetched server-side and stored in the local price-history index used by <code>/graphs/price</code> and the mining fee/reward graph fiat series.</li>
+      <li>Mining-pool fingerprinting: best-effort. P2Pool is detected from the public merge-mining tag in coinbase <code>extra</code>; clear-text centralized pool tags are matched when miners publish them, otherwise the block stays <code>unknown</code>.</li>
+      <li>Ring members: xmr-space resolves public ring-member output indices to block heights via <code>/get_outs</code>. This shows decoy age distribution only; it does not reveal which member was actually spent.</li>
       <li>This explorer cannot tell you if you sent or received a tx unless you supply the keys. That's the whole point of Monero.</li>
     </ul>
   </section>

@@ -107,6 +107,7 @@ export namespace IMoneroApi {
     id_hash: string;
     tx_json: string;
     blob_size: number;
+    tx_blob?: string;
     weight: number;
     fee: number;
     receive_time: number;
@@ -156,6 +157,30 @@ export namespace IMoneroApi {
     pruned_as_hex?: string;
     prunable_as_hex?: string;
     prunable_hash?: string;
+  }
+
+  /** Request entry for `/get_outs`, used to resolve ring member heights. */
+  export interface GetOutsRequestOutput {
+    amount: number;
+    index: number;
+  }
+
+  /** Public output metadata returned by `/get_outs`. */
+  export interface GetOutsOutput {
+    height: number;
+    key: string;
+    mask: string;
+    txid?: string;
+    unlocked: boolean;
+  }
+
+  /** Response from `/get_outs` (NB: `/endpoint` call, not JSON-RPC). */
+  export interface GetOutsResponse {
+    credits?: number;
+    outs?: GetOutsOutput[];
+    status: string;
+    top_hash?: string;
+    untrusted: boolean;
   }
 
   /** Decoded payload of `TransactionEntry.as_json`. */

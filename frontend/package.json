@@ -1,22 +1,22 @@
 {
   "name": "mempool-frontend",
   "version": "3.4-dev",
-  "description": "Bitcoin mempool visualizer and blockchain explorer backend",
+  "description": "Monero mempool visualizer and blockchain explorer frontend",
   "license": "GNU Affero General Public License v3.0",
-  "homepage": "https://mempool.space",
+  "homepage": "https://github.com/n0/xmr-space",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mempool/mempool"
+    "url": "git+https://github.com/n0/xmr-space"
   },
   "bugs": {
-    "url": "https://github.com/mempool/mempool/issues"
+    "url": "https://github.com/n0/xmr-space/issues"
   },
   "keywords": [
-    "bitcoin",
+    "monero",
+    "xmr",
     "mempool",
     "blockchain",
-    "explorer",
-    "liquid"
+    "explorer"
   ],
   "main": "index.ts",
   "scripts": {
@@ -35,8 +35,8 @@
     "build": "npm run generate-themes && npm run generate-config && npm run ng -- build --configuration production --localize && npm run sync-assets-dev && npm run sync-assets",
     "generate-themes": "node generate-themes.js",
     "copy-themes": "node generate-themes.js copy",
-    "sync-assets": "npm run copy-themes && rsync -av ./src/resources ./dist/mempool/browser && node sync-assets.js 'dist/mempool/browser/resources/'",
-    "sync-assets-dev": "node sync-assets.js 'src/resources/'",
+    "sync-assets": "npm run copy-themes && node sync-xmr-resources.js 'dist/mempool/browser/resources/'",
+    "sync-assets-dev": "node sync-xmr-resources.js 'src/resources/' --check-source",
     "generate-config": "node generate-config.js",
     "test": "npm run ng -- test",
     "lint": "./node_modules/.bin/eslint . --ext .ts",
@@ -80,10 +80,12 @@
     "@noble/secp256k1": "^3.0.0",
     "@popperjs/core": "^2.11.8",
     "@types/qrcode": "~1.5.0",
+    "assert": "^2.1.0",
     "bootstrap": "~5.3.8",
     "clipboard": "^2.0.11",
     "domino": "^2.1.6",
     "echarts": "~5.4.0",
+    "monero-ts": "^0.11.8",
     "ngx-echarts": "~20.0.2",
     "ngx-infinite-scroll": "^20.0.0",
     "qrcode": "1.5.1",
@@ -112,6 +114,15 @@
     "cypress-wait-until": "^3.0.1",
     "mock-socket": "~9.3.1",
     "start-server-and-test": "~2.1.2"
+  },
+  "browser": {
+    "assert": "assert",
+    "child_process": false,
+    "crypto": false,
+    "fs": false,
+    "http": false,
+    "https": false,
+    "path": false
   },
   "overrides": {
     "tar": "^7.5.5"

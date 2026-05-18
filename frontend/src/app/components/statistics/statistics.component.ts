@@ -64,7 +64,7 @@ export class StatisticsComponent implements OnInit {
     this.inverted = this.storageService.getValue('inverted-graph') === 'true';
     this.setFeeLevelDropdownData();
     this.seoService.setTitle($localize`:@@5d4f792f048fcaa6df5948575d7cb325c9393383:Graphs`);
-    this.seoService.setDescription($localize`:@@meta.description.bitcoin.graphs.mempool:See mempool size (in MvB) and transactions per second (in vB/s) visualized over time.`);
+    this.seoService.setDescription($localize`:@@meta.description.bitcoin.graphs.mempool:See Monero mempool size (in MB) and transaction bytes per second (B/s) visualized over time.`);
     this.stateService.networkChanged$.subscribe((network) => this.network = network);
     this.graphWindowPreference = this.storageService.getValue('graphWindowPreference') ? this.storageService.getValue('graphWindowPreference').trim() : '2h';
     this.outlierCappingEnabled = this.storageService.getValue('cap-outliers') === 'true';
@@ -181,18 +181,10 @@ export class StatisticsComponent implements OnInit {
     _feeLevels.forEach((fee, i) => {
       let range;
       const nextIndex = this.inverted ? i + 1 : i - 1;
-      if (this.stateService.isLiquid()) {
-        if (_feeLevels[nextIndex] == null) {
-          range = `${(_feeLevels[i] / 10).toFixed(1)}+`;
-        } else {
-          range = `${(_feeLevels[i] / 10).toFixed(1)} - ${(_feeLevels[nextIndex] / 10).toFixed(1)}`;
-        }
+      if (_feeLevels[nextIndex] == null) {
+        range = `${_feeLevels[i]}+`;
       } else {
-        if (_feeLevels[nextIndex] == null) {
-          range = `${_feeLevels[i]}+`;
-        } else {
-          range = `${_feeLevels[i]} - ${_feeLevels[nextIndex]}`;
-        }
+        range = `${_feeLevels[i]} - ${_feeLevels[nextIndex]}`;
       }
       if (this.inverted) {
         this.feeLevelDropdownData.push({

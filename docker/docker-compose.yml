@@ -5,6 +5,10 @@ services:
     environment:
       FRONTEND_HTTP_PORT: "8080"
       BACKEND_MAINNET_HTTP_HOST: "api"
+      MEMPOOL_WEBSITE_URL: ""
+      LIQUID_WEBSITE_URL: ""
+      SERVICES_API: "/api/v1/services"
+      ACCELERATOR_BUTTON: "false"
     image: mempool/frontend:latest
     user: "1000:1000"
     restart: on-failure
@@ -20,11 +24,11 @@ services:
       start_period: 20s
   api:
     environment:
-      MEMPOOL_BACKEND: "none"
-      CORE_RPC_HOST: "172.27.0.1"
-      CORE_RPC_PORT: "8332"
-      CORE_RPC_USERNAME: "mempool"
-      CORE_RPC_PASSWORD: "mempool"
+      XMR_HOST: "0.0.0.0"
+      XMR_PORT: "8999"
+      XMR_INDEX_DIR: "/backend/cache"
+      MONEROD_RPC_URL: "https://xmr-node.cakewallet.com:18081"
+      MONEROD_RPC_TIMEOUT_MS: "10000"
       DATABASE_ENABLED: "true"
       DATABASE_HOST: "db"
       DATABASE_DATABASE: "mempool"
@@ -39,7 +43,7 @@ services:
     volumes:
       - ./data:/backend/cache
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8999/api/v1/backend-info | grep -q . || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8999/healthz | grep -q 'xmr-space-backend' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

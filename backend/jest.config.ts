@@ -21,6 +21,7 @@ const config: Config.InitialOptions = {
     '/node_modules/',
     '/__integration_tests__/',
     'test-utils\\.ts$',
+    '\\.smoke\\.ts$',
   ],
 };
 export default config;

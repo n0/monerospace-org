@@ -1,195 +1,272 @@
 <div class="container-xl">
 
   <div class="title-block">
-    <div *ngIf="rbfTransaction && !tx?.status?.confirmed" class="alert alert-mempool" role="alert">
-      <span i18n="transaction.rbf.replacement|RBF replacement">This transaction has been replaced by:</span>
-      <app-truncate [text]="rbfTransaction.txid" [lastChars]="12" [link]="['/tx/' | relativeUrl, rbfTransaction.txid]"></app-truncate>
-    </div>
+    <h1 i18n="shared.transaction">Transaction</h1>
 
-    <ng-container *ngIf="!rbfTransaction || rbfTransaction?.size || tx">
-      <h1 i18n="shared.transaction">Transaction</h1>
-
-      <span class="tx-link">
-        <span class="txid">
-          <app-truncate [text]="txId" [lastChars]="12" [link]="['/tx/' | relativeUrl, txId]">
-            <app-clipboard [text]="txId"></app-clipboard>
-          </app-truncate>
-        </span>
+    <span class="tx-link">
+      <span class="txid">
+        <app-truncate [text]="txId" [lastChars]="12" [link]="['/tx/' | relativeUrl, txId]">
+          <app-clipboard [text]="txId"></app-clipboard>
+        </app-truncate>
       </span>
+    </span>
 
-      <div class="container-buttons">
-        <app-confirmations
-          *ngIf="tx"
-          [chainTip]="latestBlock?.height"
-          [height]="tx?.status?.block_height"
-          [replaced]="replaced"
-          [removed]="this.rbfInfo?.mined && !this.tx?.status?.confirmed"
-          [cached]="isCached"
-        ></app-confirmations>
-      </div>
-    </ng-container>
+    <div class="container-buttons">
+      <app-confirmations
+        *ngIf="tx"
+        [chainTip]="latestBlock?.height"
+        [height]="tx?.status?.block_height"
+        [removed]="false"
+        [cached]="isCached"
+      ></app-confirmations>
+    </div>
   </div>
   <div class="clearfix"></div>
 
-  @if (duplicateTxBlocks) {
-    <div class="box duplicate-tx-alert">
-      <div class="icon-container">
-        <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"></fa-icon>
-      </div>
-      <span>
-        <ng-container i18n="transaction.duplicate.notice|Duplicate transaction notice">
-          This transaction ID appears twice in the blockchain as the coinbase of blocks <a [routerLink]="['/block/' | relativeUrl, duplicateTxBlocks[0]]">{{ duplicateTxBlocks[0] }}</a> and <a [routerLink]="['/block/' | relativeUrl, duplicateTxBlocks[1]]">{{ duplicateTxBlocks[1] }}</a>, due to a bug later mitigated by <a href="https://github.com/bitcoin/bips/blob/master/bip-0030.mediawiki" target="_blank" rel="noopener">BIP-30</a>.
-        </ng-container>
-        <span class="me-3"></span>
-        <a href="https://blog.bitmex.com/bitcoins-duplicate-transactions/" target="_blank" rel="noopener" i18n="transaction.duplicate.read-more|Duplicate transaction read more" style="white-space: nowrap;">Read more</a>
-      </span>
-    </div>
-  }
-
   @if (!error) {
     <app-transaction-details
-      [network]="network"
       [tx]="tx"
       [isLoadingTx]="isLoadingTx"
       [isMobile]="isMobile"
       [transactionTime]="transactionTime"
       [isLoadingFirstSeen]="isLoadingFirstSeen"
       [featuresEnabled]="featuresEnabled"
-      [auditStatus]="auditStatus"
-      [filters]="filters"
-      [miningStats]="miningStats"
-      [pool]="pool"
-      [isAcceleration]="isAcceleration"
-      [acceleratorAvailable]="acceleratorAvailable"
-      [accelerateCtaType]="accelerateCtaType"
-      [notAcceleratedOnLoad]="notAcceleratedOnLoad"
-      [showAccelerationSummary]="showAccelerationSummary"
-      [eligibleForAcceleration]="eligibleForAcceleration"
-      [hasEffectiveFeeRate]="hasEffectiveFeeRate"
-      [cpfpInfo]="cpfpInfo"
-      [hasCpfp]="hasCpfp"
-      [accelerationInfo]="accelerationInfo"
-      [replaced]="replaced"
       [isCached]="isCached"
       [ETA$]="ETA$"
-      (accelerateClicked)="onAccelerateClicked()"
-      (toggleCpfp$)="toggleCpfp()"
     ></app-transaction-details>
   }
 
   <ng-template [ngIf]="!isLoadingTx && !error">
 
-    <!-- CPFP Details -->
-    <ng-container *ngIf="cpfpMode && hasCpfp">
+    <ng-container *ngIf="xmrRingctTx">
       <br>
       <div class="subtitle-block">
         <div class="title">
-          <h2 *ngIf="cpfpInfo?.cluster" i18n="transaction.cluster|Cluster">Cluster</h2>
-          <h2 *ngIf="!cpfpInfo?.cluster" i18n="transaction.related-transactions|CPFP List">Related Transactions</h2>
+          <h2>Payment verification</h2>
         </div>
       </div>
-      <ng-container *ngIf="cpfpInfo?.cluster; else legacyCpfp">
-        <div class="box">
-          <app-cluster-diagram
-            [cluster]="cpfpInfo.cluster" [txid]="tx.txid">
-          </app-cluster-diagram>
+
+      <div class="box xmr-proof-box">
+        <div class="xmr-proof-tabs" role="tablist" aria-label="Monero payment verification mode">
+          <button type="button" class="btn btn-sm" [class.btn-primary]="xmrVerificationMode === 'proof'" [class.btn-outline-info]="xmrVerificationMode !== 'proof'" (click)="setXmrVerificationMode('proof')">tx_proof</button>
+          <button type="button" class="btn btn-sm" [class.btn-primary]="xmrVerificationMode === 'view-key'" [class.btn-outline-info]="xmrVerificationMode !== 'view-key'" (click)="setXmrVerificationMode('view-key')">Received</button>
+          <button type="button" class="btn btn-sm" [class.btn-primary]="xmrVerificationMode === 'tx-secret-key'" [class.btn-outline-info]="xmrVerificationMode !== 'tx-secret-key'" (click)="setXmrVerificationMode('tx-secret-key')">tx_secret_key</button>
         </div>
-      </ng-container>
-      <ng-template #legacyCpfp>
-        <app-cpfp-info [cpfpInfo]="cpfpInfo" [tx]="tx"></app-cpfp-info>
-      </ng-template>
-    </ng-container>
 
-    <!-- Accelerator -->
-    <ng-container *ngIf="!tx?.status?.confirmed && showAccelerationSummary && (ETA$ | async) as eta;">
-      <span id='accelerate' #accelerate class="anchor"></span>
-      <br>
-      <div class="title float-start mb-1">
-        <h2><a [href]="[ isMempoolSpaceBuild ? '/accelerator' : 'https://mempool.space/accelerator']" [target]="isMempoolSpaceBuild ? '' : 'blank'"><app-svg-images name="accelerator" [height]="isMobile ? '35px' : '45px'"></app-svg-images></a></h2>
+        <p id="xmr-proof-help" class="xmr-proof-copy">
+          tx_proof verification uses the backend wallet RPC when configured. Private view keys and tx_secret_key values are checked locally in this browser and are not sent to xmr-space.
+        </p>
+
+        <form
+          *ngIf="xmrVerificationMode === 'proof'"
+          id="xmr-proof-form"
+          class="xmr-proof-form"
+          [attr.aria-busy]="xmrProofStatus === 'loading'"
+          (submit)="$event.preventDefault(); verifyXmrProof()"
+        >
+          <div class="xmr-proof-grid">
+            <div class="xmr-proof-field xmr-proof-address">
+              <label for="xmr-proof-address">Recipient address</label>
+              <input
+                id="xmr-proof-address"
+                type="text"
+                class="form-control"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                placeholder="4... or 8..."
+                [value]="xmrProof.address"
+                (input)="updateXmrProofField('address', $any($event.target).value)"
+              />
+            </div>
+
+            <div class="xmr-proof-field xmr-proof-message">
+              <label for="xmr-proof-message">Message</label>
+              <input
+                id="xmr-proof-message"
+                type="text"
+                class="form-control"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                [attr.maxlength]="xmrProofMessageMaxLength"
+                [value]="xmrProof.message"
+                (input)="updateXmrProofField('message', $any($event.target).value)"
+              />
+            </div>
+
+            <div class="xmr-proof-field xmr-proof-signature">
+              <label for="xmr-proof-signature">tx_proof signature</label>
+              <textarea
+                id="xmr-proof-signature"
+                class="form-control"
+                rows="3"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                [attr.maxlength]="xmrProofSignatureMaxLength"
+                [value]="xmrProof.signature"
+                (input)="updateXmrProofField('signature', $any($event.target).value)"
+              ></textarea>
+            </div>
+
+            <div class="xmr-proof-action">
+              <button type="submit" class="btn btn-primary" [disabled]="xmrProofStatus === 'loading'" aria-controls="xmr-proof-result">
+                @if (xmrProofStatus === 'loading') {
+                  Verifying...
+                } @else {
+                  Verify proof
+                }
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="xmrProofStatus === 'success' && xmrProofResult" id="xmr-proof-result" class="alert alert-success xmr-proof-result" role="status">
+            <div class="xmr-proof-result-title">Proof verified</div>
+            <div class="xmr-proof-result-values">
+              <span *ngIf="xmrProofResult.received !== undefined || xmrProofResult.amount !== undefined">
+                Received
+                <app-amount [satoshis]="xmrProofResult.received ?? xmrProofResult.amount ?? 0"></app-amount>
+              </span>
+              <span *ngIf="xmrProofResult.confirmations !== undefined">{{ xmrProofResult.confirmations | number }} confirmations</span>
+              <span *ngIf="xmrProofResult.in_pool">In mempool</span>
+            </div>
+          </div>
+
+          <div *ngIf="xmrProofStatus === 'error' && xmrProofError" id="xmr-proof-result" class="alert alert-danger xmr-proof-result" role="alert">
+            {{ xmrProofError }}
+          </div>
+        </form>
+
+        <form
+          *ngIf="xmrVerificationMode === 'view-key'"
+          id="xmr-local-receive-form"
+          class="xmr-proof-form"
+          [attr.aria-busy]="xmrLocalStatus === 'loading'"
+          (submit)="$event.preventDefault(); verifyXmrLocalReceive()"
+        >
+          <div class="xmr-proof-grid xmr-proof-grid-local">
+            <div class="xmr-proof-field">
+              <label for="xmr-local-receive-address">Recipient address</label>
+              <input
+                id="xmr-local-receive-address"
+                type="text"
+                class="form-control"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                placeholder="4..."
+                [value]="xmrLocalReceive.address"
+                (input)="updateXmrLocalReceiveField('address', $any($event.target).value)"
+              />
+            </div>
+
+            <div class="xmr-proof-field xmr-proof-secret">
+              <label for="xmr-local-view-key">Private view key</label>
+              <input
+                id="xmr-local-view-key"
+                type="password"
+                class="form-control"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                [attr.maxlength]="64"
+                [value]="xmrLocalReceive.privateViewKey"
+                (input)="updateXmrLocalReceiveField('privateViewKey', $any($event.target).value)"
+              />
+            </div>
+
+            <div class="xmr-proof-action">
+              <button type="submit" class="btn btn-primary" [disabled]="xmrLocalStatus === 'loading'" aria-controls="xmr-local-result">
+                @if (xmrLocalStatus === 'loading') {
+                  Scanning...
+                } @else {
+                  Scan this tx
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <form
+          *ngIf="xmrVerificationMode === 'tx-secret-key'"
+          id="xmr-tx-secret-form"
+          class="xmr-proof-form"
+          [attr.aria-busy]="xmrLocalStatus === 'loading'"
+          (submit)="$event.preventDefault(); verifyXmrTxSecretKey()"
+        >
+          <div class="xmr-proof-grid xmr-proof-grid-local">
+            <div class="xmr-proof-field">
+              <label for="xmr-tx-secret-address">Recipient address</label>
+              <input
+                id="xmr-tx-secret-address"
+                type="text"
+                class="form-control"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                placeholder="4... or 8..."
+                [value]="xmrTxSecret.address"
+                (input)="updateXmrTxSecretField('address', $any($event.target).value)"
+              />
+            </div>
+
+            <div class="xmr-proof-field xmr-proof-secret">
+              <label for="xmr-tx-secret-key">tx_secret_key</label>
+              <textarea
+                id="xmr-tx-secret-key"
+                class="form-control"
+                rows="3"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-describedby="xmr-proof-help"
+                [attr.maxlength]="xmrSecretKeyMaxLength"
+                [value]="xmrTxSecret.txSecretKey"
+                (input)="updateXmrTxSecretField('txSecretKey', $any($event.target).value)"
+              ></textarea>
+            </div>
+
+            <div class="xmr-proof-action">
+              <button type="submit" class="btn btn-primary" [disabled]="xmrLocalStatus === 'loading'" aria-controls="xmr-local-result">
+                @if (xmrLocalStatus === 'loading') {
+                  Checking...
+                } @else {
+                  Check key
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div *ngIf="xmrLocalStatus === 'success' && xmrLocalResult" id="xmr-local-result" class="alert alert-success xmr-proof-result" role="status">
+          <div class="xmr-proof-result-title">Payment found</div>
+          <div class="xmr-proof-result-values">
+            <span *ngIf="xmrLocalResult.received !== undefined">
+              Received
+              <app-amount [satoshis]="xmrLocalResult.received"></app-amount>
+            </span>
+            <span *ngIf="xmrLocalResult.received === undefined && xmrLocalResult.receivedAtomic !== undefined">
+              {{ xmrLocalResult.receivedAtomic }} atomic units
+            </span>
+            <span *ngIf="xmrLocalResult.confirmations !== undefined">{{ xmrLocalResult.confirmations | number }} confirmations</span>
+            <span *ngIf="xmrLocalResult.in_pool">In mempool</span>
+          </div>
+        </div>
+
+        <div *ngIf="xmrLocalStatus === 'error' && xmrLocalError" id="xmr-local-result" class="alert alert-danger xmr-proof-result" role="alert">
+          {{ xmrLocalError }}
+        </div>
       </div>
-      <button type="button" class="btn btn-outline-info accelerator-toggle btn-sm float-end" [class.hide-on-mobile]="hasAccelerationDetails" (click)="closeAccelerator()" i18n="accelerator.hide">Hide accelerator</button>
-      <button *ngIf="hasAccelerationDetails" class="btn btn-sm btn-outline-info details-button float-end ms-2" (click)="showAccelerationDetails = !showAccelerationDetails" i18n="transaction.details|Transaction Details">Details</button>
-
-      <div class="clearfix"></div>
-
-      <app-accelerate-checkout
-        *ngIf="(da$ | async) as da;"
-        [advancedEnabled]="true"
-        [tx]="tx"
-        [accelerating]="isAcceleration"
-        [eta]="eta"
-        [miningStats]="miningStats"
-        [showDetails]="showAccelerationDetails"
-        [noCTA]="true"
-        [partnerCode]="this.partnerCode"
-        (hasDetails)="setHasAccelerationDetails($event)"
-        (completed)="onAccelerationCompleted()"
-        (unavailable)="eligibleForAcceleration = false"
-        class="h-100 w-100"
-      ></app-accelerate-checkout>
     </ng-container>
 
     <br>
-
-    <ng-container *ngIf="rbfInfo">
-      <div class="title float-start">
-        <h2 id="rbf" i18n="transaction.rbf-history|RBF Timeline">RBF Timeline</h2>
-      </div>
-      <div class="clearfix"></div>
-      <app-rbf-timeline [txid]="txId" [replacements]="rbfInfo"></app-rbf-timeline>
-      <br>
-    </ng-container>
-
-    <ng-container *ngIf="transactionTime > 0 && tx.acceleratedAt > 0 && (isAcceleration || accelerationCanceled)">
-      <div class="title float-start">
-        <h2 id="acceleration-timeline" i18n="transaction.acceleration-timeline|Acceleration Timeline">Acceleration Timeline</h2>
-      </div>
-      <div class="clearfix"></div>
-      <app-acceleration-timeline [transactionTime]="transactionTime" [acceleratedAt]="tx.acceleratedAt" [tx]="tx" [accelerationInfo]="accelerationInfo" [eta]="(ETA$ | async)" [canceled]="accelerationCanceled"></app-acceleration-timeline>
-      <br>
-    </ng-container>
-
-    <ng-container *ngIf="flowEnabled; else flowPlaceholder">
-      <div class="title float-start">
-        <h2 id="flow" #flow class="anchor" i18n="transaction.flow|Transaction flow">Flow</h2>
-      </div>
-
-      <button type="button" class="btn btn-outline-info flow-toggle btn-sm float-end" (click)="toggleGraph()" i18n="hide-diagram">Hide diagram</button>
-
-      <div class="clearfix"></div>
-
-      <div class="box">
-        <div class="graph-container" #graphContainer>
-          <tx-bowtie-graph
-            [tx]="tx"
-            [cached]="isCached"
-            [width]="graphWidth"
-            [height]="graphHeight"
-            [lineLimit]="inOutLimit"
-            [maxStrands]="graphExpanded ? maxInOut : 24"
-            [network]="network"
-            [tooltip]="true"
-            [connectors]="true"
-            [inputIndex]="inputIndex" [outputIndex]="outputIndex"
-          >
-          </tx-bowtie-graph>
-        </div>
-        <div class="toggle-wrapper" *ngIf="maxInOut > 24">
-          <button class="btn btn-sm btn-primary graph-toggle" (click)="expandGraph();" *ngIf="!graphExpanded; else collapseBtn"><span i18n="show-more">Show more</span></button>
-          <ng-template #collapseBtn>
-            <button class="btn btn-sm btn-primary graph-toggle" (click)="collapseGraph();"><span i18n="show-less">Show less</span></button>
-          </ng-template>
-        </div>
-      </div>
-
-      <br>
-    </ng-container>
-    <ng-template #flowPlaceholder>
-      <div class="box hidden">
-        <div class="graph-container" #graphContainer>
-        </div>
-      </div>
-    </ng-template>
 
     <div class="subtitle-block">
       <div class="title">
@@ -197,13 +274,12 @@
       </div>
 
       <div class="title-buttons">
-        <button *ngIf="!flowEnabled" type="button" class="btn btn-outline-info flow-toggle btn-sm" (click)="toggleGraph()" i18n="show-diagram">Show diagram</button>
         <button type="button" class="btn btn-outline-info btn-sm" (click)="toggleDetailsFromTxPage()" i18n="transaction.details|Transaction Details">Details</button>
       </div>
     </div>
 
 
-    <app-transactions-list #txList [transactions]="[tx]" [cached]="isCached" [errorUnblinded]="errorUnblinded" [inputIndex]="inputIndex" [outputIndex]="outputIndex" [transactionPage]="true"></app-transactions-list>
+    <app-transactions-list #txList [transactions]="[tx]" [cached]="isCached" [inputIndex]="inputIndex" [outputIndex]="outputIndex" [transactionPage]="true"></app-transactions-list>
 
     <div class="title text-start">
       <h2 i18n="transaction.details|Transaction Details">Details</h2>
@@ -218,20 +294,8 @@
                 <td [innerHTML]="'&lrm;' + (tx.size | bytes: 2)"></td>
               </tr>
               <tr>
-                <td i18n="transaction.vsize|Transaction Virtual Size">Virtual size</td>
-                <td [innerHTML]="'&lrm;' + (tx.weight / 4 | vbytes: 2)"></td>
-              </tr>
-              <tr *ngIf="adjustedVsize != null">
-                <td><ng-container i18n="transaction.adjusted-vsize|Transaction Adjusted VSize">Adjusted vsize</ng-container>
-                  <a class="info-link" [routerLink]="['/docs/faq/' | relativeUrl]" fragment="what-is-adjusted-vsize">
-                    <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"></fa-icon>
-                  </a>
-                </td>
-                <td [innerHTML]="'&lrm;' + (adjustedVsize | vbytes: 2)"></td>
-              </tr>
-              <tr>
                 <td i18n="block.weight">Weight</td>
-                <td [innerHTML]="'&lrm;' + (tx.weight | wuBytes: 2)"></td>
+                <td><span [innerHTML]="'&lrm;' + (tx.weight | bytes: 2)"></span></td>
               </tr>
             </tbody>
           </table>
@@ -247,16 +311,8 @@
                 <td i18n="transaction.locktime">Locktime</td>
                 <td [innerHTML]="'&lrm;' + (tx.locktime | number)"></td>
               </tr>
-              <tr *ngIf="sigops != null">
-                <td><ng-container i18n="transaction.sigops|Transaction Sigops">Sigops</ng-container>
-                  <a class="info-link" [routerLink]="['/docs/faq/' | relativeUrl]" fragment="what-are-sigops">
-                    <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"></fa-icon>
-                  </a>
-                </td>
-                <td [innerHTML]="'&lrm;' + (sigops | number)"></td>
-              </tr>
               <tr>
-                <td i18n="transaction.hex">Transaction hex</td>
+                <td i18n="transaction.blob|Transaction blob label@@transaction.blob">Transaction blob</td>
                 <td><a target="_blank" href="{{ network === '' ? '' : '/' + network }}/api/tx/{{ txId }}/hex"><fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true"></fa-icon></a></td>
               </tr>
             </tbody>
@@ -267,40 +323,8 @@
 
   </ng-template>
 
-  <ng-template [ngIf]="(isLoadingTx && !error) || loadingCachedTx">
+  <ng-template [ngIf]="isLoadingTx && !error">
     <br>
-    <ng-container *ngIf="flowEnabled">
-      <div class="title">
-        <h2 i18n="transaction.flow|Transaction flow">Flow</h2>
-      </div>
-
-      <div class="box">
-        <div class="graph-container" #graphContainer style="visibility: hidden;"></div>
-        <div class="row">
-          <div class="col-sm">
-            <table class="table table-borderless table-striped">
-              <tbody>
-                <tr>
-                  <td><span class="skeleton-loader"></span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="col-sm">
-            <table class="table table-borderless table-striped">
-              <tbody>
-                <tr>
-                  <td><span class="skeleton-loader"></span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <br>
-    </ng-container>
-
     <div class="title">
       <h2 i18n="transaction.inputs-and-outputs|Transaction inputs and outputs">Inputs & Outputs</h2>
     </div>
@@ -377,7 +401,7 @@
 
   </ng-template>
 
-  <ng-template [ngIf]="error && !loadingCachedTx">
+  <ng-template [ngIf]="error">
 
     <div class="text-center" *ngIf="waitingForTransaction; else errorTemplate">
       <h3 i18n="transaction.error.transaction-not-found">Transaction not found.</h3>

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { catchError, map, switchMap, Observable, share, of } from 'rxjs';
-import { ApiService } from '@app/services/api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { SeoService } from '@app/services/seo.service';
 import { OpenGraphService } from '@app/services/opengraph.service';
 import { getFlagEmoji } from '@app/shared/common.utils';
@@ -23,7 +23,7 @@ export class NodesPerISPPreview implements OnInit {
   ogSession: number;
 
   constructor(
-    private apiService: ApiService,
+    private apiService: LightningApiService,
     private seoService: SeoService,
     private openGraphService: OpenGraphService,
     private route: ActivatedRoute,
