@@ -1,0 +1,78 @@
+# syntax=docker/dockerfile:1.7
+
+FROM rust:1.84-bookworm AS backend-builder
+
+WORKDIR /repo
+
+RUN apt-get update && \
+    apt-get install -y curl ca-certificates build-essential python3 pkg-config && \
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y nodejs=24.13.0-1nodesource1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY rust ./rust
+COPY backend/package*.json ./backend/
+
+WORKDIR /repo/backend
+RUN npm ci
+
+COPY backend ./
+RUN npm run build
+RUN npm prune --omit=dev --omit=optional
+
+FROM node:24.13-bookworm-slim AS frontend-builder
+
+ENV CYPRESS_INSTALL_BINARY=0
+
+WORKDIR /repo/frontend
+
+RUN apt-get update && \
+    apt-get install -y build-essential python3 pkg-config rsync && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend ./
+RUN cp mempool-frontend-config.sample.json mempool-frontend-config.json
+RUN npm run build
+
+FROM node:24.13-bookworm-slim AS runtime
+
+RUN apt-get update && \
+    apt-get install -y nginx curl bash ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=backend-builder /repo/backend/dist ./backend/dist
+COPY --from=backend-builder /repo/backend/node_modules ./backend/node_modules
+COPY --from=backend-builder /repo/backend/package.json ./backend/package.json
+COPY --from=backend-builder /repo/backend/mempool-config.sample.json ./backend/mempool-config.json
+COPY --from=frontend-builder /repo/frontend/dist/mempool /usr/share/nginx/html
+COPY deploy/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/start.sh /usr/local/bin/monerospace-start
+
+RUN chmod +x /usr/local/bin/monerospace-start && \
+    mkdir -p /data/xmr /run/nginx /var/cache/nginx && \
+    chown -R node:node /app /data /run/nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html
+
+ENV MEMPOOL_CONFIG_FILE=/app/backend/mempool-config.json
+ENV XMR_HOST=127.0.0.1
+ENV XMR_PORT=8999
+ENV XMR_INDEX_DIR=/data/xmr
+ENV XMR_DATABASE_ENABLED=false
+ENV DATABASE_ENABLED=false
+ENV MONEROD_RPC_URL=https://xmr-node.cakewallet.com:18081
+ENV MONEROD_RPC_TIMEOUT_MS=10000
+ENV XMR_POLL_MS=5000
+ENV XMR_PRICE_BACKFILL_ON_DEMAND=false
+ENV NODE_MAX_OLD_SPACE_SIZE=2048
+
+EXPOSE 80
+
+CMD ["monerospace-start"]
+

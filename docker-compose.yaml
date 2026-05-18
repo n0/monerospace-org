@@ -1,0 +1,31 @@
+services:
+  monerospace:
+    build:
+      context: .
+      dockerfile: Dockerfile.coolify
+    restart: unless-stopped
+    expose:
+      - "80"
+    environment:
+      XMR_HOST: "127.0.0.1"
+      XMR_PORT: "8999"
+      XMR_INDEX_DIR: "/data/xmr"
+      XMR_POLL_MS: "5000"
+      MONEROD_RPC_URL: "${MONEROD_RPC_URL:-https://xmr-node.cakewallet.com:18081}"
+      MONEROD_RPC_TIMEOUT_MS: "10000"
+      XMR_DATABASE_ENABLED: "false"
+      DATABASE_ENABLED: "false"
+      XMR_PRICE_BACKFILL_ON_DEMAND: "false"
+      NODE_MAX_OLD_SPACE_SIZE: "2048"
+    volumes:
+      - monerospace-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/healthz | grep -q xmr-space-backend"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  monerospace-data:
+
