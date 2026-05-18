@@ -1,6 +1,7 @@
 import memoryCache from '../memory-cache';
 import { IMoneroApi, MoneroDaemonConfig } from './monero-api.interface';
 import { MoneroRpc } from './monero-rpc';
+import { createHash } from 'crypto';
 
 /**
  * High-level monerod accessor with per-call server-side caching. The cache
@@ -291,7 +292,7 @@ export class MoneroApi {
     if (txHashes.length === 0) {
       return [];
     }
-    const cacheKey = blockHash;
+    const cacheKey = `${blockHash}:${hashTxSet(txHashes)}`;
     const cached = memoryCache.get<ReturnType<MoneroApi['getBlockStrippedTxs']> extends Promise<infer R> ? R : never>('xmr-block-stripped', cacheKey);
     if (cached) {
       return cached;
@@ -351,6 +352,12 @@ export class MoneroApi {
     memoryCache.set('xmr', 'fees', fees, 10);
     return fees;
   }
+}
+
+function hashTxSet(txHashes: string[]): string {
+  return createHash('sha256')
+    .update(txHashes.join(','))
+    .digest('hex');
 }
 
 /**

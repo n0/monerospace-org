@@ -786,7 +786,7 @@ export class MoneroRoutes {
     }
     try {
       const block = await this.api.getBlockByHash(hash);
-      const txHashes = block.tx_hashes ?? [];
+      const txHashes = [block.miner_tx_hash, ...(block.tx_hashes ?? [])];
       const stripped = txHashes.length
         ? await this.api.getBlockStrippedTxs(block.block_header.hash, txHashes, block.block_header.timestamp)
         : [];
@@ -816,7 +816,7 @@ export class MoneroRoutes {
     }
     try {
       const block = await this.api.getBlockByHash(hash);
-      const txHashes = block.tx_hashes ?? [];
+      const txHashes = [block.miner_tx_hash, ...(block.tx_hashes ?? [])];
       if (!txHashes.includes(txid)) {
         handleError(req, res, 404, 'tx not found in block');
         return;
