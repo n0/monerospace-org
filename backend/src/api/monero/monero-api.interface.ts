@@ -41,6 +41,8 @@ export namespace IMoneroApi {
     database_size?: number;
     update_available?: boolean;
     version?: string;
+    busy_syncing?: boolean;
+    synchronized?: boolean;
     status: string;
   }
 
@@ -212,8 +214,19 @@ export interface MoneroRpcError {
 /** Configured target daemon — typically derived from env. */
 export interface MoneroDaemonConfig {
   rpcUrl: string;
+  fallbackRpcUrls?: string[];
   rpcUser?: string;
   rpcPassword?: string;
   /** Per-request timeout in ms. */
   timeoutMs: number;
+  /**
+   * When a fallback is configured, require the primary daemon to be synced
+   * before routing reads to it. This keeps a bootstrapping local node from
+   * serving stale early-chain data while it catches up.
+   */
+  requirePrimarySync?: boolean;
+  /** Max tolerated primary height lag when requirePrimarySync is enabled. */
+  maxPrimaryHeightLag?: number;
+  /** How often to re-check primary daemon sync/health before using fallback. */
+  primaryHealthCheckIntervalMs?: number;
 }

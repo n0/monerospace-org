@@ -1,6 +1,6 @@
 import memoryCache from '../memory-cache';
 import { IMoneroApi, MoneroDaemonConfig } from './monero-api.interface';
-import { MoneroRpc } from './monero-rpc';
+import { MoneroRpcPool } from './monero-rpc';
 import { createHash } from 'crypto';
 
 /**
@@ -22,10 +22,10 @@ import { createHash } from 'crypto';
  * have wallet endpoints exposed and we never proxy them.
  */
 export class MoneroApi {
-  private rpc: MoneroRpc;
+  private rpc: MoneroRpcPool;
 
   constructor(config: MoneroDaemonConfig) {
-    this.rpc = new MoneroRpc(config);
+    this.rpc = new MoneroRpcPool(config);
   }
 
   /** Daemon info: height, hashrate-derivable difficulty, mempool size, version. */
@@ -366,12 +366,35 @@ function hashTxSet(txHashes: string[]): string {
  * construct their own instance against a mock URL.
  */
 export function moneroApiFromEnv(env: NodeJS.ProcessEnv = process.env): MoneroApi {
+  return new MoneroApi(moneroDaemonConfigFromEnv(env));
+}
+
+export function moneroDaemonConfigFromEnv(env: NodeJS.ProcessEnv = process.env): MoneroDaemonConfig {
   const rpcUrl = env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081';
   const timeoutMs = Number(env.MONEROD_RPC_TIMEOUT_MS ?? 10_000);
-  return new MoneroApi({
+  const fallbackRpcUrls = parseRpcUrls(env.MONEROD_RPC_FALLBACK_URLS ?? env.MONEROD_RPC_FALLBACK_URL);
+  return {
     rpcUrl,
+    fallbackRpcUrls,
     rpcUser: env.MONEROD_RPC_USER,
     rpcPassword: env.MONEROD_RPC_PASSWORD,
     timeoutMs,
-  });
+    requirePrimarySync: parseBool(env.MONEROD_RPC_REQUIRE_SYNC, fallbackRpcUrls.length > 0),
+    maxPrimaryHeightLag: Number(env.MONEROD_RPC_MAX_HEIGHT_LAG ?? 10),
+    primaryHealthCheckIntervalMs: Number(env.MONEROD_RPC_HEALTH_INTERVAL_MS ?? 15_000),
+  };
+}
+
+function parseRpcUrls(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function parseBool(raw: string | undefined, fallback: boolean): boolean {
+  if (raw === undefined || raw.trim() === '') {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
 }

@@ -15,7 +15,7 @@
  */
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
-import { moneroApiFromEnv } from './monero-api';
+import { MoneroApi, moneroDaemonConfigFromEnv } from './monero-api';
 import { MoneroRoutes } from './monero.routes';
 import { MoneroEventBus } from './monero-event-bus';
 import { MoneroSseRoutes } from './monero-sse.routes';
@@ -49,17 +49,12 @@ function main(): void {
     res.json({ ok: true, service: 'xmr-space-backend' });
   });
 
-  const api = moneroApiFromEnv();
+  const daemonConfig = moneroDaemonConfigFromEnv();
+  const api = new MoneroApi(daemonConfig);
   const walletRpc = moneroWalletRpcFromEnv();
 
-  const rpcUrl = process.env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081';
   const bus = new MoneroEventBus(
-    {
-      rpcUrl,
-      rpcUser: process.env.MONEROD_RPC_USER,
-      rpcPassword: process.env.MONEROD_RPC_PASSWORD,
-      timeoutMs: Number(process.env.MONEROD_RPC_TIMEOUT_MS ?? 10_000),
-    },
+    daemonConfig,
     Number(process.env.XMR_POLL_MS ?? 3000),
   );
   bus.on('error', (err) => {
@@ -101,7 +96,11 @@ function main(): void {
     // eslint-disable-next-line no-console
     console.log(`[xmr-space] listening on http://${host}:${port}`);
     // eslint-disable-next-line no-console
-    console.log(`[xmr-space] daemon: ${process.env.MONEROD_RPC_URL ?? 'https://xmr-node.cakewallet.com:18081'}`);
+    console.log(`[xmr-space] daemon: ${daemonConfig.rpcUrl}`);
+    if (daemonConfig.fallbackRpcUrls?.length) {
+      // eslint-disable-next-line no-console
+      console.log(`[xmr-space] daemon fallback: ${daemonConfig.fallbackRpcUrls.join(', ')}`);
+    }
     // eslint-disable-next-line no-console
     console.log(`[xmr-space] wallet-rpc proofs: ${walletRpc ? 'enabled' : 'disabled (set MONERO_WALLET_RPC_URL)'}`);
   });

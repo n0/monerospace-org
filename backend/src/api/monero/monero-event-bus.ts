@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { IMoneroApi, MoneroDaemonConfig } from './monero-api.interface';
-import { MoneroRpc } from './monero-rpc';
+import { MoneroRpcPool } from './monero-rpc';
 
 /**
  * Polls monerod and emits high-level events. Bypasses the per-call cache
@@ -24,7 +24,7 @@ import { MoneroRpc } from './monero-rpc';
  * handles all SSE connections.
  */
 export class MoneroEventBus extends EventEmitter {
-  private rpc: MoneroRpc;
+  private rpc: MoneroRpcPool;
   private pollMs: number;
   private timer: NodeJS.Timeout | null = null;
   private lastHeight: number | null = null;
@@ -38,7 +38,7 @@ export class MoneroEventBus extends EventEmitter {
     // Bump max listeners — every SSE connection adds 2 (block + mempool).
     // Default of 10 trips alarms when more than ~5 dashboards are open.
     this.setMaxListeners(0);
-    this.rpc = new MoneroRpc(config);
+    this.rpc = new MoneroRpcPool(config);
     this.pollMs = pollMs;
   }
 

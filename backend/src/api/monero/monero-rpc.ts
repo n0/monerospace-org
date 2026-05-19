@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { MoneroDaemonConfig, MoneroRpcError } from './monero-api.interface';
+import { IMoneroApi, MoneroDaemonConfig, MoneroRpcError } from './monero-api.interface';
 
 const RPC_RETRIES = Math.max(0, Number(process.env.MONEROD_RPC_RETRIES ?? 2));
 const RPC_RETRY_BACKOFF_MS = Math.max(0, Number(process.env.MONEROD_RPC_RETRY_BACKOFF_MS ?? 500));
@@ -19,10 +19,12 @@ const RPC_RETRY_BACKOFF_MS = Math.max(0, Number(process.env.MONEROD_RPC_RETRY_BA
  */
 export class MoneroRpc {
   private client: AxiosInstance;
+  public readonly rpcUrl: string;
 
   constructor(private config: MoneroDaemonConfig) {
+    this.rpcUrl = config.rpcUrl.replace(/\/$/, '');
     this.client = axios.create({
-      baseURL: config.rpcUrl.replace(/\/$/, ''),
+      baseURL: this.rpcUrl,
       timeout: config.timeoutMs,
       headers: { 'Content-Type': 'application/json' },
       auth: config.rpcUser && config.rpcPassword
@@ -92,6 +94,125 @@ export class MoneroRpc {
   }
 }
 
+/**
+ * Sync-aware primary/fallback transport. The primary is normally the local
+ * monerod; the fallback is a public daemon used while the local node is still
+ * syncing or briefly unavailable.
+ */
+export class MoneroRpcPool {
+  private primary: MoneroRpc;
+  private fallbacks: MoneroRpc[];
+  private primaryUsable: boolean | null = null;
+  private primaryCheckedAt = 0;
+  private lastWarning = '';
+  private lastWarningAt = 0;
+
+  constructor(private config: MoneroDaemonConfig) {
+    this.primary = new MoneroRpc(config);
+    this.fallbacks = (config.fallbackRpcUrls ?? [])
+      .filter((url) => url.trim().length > 0)
+      .map((rpcUrl) => new MoneroRpc({
+        ...config,
+        rpcUrl,
+        fallbackRpcUrls: [],
+        rpcUser: undefined,
+        rpcPassword: undefined,
+        requirePrimarySync: false,
+      }));
+  }
+
+  public async jsonRpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+    return this.withFallback((rpc) => rpc.jsonRpc<T>(method, params), `json-rpc ${method}`);
+  }
+
+  public async raw<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+    return this.withFallback((rpc) => rpc.raw<T>(path, body), `raw ${path}`);
+  }
+
+  public async rawBytes(path: string, body: Buffer | Uint8Array): Promise<{ data: Buffer; contentType: string }> {
+    return this.withFallback((rpc) => rpc.rawBytes(path, body), `raw-bytes ${path}`);
+  }
+
+  private async withFallback<T>(call: (rpc: MoneroRpc) => Promise<T>, label: string): Promise<T> {
+    const selected = await this.selectRpc();
+    try {
+      return await call(selected);
+    } catch (err) {
+      const fallback = this.fallbacks[0];
+      if (selected === this.primary && fallback) {
+        this.primaryUsable = false;
+        this.primaryCheckedAt = Date.now();
+        this.warn(`primary ${this.primary.rpcUrl} failed ${label}; using fallback ${fallback.rpcUrl}: ${formatError(err)}`);
+        return call(fallback);
+      }
+      throw err;
+    }
+  }
+
+  private async selectRpc(): Promise<MoneroRpc> {
+    const fallback = this.fallbacks[0];
+    if (!fallback) {
+      return this.primary;
+    }
+    if (!this.config.requirePrimarySync) {
+      return this.primary;
+    }
+    return await this.isPrimaryUsable() ? this.primary : fallback;
+  }
+
+  private async isPrimaryUsable(): Promise<boolean> {
+    const now = Date.now();
+    const interval = Math.max(1_000, this.config.primaryHealthCheckIntervalMs ?? 15_000);
+    if (this.primaryUsable !== null && now - this.primaryCheckedAt < interval) {
+      return this.primaryUsable;
+    }
+
+    this.primaryCheckedAt = now;
+    try {
+      const info = await this.primary.jsonRpc<IMoneroApi.Info>('get_info');
+      const status = daemonSyncStatus(info, this.config.maxPrimaryHeightLag ?? 10);
+      this.primaryUsable = status.usable;
+      if (!status.usable) {
+        this.warn(`primary ${this.primary.rpcUrl} not ready (${status.reason}); using fallback ${this.fallbacks[0]?.rpcUrl}`);
+      }
+      return status.usable;
+    } catch (err) {
+      this.primaryUsable = false;
+      this.warn(`primary ${this.primary.rpcUrl} health check failed; using fallback ${this.fallbacks[0]?.rpcUrl}: ${formatError(err)}`);
+      return false;
+    }
+  }
+
+  private warn(message: string): void {
+    const now = Date.now();
+    if (message === this.lastWarning && now - this.lastWarningAt < 60_000) {
+      return;
+    }
+    this.lastWarning = message;
+    this.lastWarningAt = now;
+    // eslint-disable-next-line no-console
+    console.warn(`[xmr-space] monerod fallback: ${message}`);
+  }
+}
+
+function daemonSyncStatus(info: IMoneroApi.Info, maxLag: number): { usable: boolean; reason: string } {
+  if (info.status && info.status !== 'OK') {
+    return { usable: false, reason: `status=${info.status}` };
+  }
+  if (info.busy_syncing === true) {
+    return { usable: false, reason: 'busy_syncing=true' };
+  }
+  if (info.synchronized === false) {
+    return { usable: false, reason: 'synchronized=false' };
+  }
+  const height = Number(info.height ?? 0);
+  const targetHeight = Number(info.target_height ?? 0);
+  if (targetHeight > 0 && height + maxLag < targetHeight) {
+    return { usable: false, reason: `height=${height}, target_height=${targetHeight}` };
+  }
+  return { usable: true, reason: 'ready' };
+}
+
 function isTransientRpcError(err: unknown): boolean {
   if (!axios.isAxiosError(err)) {
     return false;
@@ -109,4 +230,12 @@ function isTransientRpcError(err: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status ? ` HTTP ${err.response.status}` : '';
+    return `${err.code ?? 'axios'}${status} ${err.message}`.trim();
+  }
+  return err instanceof Error ? err.message : String(err);
 }

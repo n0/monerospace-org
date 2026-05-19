@@ -40,7 +40,7 @@
     <p>Those upstream wallet and fee-market workflows do not apply to Monero. Monero transactions are not mempool-replaceable in the same way, and this explorer does not offer privileged transaction-priority services.</p>
 
     <h4>What daemon do you talk to?</h4>
-    <p>By default <code>https://xmr-node.cakewallet.com:18081</code> — Cake Wallet's public node. Operators can point at any monerod via the <code>MONEROD_RPC_URL</code> environment variable.</p>
+    <p>The production Docker Compose setup prefers a private local <code>monerod</code> and uses <code>https://xmr-node.cakewallet.com:18081</code> as a fallback while the local node is syncing or unhealthy. Operators can point at any monerod via the <code>MONEROD_RPC_URL</code> environment variable and configure fallbacks with <code>MONEROD_RPC_FALLBACK_URLS</code>.</p>
 
     <h4>How current is the data?</h4>
     <p>The backend polls the daemon every 3 seconds. New blocks and mempool deltas are pushed over WebSocket within ~5s of the daemon publishing them. Mempool stats are sampled at 1-minute intervals and persisted locally so chart history survives backend restarts.</p>

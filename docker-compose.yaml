@@ -8,6 +8,7 @@ services:
       - "80"
     networks:
       - coolify
+      - monerospace-internal
     labels:
       caddy_0: "https://monerospace.org"
       caddy_0.encode: "zstd gzip"
@@ -55,7 +56,11 @@ services:
       XMR_PORT: "8999"
       XMR_INDEX_DIR: "/data/xmr"
       XMR_POLL_MS: "5000"
-      MONEROD_RPC_URL: "${MONEROD_RPC_URL:-https://xmr-node.cakewallet.com:18081}"
+      MONEROD_RPC_URL: "${MONEROD_RPC_URL:-http://monerod:18089}"
+      MONEROD_RPC_FALLBACK_URLS: "${MONEROD_RPC_FALLBACK_URLS:-https://xmr-node.cakewallet.com:18081}"
+      MONEROD_RPC_REQUIRE_SYNC: "${MONEROD_RPC_REQUIRE_SYNC:-true}"
+      MONEROD_RPC_MAX_HEIGHT_LAG: "${MONEROD_RPC_MAX_HEIGHT_LAG:-10}"
+      MONEROD_RPC_HEALTH_INTERVAL_MS: "${MONEROD_RPC_HEALTH_INTERVAL_MS:-15000}"
       MONEROD_RPC_TIMEOUT_MS: "10000"
       MONEROD_RPC_RETRIES: "3"
       MONEROD_RPC_RETRY_BACKOFF_MS: "750"
@@ -75,9 +80,38 @@ services:
       retries: 5
       start_period: 60s
 
+  monerod:
+    image: ghcr.io/sethforprivacy/simple-monerod:latest
+    restart: unless-stopped
+    command:
+      - "--rpc-restricted-bind-ip=0.0.0.0"
+      - "--rpc-restricted-bind-port=18089"
+      - "--no-igd"
+      - "--no-zmq"
+      - "--enable-dns-blocklist"
+      - "--ban-list=/home/monero/ban_list.txt"
+      - "--prune-blockchain"
+      - "--sync-pruned-blocks"
+    expose:
+      - "18089"
+    ports:
+      - "18080:18080"
+    networks:
+      - monerospace-internal
+    volumes:
+      - monerod-data:/home/monero/.bitmonero
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/monerod status >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 20s
+      retries: 5
+      start_period: 120s
+
 volumes:
   monerospace-data:
+  monerod-data:
 
 networks:
   coolify:
     external: true
+  monerospace-internal:
