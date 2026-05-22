@@ -940,6 +940,7 @@ describe('XMR routing contract', () => {
       cy.get('app-dashboard').contains('Minimum fee').should('be.visible');
       cy.get('app-dashboard').contains('ɱ/B').should('be.visible');
       cy.get('app-fees-box').contains('ɱ/B').should('be.visible');
+      cy.contains('app-difficulty .widget-toggler a', 'rewards').click();
       cy.get('app-reward-stats').within(() => {
         cy.contains('Avg Block Fees').should('be.visible');
         cy.contains('Avg Tx Fee').should('be.visible');

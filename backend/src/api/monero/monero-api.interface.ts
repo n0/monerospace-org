@@ -137,7 +137,7 @@ export namespace IMoneroApi {
     /** Atomic-units per byte. */
     fee: number;
     quantization_mask: number;
-    /** 4-tier multipliers: [slow, normal, fast, fastest]. Apply against `fee`. */
+    /** Atomic-units per byte: [slow, normal, fast, fastest]. */
     fees?: [number, number, number, number];
     status: string;
     untrusted: boolean;

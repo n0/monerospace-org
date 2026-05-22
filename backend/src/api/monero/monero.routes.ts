@@ -2,7 +2,7 @@ import express, { Application, Request, Response } from 'express';
 import { handleError } from '../../utils/api';
 import logger from '../../logger';
 import { MoneroApi } from './monero-api';
-import { MoneroWs } from './monero-ws';
+import { MoneroWs, shapeXmrRecommendedFees } from './monero-ws';
 import { IMoneroApi } from './monero-api.interface';
 import { getXmrPriceConversion } from './xmr-price';
 import { MoneroWalletRpc } from './monero-wallet-rpc';
@@ -1139,18 +1139,22 @@ export class MoneroRoutes {
   /**
    * GET /api/v1/fees/recommended — Monero's 4-tier fee model.
    *
-   * Returns `{ slow, normal, fast, fastest }` in atomic units per byte.
-   * Frontend uses these directly for the fee-tier color buckets.
+   * Returns mempool-derived upstream fee tiers in atomic units per byte,
+   * plus Monero priority aliases for API consumers.
    */
   private async getFeesRecommended(req: Request, res: Response): Promise<void> {
     try {
-      const fees = await this.api.getFeeEstimate();
-      const tiers = fees.fees ?? [fees.fee, fees.fee, fees.fee, fees.fee];
+      const [fees, pool] = await Promise.all([
+        this.api.getFeeEstimate(),
+        this.api.getTransactionPool(),
+      ]);
+      const recommendations = shapeXmrRecommendedFees(pool, fees);
       res.json({
-        slow: tiers[0],
-        normal: tiers[1],
-        fast: tiers[2],
-        fastest: tiers[3],
+        ...recommendations,
+        slow: recommendations.economyFee,
+        normal: recommendations.hourFee,
+        fast: recommendations.halfHourFee,
+        fastest: recommendations.fastestFee,
         quantization_mask: fees.quantization_mask,
       });
     } catch (err) {

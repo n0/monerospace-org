@@ -336,9 +336,9 @@ export class MoneroApi {
   }
 
   /**
-   * Monero's 4-tier fee model. Returns the base atomic-per-byte fee plus a
-   * `fees` array `[slow, normal, fast, fastest]` of multipliers — the
-   * frontend uses this directly for the fee-tier color buckets.
+   * Monero's daemon fee estimate. Returns the base atomic-per-byte fee plus
+   * a `fees` array `[slow, normal, fast, fastest]`. The websocket layer uses
+   * this as a floor, then derives the displayed tiers from the live mempool.
    *
    * `grace_blocks=10` mirrors the wallet default and produces a slightly
    * more conservative slow tier.

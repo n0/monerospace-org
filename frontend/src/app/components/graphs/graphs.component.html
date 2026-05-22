@@ -11,6 +11,8 @@
       <!-- xmr-space: pool ranking is best-effort from miner-tx extra
            fingerprints. Pool dominance remains stripped until the
            historical attribution series is complete enough to be honest. -->
+      <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/mining/pools' | relativeUrl]"
+        i18n="mining.pools">Pools Ranking</a>
       <a class="dropdown-item" routerLinkActive="active"
         [routerLink]="['/graphs/mining/hashrate-difficulty' | relativeUrl]" i18n="mining.hashrate-difficulty">Hashrate & Difficulty</a>
       <a class="dropdown-item" routerLinkActive="active" [routerLink]="['/graphs/mining/block-fee-rates' | relativeUrl]"

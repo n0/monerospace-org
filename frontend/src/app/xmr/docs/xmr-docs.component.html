@@ -68,7 +68,7 @@
         <tr><td>POST</td><td><code>/api/v1/tx/:hash/verify-proof</code></td><td>tx_proof verification used by the tx page when monero-wallet-rpc is configured; otherwise 503</td></tr>
         <tr><td>GET</td><td><code>/api/v1/mempool</code></td><td>full mempool snapshot (sorted by fee)</td></tr>
         <tr><td>GET</td><td><code>/api/v1/fees/mempool-blocks</code></td><td>projected mempool blocks in the same shape pushed over WebSocket</td></tr>
-        <tr><td>GET</td><td><code>/api/v1/fees/recommended</code></td><td>4-tier fee model</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/fees/recommended</code></td><td>mempool-derived 4-tier fee model</td></tr>
         <tr><td>GET</td><td><code>/api/v1/statistics/2h</code> (24h, 3d, 1w, 1m)</td><td>persisted 1-minute mempool stats time series for charts</td></tr>
         <tr><td>GET</td><td><code>/api/v1/mining/hashrate/:period</code></td><td>network hashrate and difficulty history derived from block difficulty</td></tr>
         <tr><td>GET</td><td><code>/api/v1/mining/blocks/fees/:period</code></td><td>avg fee, reward, subsidy, and indexed fiat columns for mining fee charts</td></tr>

@@ -5,7 +5,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import { MoneroApi } from '../monero-api';
 import { MoneroEventBus } from '../monero-event-bus';
 import { IMoneroApi } from '../monero-api.interface';
-import { MoneroWs } from '../monero-ws';
+import { MoneroWs, shapeXmrRecommendedFees } from '../monero-ws';
 
 function header(height: number, hash = height.toString(16).padStart(64, '0')): IMoneroApi.BlockHeader {
   return {
@@ -211,6 +211,54 @@ describe('MoneroWs', () => {
     expect(blocks).toHaveLength(2);
     expect(blocks[0]).toMatchObject({ blockVSize: 400_000, nTx: 1 });
     expect(blocks[1]).toMatchObject({ blockVSize: 450_000, nTx: 2 });
+  });
+
+  it('derives recommended fees from live Monero mempool rates', () => {
+    const recommendations = shapeXmrRecommendedFees({
+      transactions: [
+        mempoolTx('1', 1_000, 20_000),
+        mempoolTx('2', 1_500, 80_000),
+        mempoolTx('3', 2_000, 320_000),
+      ],
+      status: 'OK',
+      untrusted: false,
+    }, {
+      fee: 20_000,
+      fees: [20_000, 80_000, 320_000, 4_000_000],
+      quantization_mask: 10_000,
+      status: 'OK',
+      untrusted: false,
+    });
+
+    expect(recommendations).toEqual({
+      minimumFee: 20_000,
+      economyFee: 20_000,
+      hourFee: 80_000,
+      halfHourFee: 320_000,
+      fastestFee: 320_000,
+    });
+  });
+
+  it('uses the daemon slow tier as the floor when the Monero mempool is empty', () => {
+    const recommendations = shapeXmrRecommendedFees({
+      transactions: [],
+      status: 'OK',
+      untrusted: false,
+    }, {
+      fee: 20_000,
+      fees: [20_000, 80_000, 320_000, 4_000_000],
+      quantization_mask: 10_000,
+      status: 'OK',
+      untrusted: false,
+    });
+
+    expect(recommendations).toEqual({
+      minimumFee: 20_000,
+      economyFee: 20_000,
+      hourFee: 20_000,
+      halfHourFee: 20_000,
+      fastestFee: 20_000,
+    });
   });
 
   it('serializes block broadcasts so slow RPC fetches cannot reorder tips', async () => {

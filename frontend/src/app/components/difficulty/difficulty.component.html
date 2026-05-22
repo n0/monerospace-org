@@ -1,5 +1,9 @@
 <div *ngIf="showTitle && mode === 'difficulty'" class="main-title" i18n="dashboard.difficulty-adjustment">Difficulty Adjustment</div>
 <div *ngIf="!isMonero && showTitle && mode === 'halving'" class="main-title" i18n="dashboard.halving-countdown">Halving Countdown</div>
+<div *ngIf="isMonero && showTitle && mode === 'rewards'" class="main-title">
+  <span [attr.data-cy]="'reward-stats'" i18n="mining.reward-stats">Reward stats</span>&nbsp;
+  <span style="font-size: xx-small" i18n="mining.144-blocks">(144 blocks)</span>
+</div>
 <div class="card-wrapper">
   <div class="card">
     <div class="widget-toggler" *ngIf="!isMonero">
@@ -9,7 +13,14 @@
       <a href="" (click)="setMode('halving')" class="toggler-option"
         [ngClass]="{'inactive': mode === 'halving'}"><small i18n="statistics.median-small">halving</small></a>
     </div>
-    <div *ngIf="mode === 'difficulty'; else halving" class="card-body more-padding">
+    <div class="widget-toggler" *ngIf="isMonero">
+      <a href="" (click)="setMode('difficulty')" class="toggler-option"
+        [ngClass]="{'inactive': mode === 'difficulty'}"><small>difficulty</small></a>
+      <span style="color: var(--transparent-fg); font-size: 8px"> | </span>
+      <a href="" (click)="setMode('rewards')" class="toggler-option"
+        [ngClass]="{'inactive': mode === 'rewards'}"><small>rewards</small></a>
+    </div>
+    <div *ngIf="mode === 'difficulty'; else alternatePanel" class="card-body more-padding">
       <div class="difficulty-adjustment-container" *ngIf="(isLoadingWebSocket$ | async) === false && (difficultyEpoch$ | async) as epochData; else loadingDifficulty">
         <div class="epoch-progress">
           <svg #epochSvg class="epoch-blocks" height="22px" width="100%" viewBox="0 0 224 9" shape-rendering="crispEdges" preserveAspectRatio="none">
@@ -83,6 +94,14 @@
     </div>
   </div>
 </div>
+
+<ng-template #alternatePanel>
+  <ng-container *ngIf="isMonero; else halving">
+    <div class="card-body more-padding reward-stats-panel">
+      <app-reward-stats></app-reward-stats>
+    </div>
+  </ng-container>
+</ng-template>
 
 <ng-template #halving>
   <div class="card-body more-padding">

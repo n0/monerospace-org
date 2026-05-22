@@ -1,13 +1,13 @@
 <div class="fee-estimation-wrapper" *ngIf="(isLoading$ | async) === false && (recommendedFees$ | async) as recommendedFees; else loadingFees">
   <div class="d-flex">
     <div class="fee-progress-bar" [style.background]="noPriority">
-      <span class="fee-label" i18n="fees-box.no-priority" i18n-ngbTooltip="Transaction feerate tooltip (economy)" ngbTooltip="Either 2x the minimum, or the Low Priority rate (whichever is lower)" placement="top">No Priority</span>
+      <span class="fee-label" i18n="fees-box.no-priority" i18n-ngbTooltip="Transaction feerate tooltip (economy)" ngbTooltip="Daemon floor or lowest observed current mempool rate" placement="top">No Priority</span>
     </div>
     <div class="band-separator fill"></div>
     <div class="fee-progress-bar priority" [style.background]="gradient">
-      <span class="fee-label prority" i18n="fees-box.low-priority" i18n-ngbTooltip="Transaction feerate tooltip (low priority)" ngbTooltip="Usually places your transaction in between the second and third mempool blocks" placement="top">Low Priority</span>
-      <span class="fee-label prority" i18n="fees-box.medium-priority" i18n-ngbTooltip="Transaction feerate tooltip (medium priority)" ngbTooltip="Usually places your transaction in between the first and second mempool blocks" placement="top">Medium Priority</span>
-      <span class="fee-label prority" i18n="fees-box.high-priority" i18n-ngbTooltip="Transaction feerate tooltip (high priority)" ngbTooltip="Places your transaction in the first mempool block" placement="top">High Priority</span>
+      <span class="fee-label prority" i18n="fees-box.low-priority" i18n-ngbTooltip="Transaction feerate tooltip (low priority)" ngbTooltip="Derived from lower current Monero mempool fee rates" placement="top">Low Priority</span>
+      <span class="fee-label prority" i18n="fees-box.medium-priority" i18n-ngbTooltip="Transaction feerate tooltip (medium priority)" ngbTooltip="Derived from mid-range current Monero mempool fee rates" placement="top">Medium Priority</span>
+      <span class="fee-label prority" i18n="fees-box.high-priority" i18n-ngbTooltip="Transaction feerate tooltip (high priority)" ngbTooltip="Derived from the highest current Monero projected-block fee rates" placement="top">High Priority</span>
     </div>
   </div>
 

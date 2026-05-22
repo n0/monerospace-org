@@ -61,7 +61,7 @@ interface UpstreamMempoolBlock {
   index: number;
 }
 
-interface UpstreamRecommendedFees {
+export interface UpstreamRecommendedFees {
   fastestFee: number;
   halfHourFee: number;
   hourFee: number;
@@ -89,6 +89,76 @@ const PROJECTED_BLOCK_WEIGHT_LIMIT = 600_000;
 
 const RECENT_BLOCKS_TO_PUSH = 8;
 const HEX64 = /^[a-f0-9]{64}$/i;
+
+export function shapeXmrRecommendedFees(
+  pool: IMoneroApi.TransactionPool,
+  fees: IMoneroApi.FeeEstimate,
+): UpstreamRecommendedFees {
+  const baseFee = finiteFeeRate(fees.fees?.[0] ?? fees.fee);
+  // Monerod's four wallet priority fees can sit unchanged for long
+  // stretches, so the dashboard tiers are derived from the live pool
+  // instead: split pending txs into projected blocks by fee rate, then
+  // use observed quantiles with monerod's slow tier as the floor.
+  const txs = (pool.transactions ?? [])
+    .map((tx) => ({
+      weight: tx.weight,
+      rate: tx.weight > 0 ? tx.fee / tx.weight : 0,
+    }))
+    .filter((tx) => tx.weight > 0 && Number.isFinite(tx.rate) && tx.rate > 0)
+    .sort((a, b) => b.rate - a.rate);
+
+  if (txs.length === 0) {
+    return {
+      fastestFee: baseFee,
+      halfHourFee: baseFee,
+      hourFee: baseFee,
+      economyFee: baseFee,
+      minimumFee: baseFee,
+    };
+  }
+
+  const buckets: number[][] = [];
+  let current: number[] = [];
+  let currentWeight = 0;
+  for (const tx of txs) {
+    if (current.length > 0 && currentWeight + tx.weight > PROJECTED_BLOCK_WEIGHT_LIMIT) {
+      buckets.push(current.sort((a, b) => a - b));
+      current = [];
+      currentWeight = 0;
+    }
+    current.push(tx.rate);
+    currentWeight += tx.weight;
+  }
+  if (current.length > 0) {
+    buckets.push(current.sort((a, b) => a - b));
+  }
+
+  const allRates = txs.map((tx) => tx.rate).sort((a, b) => a - b);
+  const economyFee = Math.max(baseFee, Math.ceil(allRates[0]));
+  const hourFee = Math.max(economyFee, feeQuantile(buckets[2] ?? allRates, buckets[2] ? 0.80 : 0.40));
+  const halfHourFee = Math.max(hourFee, feeQuantile(buckets[1] ?? allRates, buckets[1] ? 0.80 : 0.70));
+  const fastestFee = Math.max(halfHourFee, feeQuantile(buckets[0] ?? allRates, 0.90));
+
+  return {
+    fastestFee,
+    halfHourFee,
+    hourFee,
+    economyFee,
+    minimumFee: baseFee,
+  };
+}
+
+function finiteFeeRate(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function feeQuantile(sortedRatesAscending: number[], percentile: number): number {
+  if (sortedRatesAscending.length === 0) {
+    return 0;
+  }
+  const index = Math.min(sortedRatesAscending.length - 1, Math.ceil(percentile * (sortedRatesAscending.length - 1)));
+  return Math.ceil(sortedRatesAscending[index]);
+}
 
 interface ConnState {
   trackingMempoolBlock: number;
@@ -297,7 +367,7 @@ export class MoneroWs {
       bytesPerSecond: pool.transactions && pool.transactions.length
         ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
         : 0,
-      fees: this.shapeFees(fees),
+      fees: shapeXmrRecommendedFees(pool, fees),
       da: shapeXmrDifficultyAdjustment(tipBlock, previousBlock, previousPreviousBlock),
       transactions: this.shapeRecentMempoolTxs(pool, 6),
       conversions: priceToConversions(latestPrice),
@@ -356,6 +426,9 @@ export class MoneroWs {
       broadcastPayload['mempool-blocks'] = this.projectedMempoolBlocks(pool);
       const fees = await this.api.getFeeEstimate().catch(() => undefined);
       broadcastPayload['mempoolInfo'] = this.shapeMempoolInfo(pool, fees);
+      if (fees) {
+        broadcastPayload['fees'] = shapeXmrRecommendedFees(pool, fees);
+      }
     }
     this.broadcastBlock(broadcastPayload, confirmedTxids);
     // After a block confirms, the projected blocks shift and any
@@ -422,6 +495,7 @@ export class MoneroWs {
     this.broadcast({
       'mempool-blocks': this.projectedMempoolBlocks(pool),
       mempoolInfo: this.shapeMempoolInfo(pool, fees),
+      ...(fees ? { fees: shapeXmrRecommendedFees(pool, fees) } : {}),
       transactions: this.shapeRecentMempoolTxs(pool, 6),
       bytesPerSecond: pool.transactions && pool.transactions.length
         ? Math.round(pool.transactions.reduce((acc, t) => acc + t.weight, 0) / 120)
@@ -734,17 +808,6 @@ export class MoneroWs {
       mempoolminfee: minFeeRate,
       minrelaytxfee: minFeeRate,
       total_fee: totalFee,
-    };
-  }
-
-  private shapeFees(fees: IMoneroApi.FeeEstimate): UpstreamRecommendedFees {
-    const tiers = fees.fees ?? [fees.fee, fees.fee, fees.fee, fees.fee];
-    return {
-      fastestFee: tiers[3],
-      halfHourFee: tiers[2],
-      hourFee: tiers[1],
-      economyFee: tiers[0],
-      minimumFee: tiers[0],
     };
   }
 

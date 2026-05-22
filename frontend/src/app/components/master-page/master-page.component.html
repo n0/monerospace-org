@@ -52,11 +52,15 @@
         </a>
       </li>
       <!-- xmr-space: pruned nav. Removed parent-chain-only items:
-           paid fee-bump service, mining-pool dashboard
-           (we have miner_tx_hash but no per-pool reward share), lightning
-           (no second layer), faucet (no test-net wiring), enterprise
+           paid fee-bump service, lightning (no second layer), faucet
+           (no test-net wiring), enterprise
            (mempool's commercial brand). Kept: home, blocks list, graphs,
-           docs, about. -->
+           Monero mining dashboard, docs, about. -->
+      <li class="nav-item mining" routerLinkActive="active" ariaCurrentWhenActive="page" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
+        <a class="nav-link" [routerLink]="['/mining' | relativeUrl]" (click)="collapse()" aria-label="Mining dashboard" title="Mining dashboard">
+          <div class="svg-wrapper"><app-svg-images name="nav-pickaxe" width="21.59" height="100%"></app-svg-images></div>
+        </a>
+      </li>
       <li class="nav-item" routerLinkActive="active" ariaCurrentWhenActive="page" id="btn-blocks">
         <a class="nav-link" [routerLink]="['/blocks' | relativeUrl]" (click)="collapse()" aria-label="Recent blocks" title="Recent blocks">
           <div class="svg-wrapper"><app-svg-images name="nav-cubes" width="21.59" height="100%"></app-svg-images></div>

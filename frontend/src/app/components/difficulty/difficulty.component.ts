@@ -23,6 +23,7 @@ interface EpochProgress {
 }
 
 type BlockStatus = 'mined' | 'behind' | 'ahead' | 'next' | 'remaining';
+type DifficultyMode = 'difficulty' | 'halving' | 'rewards';
 
 interface DiffShape {
   x: number;
@@ -54,7 +55,7 @@ export class DifficultyComponent implements OnInit {
   isLoadingWebSocket$: Observable<boolean>;
   difficultyEpoch$: Observable<EpochProgress>;
 
-  mode: 'difficulty' | 'halving' = 'difficulty';
+  mode: DifficultyMode = 'difficulty';
   userSelectedMode: boolean = false;
 
   now: number = Date.now();
@@ -221,7 +222,7 @@ export class DifficultyComponent implements OnInit {
     return shapes;
   }
 
-  setMode(mode: 'difficulty' | 'halving'): boolean {
+  setMode(mode: DifficultyMode): boolean {
     this.mode = mode;
     this.userSelectedMode = true;
     return false;

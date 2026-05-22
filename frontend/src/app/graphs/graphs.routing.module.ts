@@ -21,13 +21,14 @@ import { BlockSizesWeightsGraphComponent } from '@components/block-sizes-weights
 import { BlockFeesSubsidyGraphComponent } from '@components/block-fees-subsidy-graph/block-fees-subsidy-graph.component';
 import { PriceChartComponent } from '@components/price-chart/price-chart.component';
 import { SwapTickerComponent } from '@components/swap-ticker/swap-ticker.component';
+import { MiningDashboardComponent } from '@components/mining-dashboard/mining-dashboard.component';
 
 const routes: Routes = [
   // xmr-space: stripped parent-chain-only sub-routes from this graphs module:
-  //   mining, acceleration*, address/:id, wallet/:wallet
+  //   acceleration*, address/:id, wallet/:wallet
   //   — all impossible (Monero has no public address tracking, no
   //     paid fee-bump market)
-  // Mining graphs are limited to series hydrated by XmrChainIndexer;
+  // Mining dashboard/graphs are limited to series hydrated by XmrChainIndexer;
   // pool dominance and block-health remain stripped because they need
   // broader historical attribution/audit state we do not build.
   // Kept: tools/calculator (feasible reuse), mempool-block/:id (works),
@@ -53,6 +54,14 @@ const routes: Routes = [
       {
         path: 'mining/pool/:slug',
         component: PoolComponent,
+      },
+      {
+        path: 'mining',
+        component: StartComponent,
+        children: [{
+          path: '',
+          component: MiningDashboardComponent,
+        }]
       },
       {
         path: 'graphs',
