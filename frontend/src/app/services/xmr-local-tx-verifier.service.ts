@@ -1,9 +1,22 @@
-import { Injectable } from '@angular/core';
+import { Inject, Injectable, InjectionToken, Optional } from '@angular/core';
 import { Transaction } from '@interfaces/electrs.interface';
 import { StateService } from '@app/services/state.service';
 
 type MoneroTsModule = typeof import('monero-ts');
 type MoneroWalletFull = import('monero-ts').MoneroWalletFull;
+export type XmrMoneroTsLoader = () => Promise<MoneroTsModule>;
+
+export const XMR_MONERO_TS_LOADER = new InjectionToken<XmrMoneroTsLoader>('XMR_MONERO_TS_LOADER', {
+  providedIn: 'root',
+  factory: () => () => import('monero-ts'),
+});
+
+declare global {
+  interface Window {
+    Cypress?: unknown;
+    __xmrMoneroTsLoader?: XmrMoneroTsLoader;
+  }
+}
 
 export interface XmrLocalTxVerificationResult {
   ok: boolean;
@@ -26,7 +39,10 @@ export class XmrLocalTxVerifierService {
   private readonly walletCloseTimeoutMs = 3_000;
   private network = '';
 
-  constructor(private stateService: StateService) {
+  constructor(
+    private stateService: StateService,
+    @Optional() @Inject(XMR_MONERO_TS_LOADER) private moneroTsLoader: XmrMoneroTsLoader,
+  ) {
     this.stateService.networkChanged$.subscribe((network) => {
       this.network = network;
     });
@@ -127,7 +143,18 @@ export class XmrLocalTxVerifierService {
   }
 
   private async loadMoneroTs(): Promise<MoneroTsModule> {
-    return import('monero-ts');
+    const cypressLoader = this.getCypressMoneroTsLoader();
+    if (cypressLoader) {
+      return cypressLoader();
+    }
+    return this.moneroTsLoader();
+  }
+
+  private getCypressMoneroTsLoader(): XmrMoneroTsLoader | null {
+    if (!this.stateService.isBrowser || typeof window === 'undefined' || !window.Cypress) {
+      return null;
+    }
+    return typeof window.__xmrMoneroTsLoader === 'function' ? window.__xmrMoneroTsLoader : null;
   }
 
   private assertBrowser(): void {

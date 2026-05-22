@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Subscription, of } from 'rxjs';
 import { catchError, switchMap, startWith } from 'rxjs/operators';
 import { BlockOverviewGraphComponent } from '@components/block-overview-graph/block-overview-graph.component';
+import { MinerProof } from '@interfaces/node-api.interface';
 
 /**
  * Block detail. We surface what the chain alone proves:
@@ -15,13 +16,8 @@ import { BlockOverviewGraphComponent } from '@components/block-overview-graph/bl
  *     amount, which IS public — coinbase outputs are not RingCT-hidden
  *     until they're spent)
  *   - difficulty, cumulative_difficulty, nonce, version
- *
- * What we deliberately omit:
- *   - per-tx fee / amount totals (would require fetching every tx in
- *     the block; even if we did, only the reward is publicly known —
- *     individual tx amounts stay hidden)
- *   - mining pool fingerprint (would require parsing the coinbase
- *     `extra` field for known pool tags; backlog item)
+ *   - mining-pool proof status when DataHoarder's registry has a
+ *     matching block entry
  */
 
 interface XmrStrippedTx {
@@ -59,6 +55,10 @@ interface XmrBlockDetail {
   min_fee: number;
   max_fee: number;
   fee_range: number[];
+  miner_proof?: MinerProof | null;
+  extras?: {
+    minerProof?: MinerProof;
+  };
   stripped_txs: XmrStrippedTx[];
 }
 
@@ -162,5 +162,42 @@ export class XmrBlockDetailComponent implements OnInit, AfterViewInit, OnDestroy
     if (hps > 1e6) return (hps / 1e6).toFixed(2) + ' MH/s';
     if (hps > 1e3) return (hps / 1e3).toFixed(2) + ' kH/s';
     return hps.toFixed(0) + ' H/s';
+  }
+
+  minerProof(block: XmrBlockDetail): MinerProof | null {
+    return block.miner_proof ?? block.extras?.minerProof ?? null;
+  }
+
+  proofBadgeLabel(proof?: MinerProof | null): string {
+    if (!proof) return 'Unlisted';
+    if (proof.status === 'verified') return proof.type ? `Verified (${proof.type})` : 'Verified';
+    if (proof.status === 'missing') return 'Missing';
+    if (proof.status === 'unavailable') return 'Unavailable';
+    return 'Unknown';
+  }
+
+  proofBadgeClass(proof?: MinerProof | null): string {
+    return `miner-proof-${proof?.status ?? 'unknown'}`;
+  }
+
+  proofSubtitle(proof?: MinerProof | null): string {
+    if (!proof) return 'not listed by registry';
+    if (proof.poolName) return proof.poolName;
+    return proof.sourceName;
+  }
+
+  proofTitle(proof?: MinerProof | null): string {
+    if (!proof) return 'No miner proof registry entry for this block';
+    const pool = proof.poolName ? `${proof.poolName}: ` : '';
+    if (proof.status === 'verified') {
+      return `${pool}cryptographic miner proof verified by ${proof.sourceName}`;
+    }
+    if (proof.status === 'missing') {
+      return `${pool}pool attribution found, but miner proof is missing`;
+    }
+    if (proof.status === 'unavailable') {
+      return `${pool}no miner proof is available for this block`;
+    }
+    return `${pool}miner proof status unknown`;
   }
 }

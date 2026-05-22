@@ -5,7 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { EChartsOption } from '@app/graphs/echarts';
 import { BehaviorSubject, Observable, Subscription, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, share, switchMap, tap } from 'rxjs/operators';
-import { BlockExtended, PoolStat } from '@interfaces/node-api.interface';
+import { BlockExtended, MinerProof, MinerProofStats, PoolStat } from '@interfaces/node-api.interface';
 import { StateService } from '@app/services/state.service';
 import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
 import { SeoService } from '@app/services/seo.service';
@@ -285,6 +285,48 @@ export class PoolComponent implements OnInit, OnDestroy {
 
   blockWeightProgress(block: BlockExtended): string {
     return getVisualBlockWeightPercentStyle(block.weight);
+  }
+
+  proofSummary(stats: PoolStat): string {
+    const proofStats = stats.proofStats;
+    if (!proofStats || proofStats.total === 0) {
+      return 'No registry matches';
+    }
+    return `${proofStats.verified}/${proofStats.total} verified`;
+  }
+
+  proofSecondary(stats?: MinerProofStats): string {
+    if (!stats || stats.total === 0) {
+      return 'observer data pending';
+    }
+    return `${stats.missing} missing, ${stats.unavailable + stats.unknown} unavailable/unlisted`;
+  }
+
+  proofBadgeLabel(proof?: MinerProof | null): string {
+    if (!proof) return 'Unlisted';
+    if (proof.status === 'verified') return proof.type ? `Verified (${proof.type})` : 'Verified';
+    if (proof.status === 'missing') return 'Missing';
+    if (proof.status === 'unavailable') return 'Unavailable';
+    return 'Unknown';
+  }
+
+  proofBadgeClass(proof?: MinerProof | null): string {
+    return `miner-proof-${proof?.status ?? 'unknown'}`;
+  }
+
+  proofTitle(proof?: MinerProof | null): string {
+    if (!proof) return 'No miner proof registry entry for this block';
+    const pool = proof.poolName ? `${proof.poolName}: ` : '';
+    if (proof.status === 'verified') {
+      return `${pool}cryptographic miner proof verified by ${proof.sourceName}`;
+    }
+    if (proof.status === 'missing') {
+      return `${pool}pool attribution found, but miner proof is missing`;
+    }
+    if (proof.status === 'unavailable') {
+      return `${pool}no miner proof is available for this block`;
+    }
+    return `${pool}miner proof status unknown`;
   }
 
   ngOnDestroy(): void {

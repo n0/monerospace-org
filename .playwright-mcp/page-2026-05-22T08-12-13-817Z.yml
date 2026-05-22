@@ -1,0 +1,695 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - navigation [ref=e5]:
+      - link "monerospace.org dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e8]:
+          - generic [ref=e15]: monerospace.org
+      - generic [ref=e16]:
+        - list [ref=e17]:
+          - listitem [ref=e18]:
+            - link "Dashboard" [ref=e19] [cursor=pointer]:
+              - /url: /
+              - img [ref=e22]
+          - listitem [ref=e24]:
+            - link "Recent blocks" [ref=e25] [cursor=pointer]:
+              - /url: /blocks
+              - img [ref=e28]
+          - listitem [ref=e30]:
+            - link "Graphs" [ref=e31] [cursor=pointer]:
+              - /url: /graphs
+              - img [ref=e34]
+          - listitem [ref=e36]:
+            - link "Documentation" [ref=e37] [cursor=pointer]:
+              - /url: /docs
+              - img [ref=e40]
+          - listitem [ref=e42]:
+            - link "About monerospace.org" [ref=e43] [cursor=pointer]:
+              - /url: /about
+              - img [ref=e46]
+        - search "Monero chain search" [ref=e49]:
+          - generic [ref=e50]:
+            - textbox "Search a Monero block height, block hash, or tx hash" [active] [ref=e52]
+            - button "Search Monero chain" [ref=e54] [cursor=pointer]:
+              - generic "Search" [ref=e55]:
+                - img [ref=e56]
+  - generic [ref=e59]:
+    - main [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e65]:
+            - generic:
+              - generic:
+                - generic:
+                  - generic [ref=e66]:
+                    - link [ref=e67] [cursor=pointer]:
+                      - /url: /mempool-block/0
+                    - generic [ref=e68]:
+                      - generic [ref=e69]:
+                        - text: ~
+                        - generic [ref=e70]: 20,000 ɱ/B
+                      - generic [ref=e71]: 20k - 320k ɱ/B
+                      - generic [ref=e73]: ‎0.005 XMR
+                      - generic [ref=e74]: 23 transactions
+                      - generic [ref=e76]: In ~1 minute
+                  - generic:
+                    - generic:
+                      - generic [ref=e77]:
+                        - link [ref=e78] [cursor=pointer]:
+                          - /url: /block/4b56ff281cc7d4af442afa06f83ca104047441e78131fa78513188e114591ae7
+                        - link "3679433" [ref=e79] [cursor=pointer]:
+                          - /url: /block/4b56ff281cc7d4af442afa06f83ca104047441e78131fa78513188e114591ae7
+                        - generic [ref=e80]:
+                          - generic [ref=e81]:
+                            - text: ~
+                            - generic [ref=e82]: 122,707 ɱ/B
+                          - generic [ref=e83]: 108k - 1.99M ɱ/B
+                          - generic [ref=e85]: ‎0.002 XMR
+                          - generic [ref=e86]: 13 transactions
+                          - generic [ref=e88]: Just now
+                        - generic [ref=e91]: P2Pool
+                      - generic [ref=e92]:
+                        - link [ref=e93] [cursor=pointer]:
+                          - /url: /block/555e2b3dd78078c56383ea01beb6721f5a9acb0c582b5f52a5d7887be0236929
+                        - link "3679432" [ref=e94] [cursor=pointer]:
+                          - /url: /block/555e2b3dd78078c56383ea01beb6721f5a9acb0c582b5f52a5d7887be0236929
+                        - generic [ref=e95]:
+                          - generic [ref=e96]:
+                            - text: ~
+                            - generic [ref=e97]: 122,707 ɱ/B
+                          - generic [ref=e98]: 108k - 21.9M ɱ/B
+                          - generic [ref=e100]: ‎0.028 XMR
+                          - generic [ref=e101]: 102 transactions
+                          - generic [ref=e103]: 2 minutes ago
+                        - generic [ref=e106]: P2Pool
+                      - generic [ref=e107]:
+                        - link [ref=e108] [cursor=pointer]:
+                          - /url: /block/8fcc00a409a2d05a2090833acfbb30de0e250b7a159edcac0f6ee96e1f5585ef
+                        - link "3679431" [ref=e109] [cursor=pointer]:
+                          - /url: /block/8fcc00a409a2d05a2090833acfbb30de0e250b7a159edcac0f6ee96e1f5585ef
+                        - generic [ref=e110]:
+                          - generic [ref=e111]:
+                            - text: ~
+                            - generic [ref=e112]: 122,707 ɱ/B
+                          - generic [ref=e113]: 108k - 24.7M ɱ/B
+                          - generic [ref=e115]: ‎0.024 XMR
+                          - generic [ref=e116]: 72 transactions
+                          - generic [ref=e118]: 8 minutes ago
+                      - generic [ref=e119]:
+                        - link [ref=e120] [cursor=pointer]:
+                          - /url: /block/1becefb13a84d8f1f7c4135c81c48673d75088873431d98730d667e713294702
+                        - link "3679430" [ref=e121] [cursor=pointer]:
+                          - /url: /block/1becefb13a84d8f1f7c4135c81c48673d75088873431d98730d667e713294702
+                        - generic [ref=e122]:
+                          - generic [ref=e123]:
+                            - text: ~
+                            - generic [ref=e124]: 123,565 ɱ/B
+                          - generic [ref=e125]: 108k - 2.22M ɱ/B
+                          - generic [ref=e127]: ‎0.012 XMR
+                          - generic [ref=e128]: 54 transactions
+                          - generic [ref=e130]: 11 minutes ago
+                        - generic [ref=e133]: P2Pool
+                      - generic [ref=e134]:
+                        - link [ref=e135] [cursor=pointer]:
+                          - /url: /block/7529ba8a0a2fad2e959202a9bc6db69ce34bfe9a1ef8fc9aca9a7fca1cccf3bb
+                        - link "3679429" [ref=e136] [cursor=pointer]:
+                          - /url: /block/7529ba8a0a2fad2e959202a9bc6db69ce34bfe9a1ef8fc9aca9a7fca1cccf3bb
+                        - generic [ref=e137]:
+                          - generic [ref=e138]:
+                            - text: ~
+                            - generic [ref=e139]: 149,947 ɱ/B
+                          - generic [ref=e140]: 108k - 2.78M ɱ/B
+                          - generic [ref=e142]: ‎0.011 XMR
+                          - generic [ref=e143]: 33 transactions
+                          - generic [ref=e145]: 14 minutes ago
+                        - generic [ref=e148]: P2Pool
+                      - generic [ref=e149]:
+                        - link [ref=e150] [cursor=pointer]:
+                          - /url: /block/2a4b9fe8614a46c90f66db0b5f3d7d2c145dfd48357eb1e8f759b68f9557fefd
+                        - link "3679428" [ref=e151] [cursor=pointer]:
+                          - /url: /block/2a4b9fe8614a46c90f66db0b5f3d7d2c145dfd48357eb1e8f759b68f9557fefd
+                        - generic [ref=e152]:
+                          - generic [ref=e153]:
+                            - text: ~
+                            - generic [ref=e154]: 1,954,286 ɱ/B
+                          - generic [ref=e155]: 1.95M ɱ/B
+                          - generic [ref=e157]: ‎0.001 XMR
+                          - generic [ref=e158]: 2 transactions
+                          - generic [ref=e160]: 16 minutes ago
+                      - generic [ref=e161]:
+                        - link [ref=e162] [cursor=pointer]:
+                          - /url: /block/0eb9683aec75e24374f3a1ff1617a138ed486ed6cc3e6120c8ea974c6c1d4ff6
+                        - link "3679427" [ref=e163] [cursor=pointer]:
+                          - /url: /block/0eb9683aec75e24374f3a1ff1617a138ed486ed6cc3e6120c8ea974c6c1d4ff6
+                        - generic [ref=e164]:
+                          - generic [ref=e165]:
+                            - text: ~
+                            - generic [ref=e166]: 1,710,000 ɱ/B
+                          - generic [ref=e167]: 418k - 1.71M ɱ/B
+                          - generic [ref=e169]: ‎0.001 XMR
+                          - generic [ref=e170]: 3 transactions
+                          - generic [ref=e172]: 16 minutes ago
+                        - generic [ref=e175]: P2Pool
+                      - generic [ref=e176]:
+                        - link [ref=e177] [cursor=pointer]:
+                          - /url: /block/ec543455d05bce32c097b33a240ff329008d4b3cd3a413b16e3d91d8c820845b
+                        - link "3679426" [ref=e178] [cursor=pointer]:
+                          - /url: /block/ec543455d05bce32c097b33a240ff329008d4b3cd3a413b16e3d91d8c820845b
+                        - generic [ref=e179]:
+                          - generic [ref=e180]:
+                            - text: ~
+                            - generic [ref=e181]: 110,000 ɱ/B
+                          - generic [ref=e182]: 108k - 1.73M ɱ/B
+                          - generic [ref=e184]: ‎0.001 XMR
+                          - generic [ref=e185]: 6 transactions
+                          - generic [ref=e187]: 16 minutes ago
+                        - generic [ref=e190]: P2Pool
+                  - generic:
+                    - generic:
+                      - generic [ref=e191]:
+                        - link [ref=e192] [cursor=pointer]:
+                          - /url: /block/72fb9cc76e4ea8a8c9196fa87332899af0f3212e815897caab76633d3c0c4794
+                        - link "3679425" [ref=e193] [cursor=pointer]:
+                          - /url: /block/72fb9cc76e4ea8a8c9196fa87332899af0f3212e815897caab76633d3c0c4794
+                        - generic [ref=e194]:
+                          - generic [ref=e195]:
+                            - text: ~
+                            - generic [ref=e196]: 109,357 ɱ/B
+                          - generic [ref=e197]: 108k - 1.75M ɱ/B
+                          - generic [ref=e199]: ‎0.003 XMR
+                          - generic [ref=e200]: 38 transactions
+                          - generic [ref=e202]: 16 minutes ago
+                      - generic [ref=e203]:
+                        - link [ref=e204] [cursor=pointer]:
+                          - /url: /block/384561d527624e3c8992f8813d7ddcf2ce9aa4490d6ff37753bb461503afd7b4
+                        - link "3679424" [ref=e205] [cursor=pointer]:
+                          - /url: /block/384561d527624e3c8992f8813d7ddcf2ce9aa4490d6ff37753bb461503afd7b4
+                        - generic [ref=e206]:
+                          - generic [ref=e207]:
+                            - text: ~
+                            - generic [ref=e208]: 436,157 ɱ/B
+                          - generic [ref=e209]: 73.1k - 2.78M ɱ/B
+                          - generic [ref=e211]: ‎0.043 XMR
+                          - generic [ref=e212]: 123 transactions
+                          - generic [ref=e214]: 18 minutes ago
+                        - generic [ref=e217]: P2Pool
+                      - generic [ref=e218]:
+                        - link [ref=e219] [cursor=pointer]:
+                          - /url: /block/38342efc0286b2dfdbd35c5c8dab41780483fac28174badab8e6b2a0719f7c52
+                        - link "3679423" [ref=e220] [cursor=pointer]:
+                          - /url: /block/38342efc0286b2dfdbd35c5c8dab41780483fac28174badab8e6b2a0719f7c52
+                        - generic [ref=e221]:
+                          - generic [ref=e222]:
+                            - text: ~
+                            - generic [ref=e223]: 123,855 ɱ/B
+                          - generic [ref=e224]: 109k - 124k ɱ/B
+                          - generic [ref=e226]: ‎0.00 XMR
+                          - generic [ref=e227]: 3 transactions
+                          - generic [ref=e229]: 26 minutes ago
+                      - generic [ref=e230]:
+                        - link [ref=e231] [cursor=pointer]:
+                          - /url: /block/137d9d902ba48018ab99edd4fc97c727df5581174301c37a9e411c7c454d7963
+                        - link "3679422" [ref=e232] [cursor=pointer]:
+                          - /url: /block/137d9d902ba48018ab99edd4fc97c727df5581174301c37a9e411c7c454d7963
+                        - generic [ref=e233]:
+                          - generic [ref=e234]:
+                            - text: ~
+                            - generic [ref=e235]: 122,143 ɱ/B
+                          - generic [ref=e236]: 84.7k - 21.9M ɱ/B
+                          - generic [ref=e238]: ‎0.025 XMR
+                          - generic [ref=e239]: 79 transactions
+                          - generic [ref=e241]: 26 minutes ago
+                        - generic [ref=e244]: P2Pool
+                      - generic [ref=e245]:
+                        - link [ref=e246] [cursor=pointer]:
+                          - /url: /block/e6b632a0cbd98c48269b67db3b821aff97284e62978e040bbe3abb76c30212d4
+                        - link "3679421" [ref=e247] [cursor=pointer]:
+                          - /url: /block/e6b632a0cbd98c48269b67db3b821aff97284e62978e040bbe3abb76c30212d4
+                        - generic [ref=e248]:
+                          - generic [ref=e249]:
+                            - text: ~
+                            - generic [ref=e250]: 437,429 ɱ/B
+                          - generic [ref=e251]: 109k - 21.6M ɱ/B
+                          - generic [ref=e253]: ‎0.049 XMR
+                          - generic [ref=e254]: 112 transactions
+                          - generic [ref=e256]: 31 minutes ago
+                        - generic [ref=e259]: P2Pool
+                      - generic [ref=e260]:
+                        - link [ref=e261] [cursor=pointer]:
+                          - /url: /block/691b61229315978105e71a9305bde245084be071a1ca6f374be66a80b540cdc8
+                        - link "3679420" [ref=e262] [cursor=pointer]:
+                          - /url: /block/691b61229315978105e71a9305bde245084be071a1ca6f374be66a80b540cdc8
+                        - generic [ref=e263]:
+                          - generic [ref=e264]:
+                            - text: ~
+                            - generic [ref=e265]: 133,425 ɱ/B
+                          - generic [ref=e266]: 107k - 1.78M ɱ/B
+                          - generic [ref=e268]: ‎0.003 XMR
+                          - generic [ref=e269]: 21 transactions
+                          - generic [ref=e271]: 39 minutes ago
+                  - generic:
+                    - generic:
+                      - generic [ref=e272]:
+                        - link [ref=e273] [cursor=pointer]:
+                          - /url: /block/b605bae43726f62de0d5ca9aa7d7f7c9506599d36e106692675633812ea65797
+                        - link "3679419" [ref=e274] [cursor=pointer]:
+                          - /url: /block/b605bae43726f62de0d5ca9aa7d7f7c9506599d36e106692675633812ea65797
+                        - generic [ref=e275]:
+                          - generic [ref=e276]:
+                            - text: ~
+                            - generic [ref=e277]: 124,732 ɱ/B
+                          - generic [ref=e278]: 107k - 21.7M ɱ/B
+                          - generic [ref=e280]: ‎0.015 XMR
+                          - generic [ref=e281]: 57 transactions
+                          - generic [ref=e283]: 40 minutes ago
+                        - generic [ref=e286]: P2Pool
+                      - generic [ref=e287]:
+                        - link [ref=e288] [cursor=pointer]:
+                          - /url: /block/423ee7c3533cc10a49f1c4ea583f5cedda48abea44d5f9ac3326717f161a27f3
+                        - link "3679418" [ref=e289] [cursor=pointer]:
+                          - /url: /block/423ee7c3533cc10a49f1c4ea583f5cedda48abea44d5f9ac3326717f161a27f3
+                        - generic [ref=e290]:
+                          - generic [ref=e291]:
+                            - text: ~
+                            - generic [ref=e292]: 438,710 ɱ/B
+                          - generic [ref=e293]: 95.2k - 21.8M ɱ/B
+                          - generic [ref=e295]: ‎0.041 XMR
+                          - generic [ref=e296]: 117 transactions
+                          - generic [ref=e298]: 41 minutes ago
+                        - generic [ref=e301]: P2Pool
+                      - generic [ref=e302]:
+                        - link [ref=e303] [cursor=pointer]:
+                          - /url: /block/977e7497382c0bbdd30fd97f31ee21cdd49d671f2e766cbf8c4e1bfe045734ab
+                        - link "3679417" [ref=e304] [cursor=pointer]:
+                          - /url: /block/977e7497382c0bbdd30fd97f31ee21cdd49d671f2e766cbf8c4e1bfe045734ab
+                        - generic [ref=e305]:
+                          - generic [ref=e306]:
+                            - text: ~
+                            - generic [ref=e307]: 1,949,808 ɱ/B
+                          - generic [ref=e308]: 1.59M - 2.77M ɱ/B
+                          - generic [ref=e310]: ‎0.002 XMR
+                          - generic [ref=e311]: 4 transactions
+                          - generic [ref=e313]: 49 minutes ago
+                        - generic [ref=e316]: P2Pool
+                      - generic [ref=e317]:
+                        - link [ref=e318] [cursor=pointer]:
+                          - /url: /block/57a0bb64e450e419d98633ce504e1a9c5ca69e2a8565c87264ea1335cdb7907e
+                        - link "3679416" [ref=e319] [cursor=pointer]:
+                          - /url: /block/57a0bb64e450e419d98633ce504e1a9c5ca69e2a8565c87264ea1335cdb7907e
+                        - generic [ref=e320]:
+                          - generic [ref=e321]:
+                            - text: ~
+                            - generic [ref=e322]: 493,144 ɱ/B
+                          - generic [ref=e323]: 122k - 493k ɱ/B
+                          - generic [ref=e325]: ‎0.00 XMR
+                          - generic [ref=e326]: 3 transactions
+                          - generic [ref=e328]: 49 minutes ago
+                      - generic [ref=e329]:
+                        - link [ref=e330] [cursor=pointer]:
+                          - /url: /block/b4d198e2efd78092643d0a173d1aa547d0cb4d8c0a89e1722323465051fda79e
+                        - link "3679415" [ref=e331] [cursor=pointer]:
+                          - /url: /block/b4d198e2efd78092643d0a173d1aa547d0cb4d8c0a89e1722323465051fda79e
+                        - generic [ref=e332]:
+                          - generic [ref=e333]:
+                            - text: ~
+                            - generic [ref=e334]: 150,466 ɱ/B
+                          - generic [ref=e335]: 108k - 494k ɱ/B
+                          - generic [ref=e337]: ‎0.001 XMR
+                          - generic [ref=e338]: 16 transactions
+                          - generic [ref=e340]: 49 minutes ago
+                        - generic [ref=e343]: P2Pool
+                      - generic [ref=e344]:
+                        - link [ref=e345] [cursor=pointer]:
+                          - /url: /block/81e752512c19abff56c3274c8754a8dd84208326dfab2d8429af77ecbdda523f
+                        - link "3679414" [ref=e346] [cursor=pointer]:
+                          - /url: /block/81e752512c19abff56c3274c8754a8dd84208326dfab2d8429af77ecbdda523f
+                        - generic [ref=e347]:
+                          - generic [ref=e348]:
+                            - text: ~
+                            - generic [ref=e349]: 121,308 ɱ/B
+                          - generic [ref=e350]: 108k - 1.99M ɱ/B
+                          - generic [ref=e352]: ‎0.014 XMR
+                          - generic [ref=e353]: 82 transactions
+                          - generic [ref=e355]: 50 minutes ago
+                - generic [ref=e356]:
+                  - button "Switch to displaying block sizes" [ref=e357] [cursor=pointer]:
+                    - img [ref=e359]
+                  - button "Switch to displaying newest blocks on the left" [ref=e361] [cursor=pointer]:
+                    - img [ref=e363]
+          - generic:
+            - generic:
+              - img
+        - generic [ref=e367]:
+          - generic [ref=e368]:
+            - generic [ref=e369]: Transaction Fees
+            - generic [ref=e373]:
+              - generic [ref=e375]:
+                - generic [ref=e376]: Low Priority
+                - generic [ref=e377]: Medium Priority
+                - generic [ref=e378]: High Priority
+              - generic [ref=e379]:
+                - generic [ref=e383]: 80,000 ɱ/B
+                - generic [ref=e387]: 320,000 ɱ/B
+                - generic [ref=e391]: 4,000,000 ɱ/B
+          - generic [ref=e393]:
+            - generic [ref=e394]: Difficulty Adjustment
+            - generic [ref=e398]:
+              - img [ref=e400]
+              - generic [ref=e403]:
+                - generic [ref=e404]:
+                  - generic [ref=e405]:
+                    - img [ref=e408]
+                    - text: 0.10 %
+                  - generic [ref=e410]:
+                    - text: "Last block:"
+                    - generic [ref=e411]:
+                      - img [ref=e413]
+                      - text: "0.18"
+                    - text: "%"
+                - generic [ref=e415]:
+                  - generic [ref=e417]: In ~1 minute
+                  - generic [ref=e418]: height 3679434
+          - generic [ref=e419]:
+            - generic [ref=e420]: Reward stats (144 blocks)
+            - generic [ref=e425]:
+              - generic [ref=e426]:
+                - heading "Avg Block Fees" [level=5] [ref=e427]
+                - generic [ref=e428]:
+                  - generic [ref=e429]:
+                    - generic [ref=e430]: ‎0.0087 XMR
+                    - generic [ref=e431]: /block
+                  - generic [ref=e433]: $3.38
+              - generic [ref=e434]:
+                - heading "Avg Tx Fee" [level=5] [ref=e435]
+                - generic [ref=e436]:
+                  - generic [ref=e437]:
+                    - generic [ref=e438]: ‎0.000275 XMR
+                    - generic [ref=e439]: /tx
+                  - generic [ref=e441]: $0.11
+          - generic [ref=e444]:
+            - link "Mempool" [ref=e445] [cursor=pointer]:
+              - /url: /mempool-block/0
+              - heading "Mempool" [level=5] [ref=e446]
+              - img [ref=e448]
+            - group [ref=e451]:
+              - radio "All" [checked]
+              - generic [ref=e452] [cursor=pointer]: All
+              - radio "Standard ring (16)"
+              - generic [ref=e453] [cursor=pointer]: Standard ring (16)
+              - radio "View tags"
+              - generic [ref=e454] [cursor=pointer]: View tags
+              - radio "RCT v6 (latest)"
+              - generic [ref=e455] [cursor=pointer]: RCT v6 (latest)
+            - generic [ref=e460]:
+              - generic:
+                - status
+          - generic [ref=e464]:
+            - generic [ref=e465]:
+              - generic [ref=e466]:
+                - heading "Minimum fee" [level=5] [ref=e467]
+                - paragraph [ref=e468]:
+                  - generic [ref=e469]: 80,000 ɱ/B
+              - generic [ref=e470]:
+                - heading "Unconfirmed" [level=5] [ref=e471]
+                - paragraph [ref=e472]: 23 TXs
+            - heading "Incoming Transactions" [level=5] [ref=e473]
+            - img [ref=e478]:
+              - generic [ref=e480]:
+                - generic [ref=e481]: "0"
+                - generic [ref=e482]: "500"
+                - generic [ref=e483]: "1000"
+                - generic [ref=e484]: "1500"
+                - generic [ref=e485]: "2000"
+                - generic [ref=e486]: "2215"
+                - generic [ref=e488]: 23:20
+                - generic [ref=e490]: 23:40
+                - generic [ref=e492]: 00:20
+                - generic [ref=e494]: 00:40
+                - generic [ref=e496]: 01:00
+                - generic [ref=e498]: "22"
+          - generic [ref=e503]:
+            - link "Recent Blocks" [ref=e504] [cursor=pointer]:
+              - /url: /blocks
+              - heading "Recent Blocks" [level=5] [ref=e505]
+              - img [ref=e507]
+            - table [ref=e509]:
+              - rowgroup [ref=e510]:
+                - columnheader "Height" [ref=e511]
+                - columnheader "Mined" [ref=e512]
+                - columnheader "TXs" [ref=e513]
+              - rowgroup [ref=e514]:
+                - row "3679433 Just now 13" [ref=e515]:
+                  - cell "3679433" [ref=e516]:
+                    - link "3679433" [ref=e517] [cursor=pointer]:
+                      - /url: /block/4b56ff281cc7d4af442afa06f83ca104047441e78131fa78513188e114591ae7
+                  - cell "Just now" [ref=e518]:
+                    - generic [ref=e519]: Just now
+                  - cell "13" [ref=e520]
+                - row "3679432 2 minutes ago 102" [ref=e521]:
+                  - cell "3679432" [ref=e522]:
+                    - link "3679432" [ref=e523] [cursor=pointer]:
+                      - /url: /block/555e2b3dd78078c56383ea01beb6721f5a9acb0c582b5f52a5d7887be0236929
+                  - cell "2 minutes ago" [ref=e524]:
+                    - generic [ref=e525]: 2 minutes ago
+                  - cell "102" [ref=e526]
+                - row "3679431 8 minutes ago 72" [ref=e527]:
+                  - cell "3679431" [ref=e528]:
+                    - link "3679431" [ref=e529] [cursor=pointer]:
+                      - /url: /block/8fcc00a409a2d05a2090833acfbb30de0e250b7a159edcac0f6ee96e1f5585ef
+                  - cell "8 minutes ago" [ref=e530]:
+                    - generic [ref=e531]: 8 minutes ago
+                  - cell "72" [ref=e532]
+                - row "3679430 11 minutes ago 54" [ref=e533]:
+                  - cell "3679430" [ref=e534]:
+                    - link "3679430" [ref=e535] [cursor=pointer]:
+                      - /url: /block/1becefb13a84d8f1f7c4135c81c48673d75088873431d98730d667e713294702
+                  - cell "11 minutes ago" [ref=e536]:
+                    - generic [ref=e537]: 11 minutes ago
+                  - cell "54" [ref=e538]
+                - row "3679429 14 minutes ago 33" [ref=e539]:
+                  - cell "3679429" [ref=e540]:
+                    - link "3679429" [ref=e541] [cursor=pointer]:
+                      - /url: /block/7529ba8a0a2fad2e959202a9bc6db69ce34bfe9a1ef8fc9aca9a7fca1cccf3bb
+                  - cell "14 minutes ago" [ref=e542]:
+                    - generic [ref=e543]: 14 minutes ago
+                  - cell "33" [ref=e544]
+                - row "3679428 16 minutes ago 2" [ref=e545]:
+                  - cell "3679428" [ref=e546]:
+                    - link "3679428" [ref=e547] [cursor=pointer]:
+                      - /url: /block/2a4b9fe8614a46c90f66db0b5f3d7d2c145dfd48357eb1e8f759b68f9557fefd
+                  - cell "16 minutes ago" [ref=e548]:
+                    - generic [ref=e549]: 16 minutes ago
+                  - cell "2" [ref=e550]
+          - generic [ref=e553]:
+            - link "Recent Transactions" [ref=e554] [cursor=pointer]:
+              - /url: /txs
+              - heading "Recent Transactions" [level=5] [ref=e555]
+              - img [ref=e557]
+            - table [ref=e561]:
+              - rowgroup [ref=e562]:
+                - columnheader "TXID" [ref=e563]
+                - columnheader "Fee" [ref=e564]
+              - rowgroup [ref=e565]:
+                - row "9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711 c0d02 9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711c0d02 20,000 ɱ/B" [ref=e566]:
+                  - cell "9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711 c0d02 9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711c0d02" [ref=e567]:
+                    - link "9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711 c0d02 9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711c0d02" [ref=e568] [cursor=pointer]:
+                      - /url: /tx/9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711c0d02
+                      - generic [ref=e570]:
+                        - generic [ref=e571]: 9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711
+                        - generic [ref=e572]: c0d02
+                        - generic [ref=e573]: 9ebfd08c33b9f2a85340c088d64f56a4c1c157ae7992921a7964a1dd711c0d02
+                  - cell "20,000 ɱ/B" [ref=e574]:
+                    - generic [ref=e575]: 20,000 ɱ/B
+                - row "51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14 ebb03 51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14ebb03 20,000 ɱ/B" [ref=e576]:
+                  - cell "51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14 ebb03 51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14ebb03" [ref=e577]:
+                    - link "51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14 ebb03 51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14ebb03" [ref=e578] [cursor=pointer]:
+                      - /url: /tx/51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14ebb03
+                      - generic [ref=e580]:
+                        - generic [ref=e581]: 51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14
+                        - generic [ref=e582]: ebb03
+                        - generic [ref=e583]: 51a4be51c39902245d2ae314c341728f7f296345e94cac266f49fd22e14ebb03
+                  - cell "20,000 ɱ/B" [ref=e584]:
+                    - generic [ref=e585]: 20,000 ɱ/B
+                - row "43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e 83809 43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e83809 320,000 ɱ/B" [ref=e586]:
+                  - cell "43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e 83809 43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e83809" [ref=e587]:
+                    - link "43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e 83809 43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e83809" [ref=e588] [cursor=pointer]:
+                      - /url: /tx/43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e83809
+                      - generic [ref=e590]:
+                        - generic [ref=e591]: 43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e
+                        - generic [ref=e592]: "83809"
+                        - generic [ref=e593]: 43865a50264f8eff5cef65e62c6162a59315aa2f2b15dfbd6300da0103e83809
+                  - cell "320,000 ɱ/B" [ref=e594]:
+                    - generic [ref=e595]: 320,000 ɱ/B
+                - row "fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f 3f80a fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f3f80a 320,000 ɱ/B" [ref=e596]:
+                  - cell "fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f 3f80a fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f3f80a" [ref=e597]:
+                    - link "fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f 3f80a fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f3f80a" [ref=e598] [cursor=pointer]:
+                      - /url: /tx/fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f3f80a
+                      - generic [ref=e600]:
+                        - generic [ref=e601]: fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f
+                        - generic [ref=e602]: 3f80a
+                        - generic [ref=e603]: fe46173e23e3c17e62da880a61d86949140fa77bf0b211891b05a996f4f3f80a
+                  - cell "320,000 ɱ/B" [ref=e604]:
+                    - generic [ref=e605]: 320,000 ɱ/B
+                - row "062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2 a0e0d 062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2a0e0d 20,000 ɱ/B" [ref=e606]:
+                  - cell "062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2 a0e0d 062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2a0e0d" [ref=e607]:
+                    - link "062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2 a0e0d 062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2a0e0d" [ref=e608] [cursor=pointer]:
+                      - /url: /tx/062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2a0e0d
+                      - generic [ref=e610]:
+                        - generic [ref=e611]: 062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2
+                        - generic [ref=e612]: a0e0d
+                        - generic [ref=e613]: 062dd6feaada12386290649830f161563b02d701a6a212a0e5031be2db2a0e0d
+                  - cell "20,000 ɱ/B" [ref=e614]:
+                    - generic [ref=e615]: 20,000 ɱ/B
+                - row "4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951 d140d 4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951d140d 20,000 ɱ/B" [ref=e616]:
+                  - cell "4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951 d140d 4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951d140d" [ref=e617]:
+                    - link "4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951 d140d 4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951d140d" [ref=e618] [cursor=pointer]:
+                      - /url: /tx/4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951d140d
+                      - generic [ref=e620]:
+                        - generic [ref=e621]: 4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951
+                        - generic [ref=e622]: d140d
+                        - generic [ref=e623]: 4c07cdaca801da752c0d9a983410fac30f18bea275dc3dc281faa71b951d140d
+                  - cell "20,000 ɱ/B" [ref=e624]:
+                    - generic [ref=e625]: 20,000 ɱ/B
+    - contentinfo [ref=e628]:
+      - generic [ref=e629]:
+        - generic [ref=e631]:
+          - img [ref=e634]:
+            - generic [ref=e641]: monerospace.org
+          - paragraph [ref=e642]: Privacy by default
+          - generic [ref=e643]:
+            - combobox [ref=e647]:
+              - option "العربية"
+              - option "Čeština"
+              - option "Dansk"
+              - option "Deutsch"
+              - option "English" [selected]
+              - option "Español"
+              - option "فارسی"
+              - option "Français"
+              - option "한국어"
+              - option "Hrvatski"
+              - option "हिन्दी"
+              - option "नेपाली"
+              - option "Italiano"
+              - option "עברית"
+              - option "ქართული"
+              - option "Lietuvių"
+              - option "Magyar"
+              - option "Македонски"
+              - option "Nederlands"
+              - option "日本語"
+              - option "Norsk"
+              - option "Polski"
+              - option "Português"
+              - option "Română"
+              - option "Русский"
+              - option "Slovenščina"
+              - option "Suomi"
+              - option "Svenska"
+              - option "ไทย"
+              - option "Türkçe"
+              - option "Українська"
+              - option "Tiếng Việt"
+              - option "中文"
+            - combobox [ref=e651]:
+              - option "AUD"
+              - option "CAD"
+              - option "CHF"
+              - option "EUR"
+              - option "GBP"
+              - option "JPY"
+              - option "USD" [selected]
+            - combobox [ref=e655]:
+              - option "UTC-7 - Mountain Standard Time (MST)" [selected]
+              - option "UTC - Greenwich Mean Time (GMT)"
+              - option "────" [disabled]
+              - option "UTC-12 - Anywhere on Earth (AoE)"
+              - option "UTC-11 - Samoa Standard Time (SST)"
+              - option "UTC-10 - Hawaii Standard Time (HST)"
+              - option "UTC-9 - Alaska Standard Time (AKST)"
+              - option "UTC-8 - Pacific Standard Time (PST)"
+              - option "UTC-6 - Central Standard Time (CST)"
+              - option "UTC-5 - Eastern Standard Time (EST)"
+              - option "UTC-4 - Atlantic Standard Time (AST)"
+              - option "UTC-3 - Argentina Time (ART)"
+              - option "UTC-2 - Fernando de Noronha Time (FNT)"
+              - option "UTC-1 - Azores Time (AZOT)"
+              - option "UTC+1 - Central European Time (CET)"
+              - option "UTC+2 - Eastern European Time (EET)"
+              - option "UTC+3 - Moscow Standard Time (MSK)"
+              - option "UTC+4 - Armenia Time (AMT)"
+              - option "UTC+5 - Pakistan Standard Time (PKT)"
+              - option "UTC+6 - Xinjiang Time (XJT)"
+              - option "UTC+7 - Indochina Time (ICT)"
+              - option "UTC+8 - Hong Kong Time (HKT)"
+              - option "UTC+9 - Japan Standard Time (JST)"
+              - option "UTC+10 - Australian Eastern Standard Time (AEST)"
+              - option "UTC+11 - Norfolk Time (NFT)"
+              - option "UTC+12 - New Zealand Standard Time (NZST)"
+              - option "UTC+13 - Tonga Time (TOT)"
+              - option "UTC+14 - Line Islands Time (LINT)"
+            - combobox [ref=e659]:
+              - option "wiz" [selected]
+              - option "BlueMatt"
+              - option "softsimon"
+              - option "nymkappa"
+        - generic [ref=e660]:
+          - generic [ref=e661]:
+            - paragraph [ref=e662]: Explore
+            - paragraph [ref=e663]:
+              - link "Dashboard" [ref=e664] [cursor=pointer]:
+                - /url: /
+            - paragraph [ref=e665]:
+              - link "Recent Blocks" [ref=e666] [cursor=pointer]:
+                - /url: /blocks
+            - paragraph [ref=e667]:
+              - link "Mempool wall" [ref=e668] [cursor=pointer]:
+                - /url: /mempool-block/0
+            - paragraph [ref=e669]:
+              - link "Source on GitHub" [ref=e670] [cursor=pointer]:
+                - /url: https://github.com/n0/monerospace-org
+          - generic [ref=e671]:
+            - paragraph [ref=e672]: Learn
+            - paragraph [ref=e673]:
+              - link "Moneropedia" [ref=e674] [cursor=pointer]:
+                - /url: https://www.getmonero.org/resources/moneropedia/
+            - paragraph [ref=e675]:
+              - link "What is RingCT?" [ref=e676] [cursor=pointer]:
+                - /url: https://www.getmonero.org/resources/moneropedia/ringCT.html
+            - paragraph [ref=e677]:
+              - link "View key" [ref=e678] [cursor=pointer]:
+                - /url: https://www.getmonero.org/resources/moneropedia/viewkey.html
+            - paragraph [ref=e679]:
+              - link "tx_proof signatures" [ref=e680] [cursor=pointer]:
+                - /url: https://www.getmonero.org/resources/moneropedia/transaction-proof.html
+            - paragraph [ref=e681]:
+              - link "Monero research lab" [ref=e682] [cursor=pointer]:
+                - /url: https://www.getmonero.org/resources/research-lab/
+          - generic [ref=e683]:
+            - paragraph [ref=e684]: xmr-space
+            - paragraph [ref=e685]:
+              - link "Forked from mempool/mempool" [ref=e686] [cursor=pointer]:
+                - /url: https://github.com/mempool/mempool
+            - paragraph [ref=e687]: Released under AGPLv3
+            - paragraph [ref=e688]:
+              - text: "Daemon:"
+              - code [ref=e689]: private monerod + Cake fallback
+          - generic [ref=e690]:
+            - paragraph [ref=e691]: Legal
+            - paragraph [ref=e692]:
+              - link "Terms of Service" [ref=e693] [cursor=pointer]:
+                - /url: /terms-of-service
+            - paragraph [ref=e694]:
+              - link "Privacy Policy" [ref=e695] [cursor=pointer]:
+                - /url: /privacy-policy
+            - paragraph [ref=e696]:
+              - link "Trademark Policy" [ref=e697] [cursor=pointer]:
+                - /url: /trademark-policy
+            - paragraph [ref=e698]:
+              - link "Third-party Licenses" [ref=e699] [cursor=pointer]:
+                - /url: /3rdpartylicenses.txt
+        - paragraph [ref=e702]:
+          - text: v3.4-dev [
+          - link "?" [ref=e703] [cursor=pointer]:
+            - /url: https://github.com/n0/xmr-space/commit/?
+          - text: "]"

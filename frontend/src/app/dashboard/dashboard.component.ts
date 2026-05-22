@@ -43,9 +43,9 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   webGlEnabled = true;
 
   goggleResolution = 82;
-  // xmr-space: Bitcoin's Mempool Goggles (Consolidation / Coinjoin /
-  // Data) don't translate to Monero — those filters detect on-chain
-  // patterns visible only because Bitcoin txs are transparent. For
+  // xmr-space: upstream filter widgets (Consolidation / Coinjoin /
+  // Data) don't translate to Monero; those filters detect on-chain
+  // patterns visible only because parent-chain txs are transparent. For
   // Monero we filter on what IS publicly observable: ring size, view
   // tags, RingCT version. The flag bits are defined in
   // filters.utils.ts (xmr_ring16 / xmr_view_tags / xmr_rct_v6) and

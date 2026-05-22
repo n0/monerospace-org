@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { SeoService } from '@app/services/seo.service';
 
 /**
  * Single-page Monero-focused docs replacing upstream's tabbed
@@ -13,4 +14,11 @@ import { Component } from '@angular/core';
   styleUrls: ['./xmr-docs.component.scss'],
   standalone: false,
 })
-export class XmrDocsComponent {}
+export class XmrDocsComponent implements OnInit {
+  constructor(private seoService: SeoService) {}
+
+  ngOnInit(): void {
+    this.seoService.setTitle($localize`:@@xmr.docs.browser-title:Documentation`);
+    this.seoService.setDescription($localize`:@@meta.description.xmr.docs:Monero explorer API reference: REST endpoints, WebSocket and SSE streams, plus an FAQ on mempool data and RingCT privacy.`);
+  }
+}

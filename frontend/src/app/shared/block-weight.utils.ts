@@ -1,6 +1,6 @@
 // xmr-space: Monero's block weight limit is dynamic. The backend uses
 // a 600 KB projection limit for mempool blocks, which is a better visual
-// denominator than Bitcoin's 4,000,000 weight-unit ceiling.
+// denominator than the upstream 4,000,000 weight-unit ceiling.
 export const XMR_VISUAL_BLOCK_WEIGHT_LIMIT = 600_000;
 
 export function getVisualBlockWeightPercent(weight: number | null | undefined): number {

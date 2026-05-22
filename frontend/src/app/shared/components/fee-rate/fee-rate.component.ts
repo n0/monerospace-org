@@ -11,7 +11,7 @@ import { FeeRoundingPipe } from '@app/shared/pipes/fee-rounding/fee-rounding.pip
 })
 export class FeeRateComponent implements OnInit {
   @Input() fee: number | undefined;
-  // xmr-space: Bitcoin's segwit weight units are 4 per vByte, so the
+  // xmr-space: upstream segwit weight units are 4 per vByte, so the
   // upstream default divides by 4 to convert sat/WU → sat/vB. Monero
   // has no weight discount (weight == blob_size in bytes), so the
   // displayed atomic-per-byte rate must NOT divide. Default to 1.

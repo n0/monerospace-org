@@ -4,7 +4,6 @@ import { Router, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { filter, map, switchMap } from 'rxjs/operators';
 import { combineLatest } from 'rxjs';
 import { StateService } from '@app/services/state.service';
-import { LanguageService } from '@app/services/language.service';
 
 @Injectable({
   providedIn: 'root'
@@ -20,7 +19,6 @@ export class OpenGraphService {
     private ngZone: NgZone,
     private metaService: Meta,
     private stateService: StateService,
-    private LanguageService: LanguageService,
     private router: Router,
     private activatedRoute: ActivatedRoute,
   ) {
@@ -51,12 +49,14 @@ export class OpenGraphService {
   }
 
   setOgImage() {
-    const lang = this.LanguageService.getLanguage();
-    const ogImageUrl = `${window.location.protocol}//${window.location.host}/render/${lang}/preview${this.router.url}`;
-    this.metaService.updateTag({ property: 'og:image', content: ogImageUrl });
-    this.metaService.updateTag({ name: 'twitter:image', content: ogImageUrl });
-    this.metaService.updateTag({ property: 'og:image:width', content: '1200' });
-    this.metaService.updateTag({ property: 'og:image:height', content: '600' });
+    // The dynamic preview unfurler that serves /render/<lang>/preview* is not
+    // deployed in production (pure CSR — see SEO audit), so that URL returns the
+    // SPA HTML shell instead of an image and social cards break. Until an
+    // SSR/unfurler service is live, fall back to a static section preview.
+    // (Restore the /render/<lang>/preview${this.router.url} URL once it ships.)
+    const url = this.router.url;
+    const image = (url.startsWith('/block') || url.startsWith('/tx')) ? 'blocks.jpg' : 'dashboard.png';
+    this.setManualOgImage(image);
   }
 
   clearOgImage() {

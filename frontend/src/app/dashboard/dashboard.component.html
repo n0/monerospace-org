@@ -1,5 +1,6 @@
 
 <div class="container-xl dashboard-container">
+  <h1 class="visually-hidden" i18n="Dashboard hidden heading@@dashboard.h1">Monero Block &amp; Mempool Explorer</h1>
   <div class="row row-cols-1 row-cols-md-2" *ngIf="{ value: (mempoolInfoData$ | async) } as mempoolInfoData">
     <ng-container>
       <div class="col card-wrapper">
@@ -33,7 +34,7 @@
             <span>&nbsp;</span>
             <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
           </a>
-          <!-- xmr-space: Monero-shaped filter pills. Bitcoin's
+          <!-- xmr-space: Monero-shaped filter pills. Upstream
                consolidation/coinjoin/data flags don't apply (those
                detected on-chain patterns of TRANSPARENT txs). Our
                filters operate on the publicly observable Monero
@@ -154,9 +155,9 @@
       <h5 *ngIf="!mempoolInfoData.value || mempoolInfoData.value.memPoolInfo.mempoolminfee === mempoolInfoData.value.memPoolInfo.minrelaytxfee else purgingText" class="card-title" i18n="dashboard.minimum-fee|Minimum mempool fee">Minimum fee</h5>
       <ng-template #purgingText><h5 class="card-title" i18n="dashboard.purging|Purgin below fee">Purging</h5></ng-template>
       <p class="card-text" *ngIf="(isLoadingWebSocket$ | async) === false && mempoolInfoData.value; else loading">
-        <!-- xmr-space: upstream multiplies by 100000 because Bitcoin's
-             mempoolminfee is in BTC/kB and the fee-rate component
-             expects sat/vB (BTC/kB → sat/vB ≡ × 1e8 / 1e3 / 4-default-weight).
+        <!-- xmr-space: upstream multiplies by 100000 because its
+             mempoolminfee is in parent units/kB and the fee-rate component
+             expects sat/vB (unit/kB -> sat/vB ~= x 1e8 / 1e3 / 4-default-weight).
              For Monero we send mempoolminfee in atomic units per byte
              directly; the fee-rate component does fee/weight with the
              default weight=4, so we pre-multiply by 4 to cancel that

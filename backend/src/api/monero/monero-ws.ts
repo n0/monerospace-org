@@ -6,6 +6,7 @@ import { IMoneroApi } from './monero-api.interface';
 import { getLatestXmrPrice, priceToConversions } from './xmr-price';
 import { shapeXmrDifficultyAdjustment } from './xmr-difficulty';
 import { identifyXmrMinerPool, unknownXmrMinerPool } from './xmr-miner-fingerprint';
+import { XmrMinerProof, XmrMinerProofRegistry, xmrMinerPoolFromProofName } from './xmr-miner-proof-registry';
 
 /**
  * Speaks the upstream mempool/mempool websocket protocol so the existing
@@ -46,6 +47,7 @@ interface UpstreamBlock {
     maxFee?: number;
     feeRange?: number[];
     pool?: { id: number; name: string; slug: string; minerNames?: string[] };
+    minerProof?: XmrMinerProof;
   };
 }
 
@@ -121,7 +123,11 @@ export class MoneroWs {
    */
   private connState = new Map<WebSocket, ConnState>();
 
-  constructor(private api: MoneroApi, private bus: MoneroEventBus) {}
+  constructor(
+    private api: MoneroApi,
+    private bus: MoneroEventBus,
+    private proofRegistry: XmrMinerProofRegistry | null = null,
+  ) {}
 
   public attach(httpServer: HttpServer, path = '/api/v1/ws'): void {
     this.wss = new WebSocketServer({ server: httpServer, path });
@@ -323,10 +329,13 @@ export class MoneroWs {
       ...(block?.tx_hashes ?? []),
       block?.miner_tx_hash,
     ].filter((txid): txid is string => typeof txid === 'string').map((txid) => txid.toLowerCase()));
-    const fees = block?.tx_hashes?.length
-      ? await this.api.getBlockFeeStats(header.hash, block.tx_hashes).catch(() => null)
-      : null;
-    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined, identifyXmrMinerPool(block));
+    const [fees, proof] = await Promise.all([
+      block?.tx_hashes?.length
+        ? this.api.getBlockFeeStats(header.hash, block.tx_hashes).catch(() => null)
+        : Promise.resolve(null),
+      this.proofForBlock(header.hash),
+    ]);
+    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined, this.poolForBlock(block, proof), proof);
     this.lastBroadcastHeight = header.height;
     // Also push refreshed mempool info and difficulty state — confirming
     // a block drains the pool, and Monero retargets on every new block.
@@ -598,11 +607,27 @@ export class MoneroWs {
     // cached for 24h after first compute, so repeated snapshots after
     // boot are nearly free.
     const shapes = await Promise.all(blocks.map(async (b) => {
-      const fees = await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes ?? [])
-        .catch(() => null);
-      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined, identifyXmrMinerPool(b));
+      const [fees, proof] = await Promise.all([
+        this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes ?? []).catch(() => null),
+        this.proofForBlock(b.block_header.hash),
+      ]);
+      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined, this.poolForBlock(b, proof), proof);
     }));
     return shapes;
+  }
+
+  private async proofForBlock(hash: string): Promise<XmrMinerProof | null> {
+    if (!this.proofRegistry) {
+      return null;
+    }
+    return this.proofRegistry.getProofForBlock(hash).catch(() => null);
+  }
+
+  private poolForBlock(block: IMoneroApi.Block | null | undefined, proof: XmrMinerProof | null) {
+    if (proof?.status === 'verified' && proof.poolName) {
+      return xmrMinerPoolFromProofName(proof.poolName);
+    }
+    return identifyXmrMinerPool(block);
   }
 
   private shapeBlock(
@@ -610,7 +635,23 @@ export class MoneroWs {
     numTxes?: number,
     fees?: { totalFees: number; medianFee: number; minFee: number; maxFee: number; feeRange: number[] },
     pool = unknownXmrMinerPool(),
+    proof: XmrMinerProof | null = null,
   ): UpstreamBlock {
+    const extras: UpstreamBlock['extras'] = {
+      reward: h.reward,
+      // Real fee aggregates resolved per-block via getBlockFeeStats.
+      // Caller passes them in (or omits for the rare path that
+      // wants a header-only shape).
+      totalFees: fees?.totalFees ?? 0,
+      medianFee: fees?.medianFee ?? 0,
+      minFee: fees?.minFee ?? 0,
+      maxFee: fees?.maxFee ?? 0,
+      feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
+      pool,
+    };
+    if (proof) {
+      extras.minerProof = proof;
+    }
     return {
       id: h.hash,
       height: h.height,
@@ -630,18 +671,7 @@ export class MoneroWs {
       size: h.block_size,
       weight: h.block_weight,
       previousblockhash: h.prev_hash,
-      extras: {
-        reward: h.reward,
-        // Real fee aggregates resolved per-block via getBlockFeeStats.
-        // Caller passes them in (or omits for the rare path that
-        // wants a header-only shape).
-        totalFees: fees?.totalFees ?? 0,
-        medianFee: fees?.medianFee ?? 0,
-        minFee: fees?.minFee ?? 0,
-        maxFee: fees?.maxFee ?? 0,
-        feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-        pool,
-      },
+      extras,
     };
   }
 

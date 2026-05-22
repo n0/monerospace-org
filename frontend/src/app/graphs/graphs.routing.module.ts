@@ -20,15 +20,16 @@ import { BlockFeeRatesGraphComponent } from '@components/block-fee-rates-graph/b
 import { BlockSizesWeightsGraphComponent } from '@components/block-sizes-weights-graph/block-sizes-weights-graph.component';
 import { BlockFeesSubsidyGraphComponent } from '@components/block-fees-subsidy-graph/block-fees-subsidy-graph.component';
 import { PriceChartComponent } from '@components/price-chart/price-chart.component';
+import { SwapTickerComponent } from '@components/swap-ticker/swap-ticker.component';
 
 const routes: Routes = [
-  // xmr-space: stripped Bitcoin-only sub-routes from this graphs module:
+  // xmr-space: stripped parent-chain-only sub-routes from this graphs module:
   //   mining, acceleration*, address/:id, wallet/:wallet
   //   — all impossible (Monero has no public address tracking, no
-  //     accelerator market)
+  //     paid fee-bump market)
   // Mining graphs are limited to series hydrated by XmrChainIndexer;
   // pool dominance and block-health remain stripped because they need
-  // upstream pool-tag/audit state we do not build.
+  // broader historical attribution/audit state we do not build.
   // Kept: tools/calculator (feasible reuse), mempool-block/:id (works),
   // graphs/mempool (uses our /api/v1/statistics/* time series), and
   // graphs/price (uses our durable /api/v1/historical-price XMR series).
@@ -64,6 +65,10 @@ const routes: Routes = [
           {
             path: 'price',
             component: PriceChartComponent,
+          },
+          {
+            path: 'swaps',
+            component: SwapTickerComponent,
           },
           {
             path: 'mining/hashrate-difficulty',

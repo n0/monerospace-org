@@ -6,6 +6,7 @@ import { MoneroEventBus } from './monero-event-bus';
 import { MoneroApi } from './monero-api';
 import { IMoneroApi } from './monero-api.interface';
 import { identifyXmrMinerPool, XmrMinerPool } from './xmr-miner-fingerprint';
+import { XmrMinerProof, XmrMinerProofRegistry, xmrMinerPoolFromProofName } from './xmr-miner-proof-registry';
 
 /**
  * XmrChainIndexer
@@ -75,6 +76,9 @@ export interface BlockSample {
   poolSlug?: string;
   poolMinerNames?: string[];
   poolFingerprinted?: boolean;
+  poolProofed?: boolean;
+  poolAttributionSource?: 'coinbase-fingerprint' | 'blocks.p2pool.observer';
+  minerProof?: XmrMinerProof;
 }
 
 interface HydrateBlockOptions {
@@ -127,7 +131,11 @@ export class XmrChainIndexer {
   private currentHashRate = 0;
   private fetchTip: number = 0;
 
-  constructor(private api: MoneroApi, private bus: MoneroEventBus) {}
+  constructor(
+    private api: MoneroApi,
+    private bus: MoneroEventBus,
+    private proofRegistry: XmrMinerProofRegistry | null = null,
+  ) {}
 
   public async start(): Promise<void> {
     await this.loadFromDisk();
@@ -214,6 +222,16 @@ export class XmrChainIndexer {
       if (s.timestamp >= fromSec && s.timestamp <= toSec) out.push(s);
     }
     return out.sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  /** Attach cached miner-proof metadata to already-indexed samples. */
+  public async hydrateMinerProofs(samples: BlockSample[]): Promise<void> {
+    if (!this.proofRegistry || !samples.length) return;
+    for (const sample of samples) {
+      if (!sample.minerProof) {
+        await this.hydrateMinerProof(sample);
+      }
+    }
   }
 
   // ---- backfill ----
@@ -332,8 +350,10 @@ export class XmrChainIndexer {
   public async hydrateBlock(height: number, options: HydrateBlockOptions = {}): Promise<void> {
     const existing = this.samples.get(height);
     if (existing) {
-      if (options.includePool === true && existing.poolFingerprinted !== true) {
+      if (options.includePool === true && !hasPoolAttribution(existing)) {
         await this.hydratePoolFingerprint(height, existing);
+      } else if (options.includePool === true) {
+        await this.hydrateMinerProof(existing);
       }
       return;
     }
@@ -400,6 +420,7 @@ export class XmrChainIndexer {
     if (pool) {
       attachPoolFingerprint(sample, pool);
     }
+    await this.hydrateMinerProof(sample);
 
     this.samples.set(height, sample);
     this.dirty = true;
@@ -422,7 +443,20 @@ export class XmrChainIndexer {
     if (!daemonBlock) return;
 
     attachPoolFingerprint(sample, identifyXmrMinerPool(daemonBlock));
+    await this.hydrateMinerProof(sample);
     this.samples.set(height, sample);
+    this.dirty = true;
+  }
+
+  private async hydrateMinerProof(sample: BlockSample): Promise<void> {
+    if (!this.proofRegistry || !sample.hash) return;
+    const proof = await this.proofRegistry.getProofForBlock(sample.hash).catch((err) => {
+      logger.warn(`xmr-indexer: miner proof ${sample.height} failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    });
+    if (!proof) return;
+    attachMinerProof(sample, proof);
+    this.samples.set(sample.height, sample);
     this.dirty = true;
   }
 
@@ -494,6 +528,25 @@ function attachPoolFingerprint(sample: BlockSample, pool: XmrMinerPool): void {
   sample.poolSlug = pool.slug;
   sample.poolMinerNames = [...pool.minerNames];
   sample.poolFingerprinted = true;
+  sample.poolAttributionSource = 'coinbase-fingerprint';
+}
+
+function attachMinerProof(sample: BlockSample, proof: XmrMinerProof): void {
+  sample.minerProof = { ...proof };
+  if (proof.status !== 'verified' || !proof.poolName) {
+    return;
+  }
+  const pool = xmrMinerPoolFromProofName(proof.poolName);
+  sample.poolId = pool.id;
+  sample.poolName = pool.name;
+  sample.poolSlug = pool.slug;
+  sample.poolMinerNames = [...pool.minerNames];
+  sample.poolProofed = true;
+  sample.poolAttributionSource = 'blocks.p2pool.observer';
+}
+
+function hasPoolAttribution(sample: BlockSample): boolean {
+  return sample.poolFingerprinted === true || sample.poolProofed === true;
 }
 
 /** Linear-interpolated percentile on a pre-sorted array. Returns 0 for empty. */

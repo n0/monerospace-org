@@ -3,13 +3,13 @@
   "version": "3.4-dev",
   "description": "Monero mempool visualizer and blockchain explorer frontend",
   "license": "GNU Affero General Public License v3.0",
-  "homepage": "https://github.com/n0/xmr-space",
+  "homepage": "https://github.com/n0/monerospace-org",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/n0/xmr-space"
+    "url": "git+https://github.com/n0/monerospace-org"
   },
   "bugs": {
-    "url": "https://github.com/n0/xmr-space/issues"
+    "url": "https://github.com/n0/monerospace-org/issues"
   },
   "keywords": [
     "monero",

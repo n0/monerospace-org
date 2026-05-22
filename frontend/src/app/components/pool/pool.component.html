@@ -38,6 +38,11 @@
         <strong><app-amount [satoshis]="poolStats.totalReward" digitsInfo="1.2-2" [noFiat]="true" [ignoreViewMode]="true"></app-amount></strong>
       </div>
       <div class="summary-cell">
+        <span>Miner proofs</span>
+        <strong>{{ proofSummary(poolStats) }}</strong>
+        <small>{{ proofSecondary(poolStats.proofStats) }}</small>
+      </div>
+      <div class="summary-cell">
         <span i18n="mining.tags">Tags</span>
         <strong class="tags">{{ poolStats.tags.length ? poolStats.tags.join(', ') : '~' }}</strong>
       </div>
@@ -56,6 +61,7 @@
           <th class="height" i18n="latest-blocks.height">Height</th>
           <th class="timestamp" i18n="latest-blocks.timestamp">Timestamp</th>
           <th class="mined" i18n="latest-blocks.mined">Mined</th>
+          <th class="proof">Proof</th>
           <th class="reward text-end" i18n="latest-blocks.reward">Reward</th>
           <th class="fees text-end" i18n="latest-blocks.fees">Fees</th>
           <th class="txs text-end" i18n="dashboard.txs">TXs</th>
@@ -71,6 +77,20 @@
             </td>
             <td class="mined">
               <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [showTooltip]="true"></app-time>
+            </td>
+            <td class="proof">
+              <a *ngIf="block.extras?.minerProof as proof; else noProof"
+                class="miner-proof-badge"
+                [ngClass]="proofBadgeClass(proof)"
+                [href]="proof.sourceUrl"
+                target="_blank"
+                rel="noopener"
+                [title]="proofTitle(proof)">
+                {{ proofBadgeLabel(proof) }}
+              </a>
+              <ng-template #noProof>
+                <span class="miner-proof-badge miner-proof-unknown" [title]="proofTitle(null)">Unlisted</span>
+              </ng-template>
             </td>
             <td class="reward text-end">
               <app-amount [satoshis]="block.extras.reward" digitsInfo="1.2-2" [noFiat]="true" [ignoreViewMode]="true"></app-amount>
@@ -90,7 +110,7 @@
             </td>
           </tr>
           <tr *ngIf="blocks.length === 0">
-            <td colspan="7" class="text-center text-muted" i18n="mining.no-observed-blocks">No observed blocks yet.</td>
+            <td colspan="8" class="text-center text-muted" i18n="mining.no-observed-blocks">No observed blocks yet.</td>
           </tr>
         </tbody>
       </ng-container>
@@ -100,6 +120,7 @@
           <th class="height" i18n="latest-blocks.height">Height</th>
           <th class="timestamp" i18n="latest-blocks.timestamp">Timestamp</th>
           <th class="mined" i18n="latest-blocks.mined">Mined</th>
+          <th class="proof">Proof</th>
           <th class="reward text-end" i18n="latest-blocks.reward">Reward</th>
           <th class="fees text-end" i18n="latest-blocks.fees">Fees</th>
           <th class="txs text-end" i18n="dashboard.txs">TXs</th>
@@ -110,6 +131,7 @@
             <td class="height"><span class="skeleton-loader"></span></td>
             <td class="timestamp"><span class="skeleton-loader"></span></td>
             <td class="mined"><span class="skeleton-loader"></span></td>
+            <td class="proof"><span class="skeleton-loader"></span></td>
             <td class="reward text-end"><span class="skeleton-loader"></span></td>
             <td class="fees text-end"><span class="skeleton-loader"></span></td>
             <td class="txs text-end"><span class="skeleton-loader"></span></td>
@@ -130,7 +152,7 @@
       </div>
     </div>
     <section class="pool-summary-grid">
-      <div class="summary-cell" *ngFor="let item of [1,2,3,4,5,6]">
+      <div class="summary-cell" *ngFor="let item of [1,2,3,4,5,6,7]">
         <span class="skeleton-loader"></span>
         <strong class="skeleton-loader"></strong>
       </div>

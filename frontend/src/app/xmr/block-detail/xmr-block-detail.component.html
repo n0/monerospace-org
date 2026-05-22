@@ -54,6 +54,26 @@
           <div class="xmr-stat-sub">{{ b.timestamp * 1000 | date:'medium' }}</div>
         </div>
       </div>
+      <div class="col-md">
+        <div class="xmr-stat-card xmr-proof-stat">
+          <div class="xmr-stat-label">Miner proof</div>
+          <div class="xmr-stat-value">
+            <a *ngIf="minerProof(b) as proof; else noProofCard"
+              class="miner-proof-badge"
+              [ngClass]="proofBadgeClass(proof)"
+              [href]="proof.sourceUrl"
+              target="_blank"
+              rel="noopener"
+              [title]="proofTitle(proof)">
+              {{ proofBadgeLabel(proof) }}
+            </a>
+            <ng-template #noProofCard>
+              <span class="miner-proof-badge miner-proof-unknown" [title]="proofTitle(null)">Unlisted</span>
+            </ng-template>
+          </div>
+          <div class="xmr-stat-sub">{{ proofSubtitle(minerProof(b)) }}</div>
+        </div>
+      </div>
     </div>
 
     <!-- WebGL tile visualization — every non-coinbase tx in this block
@@ -106,6 +126,25 @@
             <tr><th>Coinbase tx</th>
               <td>
                 <a [routerLink]="['/tx', b.miner_tx_hash]"><code class="xmr-mono-wrap">{{ b.miner_tx_hash }}</code></a>
+              </td>
+            </tr>
+            <tr><th>Miner proof</th>
+              <td>
+                <ng-container *ngIf="minerProof(b) as proof; else noProofRow">
+                  <a
+                    class="miner-proof-badge"
+                    [ngClass]="proofBadgeClass(proof)"
+                    [href]="proof.sourceUrl"
+                    target="_blank"
+                    rel="noopener"
+                    [title]="proofTitle(proof)">
+                    {{ proofBadgeLabel(proof) }}
+                  </a>
+                  <span class="text-muted ms-2">{{ proof.poolName || proof.sourceName }}</span>
+                </ng-container>
+                <ng-template #noProofRow>
+                  <span class="miner-proof-badge miner-proof-unknown" [title]="proofTitle(null)">Unlisted</span>
+                </ng-template>
               </td>
             </tr>
           </tbody>

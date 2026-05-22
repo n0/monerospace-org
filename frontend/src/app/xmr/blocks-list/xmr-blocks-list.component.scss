@@ -62,3 +62,11 @@
   color: var(--fg);
   font-size: 0.85em;
 }
+
+.xmr-bl-proof {
+  white-space: nowrap;
+
+  @media (max-width: 980px) {
+    display: none;
+  }
+}

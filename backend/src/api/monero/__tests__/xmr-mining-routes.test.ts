@@ -4,6 +4,7 @@ import { AddressInfo } from 'net';
 import { XmrMiningRoutes } from '../xmr-mining.routes';
 import { BlockSample, XmrChainIndexer } from '../xmr-chain-indexer';
 import { setXmrPriceStoreForTests, XmrApiPrice, XmrPriceStore } from '../xmr-price';
+import { XmrMinerProof } from '../xmr-miner-proof-registry';
 
 function xmrPrice(time: number, usd: number): XmrApiPrice {
   return {
@@ -55,6 +56,7 @@ function sample(
       slug: string;
       minerNames?: string[];
     };
+    minerProof?: XmrMinerProof;
   } = {},
 ): BlockSample {
   return {
@@ -81,6 +83,9 @@ function sample(
       poolMinerNames: options.pool.minerNames ?? [options.pool.name],
       poolFingerprinted: true,
     } : {}),
+    ...(options.minerProof ? {
+      minerProof: options.minerProof,
+    } : {}),
   };
 }
 
@@ -90,6 +95,7 @@ function makeServer(samples: BlockSample[]): Promise<Server> {
     samplesBetween: jest.fn((from: number, to: number) => samples.filter((entry) => entry.timestamp >= from && entry.timestamp <= to)),
     allSamples: jest.fn(() => samples.slice().sort((a, b) => a.height - b.height)),
     recentSamples: jest.fn(async (count: number) => samples.slice().sort((a, b) => a.height - b.height).slice(-count)),
+    hydrateMinerProofs: jest.fn(async () => undefined),
     stats: jest.fn(() => ({ currentHashRate: 0, currentDifficulty: 0 })),
   } as unknown as XmrChainIndexer;
   new XmrMiningRoutes(indexer).initRoutes(app);
@@ -240,9 +246,34 @@ describe('XmrMiningRoutes price enrichment', () => {
   it('serves best-effort mining pool stats from indexed Monero samples', async () => {
     const now = Math.floor(Date.now() / 1000);
     const p2pool = { id: 1, name: 'P2Pool', slug: 'p2pool', minerNames: ['P2Pool'] };
+    const verifiedProof: XmrMinerProof = {
+      status: 'verified',
+      type: 'viewkey',
+      source: 'blocks.p2pool.observer',
+      sourceName: 'blocks.p2pool.observer',
+      sourceUrl: 'https://blocks.p2pool.observer/block/' + String(100).padStart(64, '0'),
+      registryUrl: 'https://blocks.p2pool.observer/proofs',
+      blockHash: String(100).padStart(64, '0'),
+      height: 100,
+      poolName: 'P2Pool',
+      poolSlug: 'p2pool',
+      poolId: 1,
+    };
+    const missingProof: XmrMinerProof = {
+      status: 'missing',
+      source: 'blocks.p2pool.observer',
+      sourceName: 'blocks.p2pool.observer',
+      sourceUrl: 'https://blocks.p2pool.observer/block/' + String(101).padStart(64, '0'),
+      registryUrl: 'https://blocks.p2pool.observer/proofs',
+      blockHash: String(101).padStart(64, '0'),
+      height: 101,
+      poolName: 'P2Pool',
+      poolSlug: 'p2pool',
+      poolId: 1,
+    };
     server = await makeServer([
-      sample(100, now - 300, 40_000_000_000, 640_000_000_000, { pool: p2pool }),
-      sample(101, now - 200, 60_000_000_000, 660_000_000_000, { pool: p2pool, numTxs: 0 }),
+      sample(100, now - 300, 40_000_000_000, 640_000_000_000, { pool: p2pool, minerProof: verifiedProof }),
+      sample(101, now - 200, 60_000_000_000, 660_000_000_000, { pool: p2pool, numTxs: 0, minerProof: missingProof }),
       sample(102, now - 100, 70_000_000_000, 670_000_000_000),
     ]);
 
@@ -251,7 +282,7 @@ describe('XmrMiningRoutes price enrichment', () => {
       knownBlockCount: number;
       unknownBlockCount: number;
       lastEstimatedHashrate: number;
-      pools: Array<Record<string, number | string>>;
+      pools: Array<Record<string, unknown>>;
     }>(server, '/api/v1/mining/pools/24h');
 
     expect(response.status).toBe(200);
@@ -269,6 +300,8 @@ describe('XmrMiningRoutes price enrichment', () => {
       rank: 1,
       share: 66.67,
       emptyBlockRatio: '50.00',
+      proofVerifiedBlockCount: 1,
+      proofMissingBlockCount: 1,
     });
     expect(response.json.pools.find((pool) => pool.slug === 'unknown')).toMatchObject({
       poolUniqueId: 0,
@@ -289,6 +322,13 @@ describe('XmrMiningRoutes price enrichment', () => {
     expect(poolResponse.json.blockShare['24h']).toBeCloseTo(2 / 3);
     expect(poolResponse.json.estimatedHashrate).toBeGreaterThan(0);
     expect(poolResponse.json.totalReward).toBe(1_300_000_000_000);
+    expect(poolResponse.json.proofStats).toEqual({
+      verified: 1,
+      missing: 1,
+      unavailable: 0,
+      unknown: 0,
+      total: 2,
+    });
 
     const poolHashrateResponse = await getJson<Array<Record<string, number | string>>>(
       server,
@@ -322,6 +362,7 @@ describe('XmrMiningRoutes price enrichment', () => {
           name: 'P2Pool',
           slug: 'p2pool',
         },
+        minerProof: missingProof,
       },
     });
     const pagedPoolBlocksResponse = await getJson<any[]>(

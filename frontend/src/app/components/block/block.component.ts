@@ -237,8 +237,13 @@ export class BlockComponent implements OnInit, OnDestroy {
         this.nextBlockHeight = block.height + 1;
         this.setNextAndPreviousBlockLink();
 
-        this.seoService.setTitle($localize`:@@block.component.browser-title:Block ${block.height}:BLOCK_HEIGHT:: ${block.id}:BLOCK_ID:`);
+        const shortId = block.id.slice(0, 8) + '…' + block.id.slice(-8);
+        this.seoService.setTitle($localize`:@@block.component.browser-title:Block ${block.height}:BLOCK_HEIGHT:: ${shortId}:BLOCK_ID:`);
         this.seoService.setDescription($localize`:@@meta.description.xmr.block:See Monero block size, weight, fees, reward, included transaction hashes, and public chain metadata for block ${block.height}:BLOCK_HEIGHT: (${block.id}:BLOCK_ID:).`);
+        this.seoService.setBreadcrumb([
+          { name: $localize`Blocks`, path: '/blocks/1' },
+          { name: $localize`Block` + ' ' + block.height, path: '/block/' + block.id },
+        ]);
         this.isLoadingBlock = false;
         this.setBlockSubsidy();
         if (block?.extras?.reward !== undefined) {

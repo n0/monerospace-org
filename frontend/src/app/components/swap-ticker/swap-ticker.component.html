@@ -1,0 +1,171 @@
+<div class="swap-ticker full-container" *ngIf="tickerState$ | async as state">
+  <div class="card-header mb-3">
+    <div class="swap-title-row">
+      <div>
+        <span>Swap ticker</span>
+        <div class="swap-subtitle">Haveno markets and XMR/BTC atomic-swap discovery</div>
+      </div>
+
+      <form [formGroup]="radioGroupForm" class="formRadioGroup">
+        <div class="btn-group" name="radioBasic">
+          <label class="btn btn-primary btn-sm" [class.active]="radioGroupForm.get('period').value === '24h'">
+            <input type="radio" class="btn-check" [value]="'24h'" formControlName="period"> 24H
+          </label>
+          <label class="btn btn-primary btn-sm" [class.active]="radioGroupForm.get('period').value === '7d'">
+            <input type="radio" class="btn-check" [value]="'7d'" formControlName="period"> 7D
+          </label>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div *ngIf="state.loading" class="swap-loading">
+    <div class="spinner-border text-light"></div>
+  </div>
+
+  <div *ngIf="state.error" class="alert alert-danger" role="alert">
+    {{ state.error }}
+  </div>
+
+  <ng-container *ngIf="state.ticker as ticker">
+    <section class="swap-summary">
+      <div class="summary-item">
+        <div class="summary-label">Network</div>
+        <div class="summary-value">{{ ticker.network.name }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Active pairs</div>
+        <div class="summary-value">{{ ticker.totals.activePairs | number }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Volume</div>
+        <div class="summary-value">{{ ticker.totals.xmrVolume | number:'1.2-2' }} <span>XMR</span></div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Trades sampled</div>
+        <div class="summary-value">{{ ticker.totals.recentTrades | number }}</div>
+      </div>
+    </section>
+
+    <section class="swap-goggles" aria-label="Swap goggles">
+      <div class="goggle-heading">
+        <div>
+          <h2>Swap goggles</h2>
+          <span>{{ state.filteredMarkets.length | number }} pairs · {{ state.visibleVolume | number:'1.2-2' }} XMR</span>
+        </div>
+      </div>
+
+      <div class="goggle-buttons">
+        <button
+          type="button"
+          class="goggle-button"
+          *ngFor="let option of goggleOptions"
+          [class.active]="state.activeGoggle === option.mode"
+          [attr.aria-pressed]="state.activeGoggle === option.mode"
+          (click)="setGoggle(option.mode)"
+        >
+          <span>{{ option.label }}</span>
+          <strong>{{ goggleCount(state, option.mode) | number }}</strong>
+        </button>
+      </div>
+    </section>
+
+    <section class="atomic-panel">
+      <div>
+        <div class="panel-eyebrow">Atomic swaps</div>
+        <h2>{{ ticker.atomicSwap.label }}</h2>
+        <p>{{ ticker.atomicSwap.note }}</p>
+      </div>
+      <div class="atomic-meta">
+        <div>
+          <span>Direction</span>
+          <strong>{{ ticker.atomicSwap.direction }}</strong>
+        </div>
+        <div>
+          <span>Status</span>
+          <strong>Maker discovery</strong>
+        </div>
+        <a [href]="ticker.atomicSwap.docsUrl" target="_blank" rel="noopener noreferrer">Docs</a>
+      </div>
+    </section>
+
+    <section class="swap-table-section">
+      <div class="section-heading">
+        <h2>Haveno markets</h2>
+        <span>{{ state.filteredMarkets.length | number }} of {{ ticker.markets.length | number }} pairs · updated {{ ticker.updatedAt | date:'medium' }}</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-borderless swap-table">
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Price</th>
+              <th>Change</th>
+              <th>Volume</th>
+              <th class="d-none d-md-table-cell">Range</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let market of state.filteredMarkets; trackBy: trackByPair">
+              <td>
+                <strong>{{ market.displayPair }}</strong>
+                <span>{{ market.protocol }}</span>
+              </td>
+              <td>{{ market.price | number:'1.2-8' }} <span>{{ priceUnit(market) }}</span></td>
+              <td [ngClass]="changeClass(market)">
+                {{ market.changePercent > 0 ? '+' : '' }}{{ market.changePercent | number:'1.2-2' }}%
+              </td>
+              <td>{{ market.xmrVolume | number:'1.2-2' }} <span>XMR</span></td>
+              <td class="d-none d-md-table-cell">
+                {{ market.low | number:'1.2-8' }} - {{ market.high | number:'1.2-8' }}
+              </td>
+            </tr>
+            <tr *ngIf="state.filteredMarkets.length === 0">
+              <td colspan="5" class="empty-state">No markets match this goggle.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="swap-table-section">
+      <div class="section-heading">
+        <h2>Recent trades</h2>
+        <span>{{ state.filteredTrades.length | number }} of {{ ticker.recentTrades.length | number }} sampled trades</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-borderless swap-table">
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Price</th>
+              <th>Volume</th>
+              <th class="d-none d-md-table-cell">Method</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let trade of state.filteredTrades; let i = index; trackBy: trackByTrade">
+              <td><strong>{{ trade.pair.replace('_', '/') }}</strong></td>
+              <td>{{ trade.price | number:'1.2-8' }} <span>{{ priceUnit(trade) }}</span></td>
+              <td>{{ trade.xmrVolume | number:'1.2-4' }} <span>XMR</span></td>
+              <td class="d-none d-md-table-cell">{{ paymentMethodLabel(trade) }}</td>
+              <td><app-time kind="since" [time]="trade.timestamp" [fastRender]="true" [showTooltip]="true"></app-time></td>
+            </tr>
+            <tr *ngIf="state.filteredTrades.length === 0">
+              <td colspan="5" class="empty-state">
+                {{ ticker.recentTrades.length === 0 ? 'No recent trades returned by the upstream market source.' : 'No recent trades match this goggle.' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="source-row">
+      <a *ngFor="let source of ticker.sources" [href]="source.url" target="_blank" rel="noopener noreferrer">{{ source.name }}</a>
+    </footer>
+  </ng-container>
+</div>

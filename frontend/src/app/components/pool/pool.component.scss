@@ -97,6 +97,14 @@
     width: 13%;
   }
 
+  .proof {
+    white-space: nowrap;
+
+    @media (max-width: 1180px) {
+      display: none;
+    }
+  }
+
   .txs {
     padding-right: 40px;
 

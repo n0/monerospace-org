@@ -27,6 +27,7 @@
               <th>TXs</th>
               <th>Size</th>
               <th>Reward</th>
+              <th class="xmr-bl-proof">Proof</th>
               <th>Difficulty</th>
               <th class="xmr-bl-hash">Hash</th>
             </tr>
@@ -38,6 +39,20 @@
               <td>{{ b.num_txes | number }}</td>
               <td>{{ b.block_size | number }} B</td>
               <td>{{ formatXmr(b.reward) }} XMR</td>
+              <td class="xmr-bl-proof">
+                <a *ngIf="b.extras?.minerProof as proof; else noProof"
+                  class="miner-proof-badge"
+                  [ngClass]="proofBadgeClass(proof)"
+                  [href]="proof.sourceUrl"
+                  target="_blank"
+                  rel="noopener"
+                  [title]="proofTitle(proof)">
+                  {{ proofBadgeLabel(proof) }}
+                </a>
+                <ng-template #noProof>
+                  <span class="miner-proof-badge miner-proof-unknown" [title]="proofTitle(null)">Unlisted</span>
+                </ng-template>
+              </td>
               <td>{{ b.difficulty | number }}</td>
               <td class="xmr-bl-hash"><a [routerLink]="['/block', b.hash]"><code>{{ b.hash | slice:0:12 }}…{{ b.hash | slice:-6 }}</code></a></td>
             </tr>

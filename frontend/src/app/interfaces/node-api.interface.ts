@@ -165,6 +165,11 @@ export interface SinglePoolStats {
   emptyBlockRatio: string;
   logo: string;
   slug: string;
+  proofStats?: MinerProofStats;
+  proofVerifiedBlockCount?: number;
+  proofMissingBlockCount?: number;
+  proofUnavailableBlockCount?: number;
+  proofUnknownBlockCount?: number;
 }
 export interface PoolsStats {
   blockCount: number;
@@ -188,6 +193,28 @@ export interface PoolInfo {
   poolUniqueId: number;
   unique_id: number;
 }
+export type MinerProofStatus = 'verified' | 'missing' | 'unavailable' | 'unknown';
+export type MinerProofType = 'viewkey' | 'txkey' | 'txproof';
+export interface MinerProof {
+  status: MinerProofStatus;
+  type?: MinerProofType;
+  source: 'blocks.p2pool.observer';
+  sourceName: string;
+  sourceUrl: string;
+  registryUrl: string;
+  blockHash: string;
+  height?: number;
+  poolName?: string;
+  poolSlug?: string;
+  poolId?: number;
+}
+export interface MinerProofStats {
+  verified: number;
+  missing: number;
+  unavailable: number;
+  unknown: number;
+  total: number;
+}
 export interface PoolStat {
   pool: PoolInfo;
   blockCount: {
@@ -202,6 +229,7 @@ export interface PoolStat {
   };
   estimatedHashrate: number;
   totalReward: number;
+  proofStats?: MinerProofStats;
 }
 
 export interface BlockExtension {
@@ -220,6 +248,7 @@ export interface BlockExtension {
     minerNames: string[] | null;
     logo?: string;
   }
+  minerProof?: MinerProof;
   orphans?: {
     height: number;
     hash: string;

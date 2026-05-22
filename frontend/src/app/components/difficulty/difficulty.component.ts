@@ -33,7 +33,8 @@ interface DiffShape {
   expected: boolean;
 }
 
-const EPOCH_BLOCK_LENGTH = 2016; // Bitcoin mainnet
+// Preserved for the hidden upstream halving branch; Monero mode uses a one-block retarget window.
+const EPOCH_BLOCK_LENGTH = 2016;
 
 @Component({
   selector: 'app-difficulty',

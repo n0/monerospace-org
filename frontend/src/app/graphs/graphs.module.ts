@@ -20,6 +20,7 @@ import { DashboardComponent } from '@app/dashboard/dashboard.component';
 import { HashrateChartComponent } from '@components/hashrate-chart/hashrate-chart.component';
 import { PoolRankingComponent } from '@components/pool-ranking/pool-ranking.component';
 import { PoolComponent } from '@components/pool/pool.component';
+import { SwapTickerComponent } from '@components/swap-ticker/swap-ticker.component';
 
 @NgModule({
   declarations: [
@@ -39,6 +40,7 @@ import { PoolComponent } from '@components/pool/pool.component';
     HashrateChartComponent,
     PoolRankingComponent,
     PoolComponent,
+    SwapTickerComponent,
   ],
   imports: [
     CommonModule,

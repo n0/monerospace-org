@@ -22,20 +22,20 @@ const routes: Routes = [
   },
   // xmr-space: stripped top-level upstream routes that are not safe
   // public Monero features:
-  //   tx tracker     -> Bitcoin fee-bump/accelerator/RBF status UI;
+  //   tx tracker     -> upstream fee-bump/RBF status UI;
   //                     removing it ensures mobile /tx/:hash uses the
   //                     retargeted TransactionModule from MasterPage.
   //   widget/wallet  -> address/wallet tracking is impossible from
   //                     public Monero chain data.
-  //   preview*       -> Bitcoin/Liquid/OpenGraph previews include
+  //   preview*       -> upstream OpenGraph previews include
   //                     address, wallet, pool, and Lightning branches.
-  //   clock/view*    -> legacy Bitcoin embed views not part of the
+  //   clock/view*    -> legacy upstream embed views not part of the
   //                     audited XMR surface.
   //   testnet/signet/regtest/liquid env branches -> Bitcoin/Liquid
   //                     route trees; XMR networks need explicit
   //                     Monero-shaped routing when supported.
   //   preview*       -> removed entirely from the XMR build graph so
-  //                     Bitcoin/Liquid/OpenGraph modules are not
+  //                     upstream OpenGraph modules are not
   //                     bundled just because env flags exist.
 ];
 

@@ -13,20 +13,20 @@ const routes: Routes = [
     path: '',
     component: MasterPageComponent,
     children: [
-      // xmr-space: stripped Bitcoin-only routes from this children list.
+      // xmr-space: stripped upstream-only routes from this children list.
       // Each was either UTXO-shaped or unique to mempool's commercial
       // surface and impossible to retarget meaningfully:
       //
       //   tx/push, pushtx, tx/test  → PushTransaction & Testmempoolaccept
-      //                               UI: Bitcoin raw-tx hex format,
+      //                               UI: transparent-chain raw-tx hex format,
       //                               vin/vout decoder. Strip; a Monero
       //                               broadcast tool is a future iter.
-      //   blocks/stale              → Bitcoin stale-block tracking
+      //   blocks/stale              → stale-block tracking from the parent app
       //   rbf                       → RBF replacements (impossible)
       //   stratum                   → Stratum mining pool dashboard
       //   mining/blocks             → relies on per-pool fingerprinting
       //   lightning                 → Lightning Network (impossible)
-      //   monitoring, nodes, faucet → official Bitcoin/Liquid surfaces
+      //   monitoring, nodes, faucet → official parent-app surfaces
       //   blocks*                   → upstream BlocksList expects pool +
       //                               fee-range extras we don't provide;
       //                               redirected to '/' until iter 23
@@ -41,7 +41,7 @@ const routes: Routes = [
       },
       {
         // xmr-space: dedicated Monero daemon status page. This replaces
-        // upstream's Bitcoin/Liquid monitoring/status surface with a
+        // upstream's monitoring/status surface with a
         // small view backed by /healthz and /api/v1/info.
         path: 'status',
         loadChildren: () => import('@app/xmr/status/xmr-status.module').then(m => m.XmrStatusModule),
@@ -49,7 +49,7 @@ const routes: Routes = [
       // xmr-space: route /blocks back to upstream BlocksList. Our
       // /api/v1/blocks endpoint now returns the upstream `extras`
       // envelope with totalFees / medianFee / feeRange / pool, so the
-      // Bitcoin table layout (Pool column with logo, Size progress
+      // parent table layout (Pool column with logo, Size progress
       // bar, fee tier coloring) renders correctly against Monero data.
       // XmrBlocksListModule preserved on disk.
       { path: 'blocks/:page', component: BlocksList },
@@ -76,7 +76,7 @@ const routes: Routes = [
         // expects vin/vout — our backend returns synthetic placeholders
         // tagged ringct:true so the inputs/outputs section renders
         // (with the values flagged as RingCT-hidden) but doesn't crash.
-        // Bitcoin-only sub-features (RBF panel, Accelerator panel,
+        // upstream-only sub-features (RBF panel, paid fee-bump panel,
         // CPFP cluster) are gated by env flags and stay hidden. The
         // active XMR proof UI lives in TransactionComponent so there is
         // no separate unrouted tx-detail module accepting private keys.
@@ -87,7 +87,7 @@ const routes: Routes = [
       },
       {
         // xmr-space: route /block back to upstream BlockModule for full
-        // visual parity with mempool.space. Bitcoin-only accelerator and
+        // visual parity with mempool.space. Upstream paid fee-bump and
         // audit paths are stripped; stale-block comparison stays for
         // fork visibility. The per-tx vin/vout decoder used by
         // BlockTransactionsComponent renders rows with empty inputs/
@@ -100,7 +100,7 @@ const routes: Routes = [
         loadChildren: () => import('@components/block/block.module').then(m => m.BlockModule),
       },
       {
-        // xmr-space: replace the upstream Bitcoin FAQ/REST/WebSocket/
+        // xmr-space: replace the upstream FAQ/REST/WebSocket/
         // Electrum docs with a focused XmrDocsModule covering only
         // the docs that apply to this fork.
         path: 'docs',
@@ -116,7 +116,7 @@ const routes: Routes = [
 ];
 
 // xmr-space: do not re-add upstream official-instance routes here.
-// `monitoring`, `nodes`, and `faucet` are Bitcoin/Liquid surfaces;
+// `monitoring`, `nodes`, and `faucet` are parent-app network surfaces;
 // the dedicated Monero daemon-health page lives at `/status` instead
 // of reusing those components.
 // SimpleProof dashboard-service routes (`sp/verified`, `sp/cubo`) are

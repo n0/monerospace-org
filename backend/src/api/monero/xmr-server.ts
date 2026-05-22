@@ -24,6 +24,9 @@ import { MoneroStats } from './monero-stats';
 import { XmrChainIndexer } from './xmr-chain-indexer';
 import { XmrMiningRoutes } from './xmr-mining.routes';
 import { moneroWalletRpcFromEnv } from './monero-wallet-rpc';
+import { XmrSwapTickerRoutes } from './xmr-swap-ticker';
+import { XmrSitemapRoutes } from './xmr-sitemap.routes';
+import { XmrMinerProofRegistry } from './xmr-miner-proof-registry';
 
 function main(): void {
   const app = express();
@@ -49,9 +52,15 @@ function main(): void {
     res.json({ ok: true, service: 'xmr-space-backend' });
   });
 
+  // Real /sitemap.xml (nginx proxies it here ahead of the SPA fallback).
+  new XmrSitemapRoutes().initRoutes(app);
+
   const daemonConfig = moneroDaemonConfigFromEnv();
   const api = new MoneroApi(daemonConfig);
   const walletRpc = moneroWalletRpcFromEnv();
+  const minerProofRegistry = process.env.XMR_MINER_PROOF_REGISTRY_ENABLED === 'false'
+    ? null
+    : new XmrMinerProofRegistry();
 
   const bus = new MoneroEventBus(
     daemonConfig,
@@ -77,20 +86,21 @@ function main(): void {
   // in the background; mining graphs populate progressively over
   // the first minute or two of boot. Persists to ~/.xmr-space/
   // blocks-index.json so subsequent boots are instant.
-  const indexer = new XmrChainIndexer(api, bus);
+  const indexer = new XmrChainIndexer(api, bus, minerProofRegistry);
   void indexer.start();
   new XmrMiningRoutes(indexer).initRoutes(app);
+  new XmrSwapTickerRoutes().initRoutes(app);
 
   // WebSocket adapter at /api/v1/ws speaking the upstream mempool/mempool
   // protocol so the existing Angular frontend renders without retargeting
   // its WebsocketService / StateService.
   const httpServer = createServer(app);
-  const ws = new MoneroWs(api, bus);
+  const ws = new MoneroWs(api, bus, minerProofRegistry);
   ws.attach(httpServer, '/api/v1/ws');
 
   // REST routes after ws so /api/v1/init-data can mirror the ws
   // first-message snapshot without duplicating the shaping logic.
-  new MoneroRoutes(api, ws, walletRpc).initRoutes(app);
+  new MoneroRoutes(api, ws, walletRpc, '/api/v1/', minerProofRegistry).initRoutes(app);
 
   httpServer.listen(port, host, () => {
     // eslint-disable-next-line no-console
@@ -103,6 +113,8 @@ function main(): void {
     }
     // eslint-disable-next-line no-console
     console.log(`[xmr-space] wallet-rpc proofs: ${walletRpc ? 'enabled' : 'disabled (set MONERO_WALLET_RPC_URL)'}`);
+    // eslint-disable-next-line no-console
+    console.log(`[xmr-space] miner proof registry: ${minerProofRegistry ? minerProofRegistry.proofsUrl() : 'disabled'}`);
   });
 }
 

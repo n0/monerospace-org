@@ -1590,6 +1590,45 @@ a.badge:hover, a.badge:focus {
   text-decoration: none;
 }
 
+.miner-proof-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--transparent-fg);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.miner-proof-badge:hover,
+a.miner-proof-badge:focus {
+  text-decoration: none;
+}
+
+.miner-proof-verified {
+  border-color: rgba(59, 176, 111, 0.55);
+  background: rgba(59, 176, 111, 0.14);
+  color: #75d99f;
+}
+
+.miner-proof-missing {
+  border-color: rgba(255, 153, 51, 0.5);
+  background: rgba(255, 153, 51, 0.13);
+  color: #ffb15d;
+}
+
+.miner-proof-unavailable,
+.miner-proof-unknown {
+  border-color: var(--transparent-fg);
+  background: rgba(128, 128, 128, 0.08);
+  color: var(--tooltip-grey);
+}
+
 .table th, .table td {
   padding: 0.75rem;
 }

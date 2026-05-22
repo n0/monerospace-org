@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Subscription, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import { MinerProof } from '@interfaces/node-api.interface';
 
 interface XmrBlockSummary {
   hash: string;
@@ -14,6 +15,9 @@ interface XmrBlockSummary {
   block_weight: number;
   num_txes: number;
   difficulty: number;
+  extras?: {
+    minerProof?: MinerProof;
+  };
 }
 
 const PAGE_SIZE = 25;
@@ -113,5 +117,32 @@ export class XmrBlocksListComponent implements OnInit, OnDestroy {
 
   formatXmr(atomic: number): string {
     return (atomic / 1e12).toFixed(4);
+  }
+
+  proofBadgeLabel(proof?: MinerProof | null): string {
+    if (!proof) return 'Unlisted';
+    if (proof.status === 'verified') return proof.type ? `Verified (${proof.type})` : 'Verified';
+    if (proof.status === 'missing') return 'Missing';
+    if (proof.status === 'unavailable') return 'Unavailable';
+    return 'Unknown';
+  }
+
+  proofBadgeClass(proof?: MinerProof | null): string {
+    return `miner-proof-${proof?.status ?? 'unknown'}`;
+  }
+
+  proofTitle(proof?: MinerProof | null): string {
+    if (!proof) return 'No miner proof registry entry for this block';
+    const pool = proof.poolName ? `${proof.poolName}: ` : '';
+    if (proof.status === 'verified') {
+      return `${pool}cryptographic miner proof verified by ${proof.sourceName}`;
+    }
+    if (proof.status === 'missing') {
+      return `${pool}pool attribution found, but miner proof is missing`;
+    }
+    if (proof.status === 'unavailable') {
+      return `${pool}no miner proof is available for this block`;
+    }
+    return `${pool}miner proof status unknown`;
   }
 }

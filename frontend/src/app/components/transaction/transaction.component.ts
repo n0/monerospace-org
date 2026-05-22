@@ -220,8 +220,9 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
               replaceUrl: true,
             });
           }
+          const shortTxId = this.txId.slice(0, 8) + '…' + this.txId.slice(-8);
           this.seoService.setTitle(
-            $localize`:@@xmr.transaction.browser-title:Transaction: ${this.txId}:INTERPOLATION:`
+            $localize`:@@xmr.transaction.browser-title:Transaction: ${shortTxId}:INTERPOLATION:`
           );
           this.seoService.setDescription($localize`:@@meta.description.xmr.transaction:Get real-time Monero transaction status, fee, size, ring information, key images, and confirmations for txid ${this.txId}. Amounts and recipients stay hidden by RingCT.`);
           this.resetTransaction();
@@ -259,6 +260,10 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
             return;
           }
           this.seoService.clearSoft404();
+          this.seoService.setBreadcrumb([
+            { name: $localize`Transactions`, path: '/txs' },
+            { name: $localize`Transaction`, path: '/tx/' + this.txId },
+          ]);
 
           this.tx = tx;
           this.setFeatures();

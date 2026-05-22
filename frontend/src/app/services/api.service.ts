@@ -42,6 +42,65 @@ export interface XmrDaemonInfo {
   update_available?: boolean;
 }
 
+export interface XmrSwapMarket {
+  source: 'haveno.markets';
+  protocol: 'haveno';
+  network: string;
+  pair: string;
+  displayPair: string;
+  counterCurrency: string;
+  price: number;
+  high: number;
+  low: number;
+  changePercent: number;
+  xmrVolume: number;
+  counterVolume: number;
+  highestBid: number | null;
+  lowestAsk: number | null;
+}
+
+export interface XmrSwapTrade {
+  source: 'haveno.markets';
+  protocol: 'haveno';
+  pair: string;
+  counterCurrency: string;
+  price: number;
+  timestamp: number;
+  paymentMethod: string;
+  xmrVolume: number;
+  counterVolume: number;
+}
+
+export interface XmrSwapTicker {
+  updatedAt: string;
+  network: {
+    id: string;
+    name: string;
+    link: string;
+  };
+  timePeriod: '24h' | '7d';
+  totals: {
+    activePairs: number;
+    xmrVolume: number;
+    recentTrades: number;
+  };
+  markets: XmrSwapMarket[];
+  recentTrades: XmrSwapTrade[];
+  atomicSwap: {
+    protocol: 'eigenwallet';
+    label: string;
+    direction: string;
+    status: 'maker-discovery';
+    docsUrl: string;
+    note: string;
+    rendezvousPoints: string[];
+  };
+  sources: Array<{
+    name: string;
+    url: string;
+  }>;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -169,6 +228,12 @@ export class ApiService {
 
   getXmrDaemonInfo$(): Observable<XmrDaemonInfo> {
     return this.httpClient.get<XmrDaemonInfo>(this.apiBaseUrl + this.apiBasePath + '/api/v1/info');
+  }
+
+  getXmrSwapTicker$(timePeriod: '24h' | '7d' = '24h'): Observable<XmrSwapTicker> {
+    return this.httpClient.get<XmrSwapTicker>(
+      `${this.apiBaseUrl}${this.apiBasePath}/api/v1/swaps/ticker?timePeriod=${timePeriod}`
+    );
   }
 
   getTransactionStatus$(txid: string): Observable<any> {

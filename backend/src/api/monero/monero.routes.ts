@@ -9,6 +9,7 @@ import { MoneroWalletRpc } from './monero-wallet-rpc';
 import { shapeXmrDifficultyAdjustment } from './xmr-difficulty';
 import { attachResolvedRingMembers, buildRingLookupPlan, XmrRingMember } from './xmr-rings';
 import { identifyXmrMinerPool } from './xmr-miner-fingerprint';
+import { XmrMinerProof, XmrMinerProofRegistry, xmrMinerPoolFromProofName } from './xmr-miner-proof-registry';
 
 const HEX64 = /^[a-f0-9]{64}$/i;
 const MONERO_MAINNET_ADDRESS = /^[48][0-9a-zA-Z]{94,105}$/;
@@ -86,6 +87,7 @@ export class MoneroRoutes {
     private ws: MoneroWs | null = null,
     private walletRpc: MoneroWalletRpc | null = null,
     private prefix = '/api/v1/',
+    private proofRegistry: XmrMinerProofRegistry | null = null,
   ) {}
 
   public initRoutes(app: Application): void {
@@ -916,20 +918,15 @@ export class MoneroRoutes {
         logger.warn(`xmr getBlocksFromHeight: ${failed}/${results.length} block fetches failed (transient daemon hiccup)`);
       }
       const shaped = await Promise.all(blocks.map(async (b) => {
-        const fees = b.tx_hashes?.length
-          ? await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
-          : null;
+        const [fees, proof] = await Promise.all([
+          b.tx_hashes?.length
+            ? this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
+            : Promise.resolve(null),
+          this.proofForBlock(b.block_header.hash),
+        ]);
         return {
           ...this.shapeBlockHeader(b.block_header, b.tx_hashes?.length),
-          extras: {
-            reward: b.block_header.reward,
-            totalFees: fees?.totalFees ?? 0,
-            medianFee: fees?.medianFee ?? 0,
-            minFee: fees?.minFee ?? 0,
-            maxFee: fees?.maxFee ?? 0,
-            feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-            pool: identifyXmrMinerPool(b),
-          },
+          extras: this.shapeBlockExtras(b, fees, proof),
         };
       }));
       res.json(shaped);
@@ -1002,20 +999,15 @@ export class MoneroRoutes {
       // /blocks list page renders fee-tier color spans, total fees,
       // and median ɱ/B columns. Without this every row reads zeros.
       const shaped = await Promise.all(blocks.map(async (b) => {
-        const fees = b.tx_hashes?.length
-          ? await this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
-          : null;
+        const [fees, proof] = await Promise.all([
+          b.tx_hashes?.length
+            ? this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
+            : Promise.resolve(null),
+          this.proofForBlock(b.block_header.hash),
+        ]);
         return {
           ...this.shapeBlockHeader(b.block_header, b.tx_hashes?.length),
-          extras: {
-            reward: b.block_header.reward,
-            totalFees: fees?.totalFees ?? 0,
-            medianFee: fees?.medianFee ?? 0,
-            minFee: fees?.minFee ?? 0,
-            maxFee: fees?.maxFee ?? 0,
-            feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-            pool: identifyXmrMinerPool(b),
-          },
+          extras: this.shapeBlockExtras(b, fees, proof),
         };
       }));
       res.json(shaped);
@@ -1048,10 +1040,12 @@ export class MoneroRoutes {
           ? this.api.getBlockStrippedTxs(block.block_header.hash, txHashes, block.block_header.timestamp).catch(() => null)
           : Promise.resolve(null),
       ]);
+      const proof = await this.proofForBlock(block.block_header.hash);
       const payload: Record<string, unknown> = {
         ...this.shapeBlockHeader(block.block_header, txHashes.length),
         miner_tx_hash: block.miner_tx_hash,
         tx_hashes: txHashes,
+        miner_proof: proof,
         // Snake-case fields kept for backwards compat with our
         // XmrBlockDetail; upstream BlockExtended reads from extras.
         total_fees: fees?.totalFees ?? 0,
@@ -1061,15 +1055,7 @@ export class MoneroRoutes {
         fee_range: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
         // The `extras` envelope is what mempool.space's BlockComponent
         // reads — block.extras.totalFees / medianFee / feeRange / pool.
-        extras: {
-          reward: block.block_header.reward,
-          totalFees: fees?.totalFees ?? 0,
-          medianFee: fees?.medianFee ?? 0,
-          minFee: fees?.minFee ?? 0,
-          maxFee: fees?.maxFee ?? 0,
-          feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-          pool: identifyXmrMinerPool(block),
-        },
+        extras: this.shapeBlockExtras(block, fees, proof),
       };
       if (includeTxs) {
         payload.stripped_txs = stripped ?? [];
@@ -1174,6 +1160,38 @@ export class MoneroRoutes {
   }
 
   // ---- shaping helpers ----
+
+  private async proofForBlock(hash: string): Promise<XmrMinerProof | null> {
+    if (!this.proofRegistry) {
+      return null;
+    }
+    return this.proofRegistry.getProofForBlock(hash).catch((err) => {
+      logger.warn(`xmr miner proof lookup failed for ${hash}: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    });
+  }
+
+  private shapeBlockExtras(
+    block: IMoneroApi.Block,
+    fees: { totalFees: number; medianFee: number; minFee: number; maxFee: number; feeRange: number[] } | null,
+    proof: XmrMinerProof | null,
+  ): Record<string, unknown> {
+    const extras: Record<string, unknown> = {
+      reward: block.block_header.reward,
+      totalFees: fees?.totalFees ?? 0,
+      medianFee: fees?.medianFee ?? 0,
+      minFee: fees?.minFee ?? 0,
+      maxFee: fees?.maxFee ?? 0,
+      feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
+      pool: proof?.status === 'verified' && proof.poolName
+        ? xmrMinerPoolFromProofName(proof.poolName)
+        : identifyXmrMinerPool(block),
+    };
+    if (proof) {
+      extras.minerProof = proof;
+    }
+    return extras;
+  }
 
   private shapeBlockHeader(h: IMoneroApi.BlockHeader, numTxes?: number) {
     return {

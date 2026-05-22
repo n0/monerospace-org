@@ -65,6 +65,14 @@ interface PoolAccumulator {
   samples: BlockSample[];
 }
 
+interface MinerProofStats {
+  verified: number;
+  missing: number;
+  unavailable: number;
+  unknown: number;
+  total: number;
+}
+
 export class XmrMiningRoutes {
   private poolRefreshInFlight: Promise<unknown> | null = null;
 
@@ -248,6 +256,7 @@ export class XmrMiningRoutes {
     try {
       this.refreshRecentPoolFingerprints();
       const samples = this.windowFor(req);
+      await this.indexer.hydrateMinerProofs(samples);
       const rows = this.poolSummaryRows(samples);
       const knownBlockCount = rows
         .filter((row) => row.poolUniqueId !== 0)
@@ -265,6 +274,7 @@ export class XmrMiningRoutes {
         lastEstimatedHashrate: this.networkHashrateForPeriod('24h'),
         lastEstimatedHashrate3d: this.networkHashrateForPeriod('3d'),
         lastEstimatedHashrate1w: this.networkHashrateForPeriod('1w'),
+        proofStats: this.proofStats(samples),
         pools: rows,
       });
     } catch (err) {
@@ -276,6 +286,7 @@ export class XmrMiningRoutes {
     try {
       this.refreshRecentPoolFingerprints();
       const slug = String(req.params['slug'] ?? '').toLowerCase();
+      await this.indexer.hydrateMinerProofs(this.indexer.allSamples().slice(-RECENT_POOL_FINGERPRINT_BLOCKS));
       const pool = this.poolBySlug(slug);
       if (!pool) {
         handleError(req, res, 404, 'This mining pool does not exist');
@@ -309,6 +320,7 @@ export class XmrMiningRoutes {
         reportedHashrate: null,
         avgBlockHealth: null,
         totalReward: poolAll.reduce((sum, sample) => sum + sample.reward, 0),
+        proofStats: this.proofStats(poolAll),
       });
     } catch (err) {
       handleError(req, res, 500, err instanceof Error ? err.message : 'mining pool failed');
@@ -352,10 +364,11 @@ export class XmrMiningRoutes {
     }
   }
 
-  private poolBlocks(req: Request, res: Response): void {
+  private async poolBlocks(req: Request, res: Response): Promise<void> {
     try {
       this.refreshRecentPoolFingerprints();
       const slug = String(req.params['slug'] ?? '').toLowerCase();
+      await this.indexer.hydrateMinerProofs(this.indexer.allSamples().slice(-RECENT_POOL_FINGERPRINT_BLOCKS));
       const pool = this.poolBySlug(slug);
       if (!pool) {
         handleError(req, res, 404, 'This mining pool does not exist');
@@ -445,10 +458,11 @@ export class XmrMiningRoutes {
       });
   }
 
-  private poolSummaryRows(samples: BlockSample[]): Array<Record<string, number | string | null>> {
+  private poolSummaryRows(samples: BlockSample[]): Array<Record<string, unknown>> {
     const total = samples.length;
     return this.poolAccumulators(samples).map((acc, index) => {
       const emptyBlocks = acc.samples.filter((sample) => sample.numTxs === 0).length;
+      const proofStats = this.proofStats(acc.samples);
       return {
         poolId: acc.pool.id,
         name: this.poolDisplayName(acc.pool),
@@ -463,6 +477,11 @@ export class XmrMiningRoutes {
         unique_id: acc.pool.id,
         share: Number((ratio(acc.samples.length, total) * 100).toFixed(2)),
         emptyBlockRatio: (ratio(emptyBlocks, acc.samples.length) * 100).toFixed(2),
+        proofStats,
+        proofVerifiedBlockCount: proofStats.verified,
+        proofMissingBlockCount: proofStats.missing,
+        proofUnavailableBlockCount: proofStats.unavailable,
+        proofUnknownBlockCount: proofStats.unknown,
       };
     });
   }
@@ -558,6 +577,20 @@ export class XmrMiningRoutes {
 
   private poolBlockRow(sample: BlockSample): Record<string, unknown> {
     const pool = this.poolFromSample(sample);
+    const extras: Record<string, unknown> = {
+      reward: sample.reward,
+      totalFees: sample.totalFees,
+      pool: {
+        id: pool.id,
+        name: this.poolDisplayName(pool),
+        slug: pool.slug,
+        minerNames: pool.minerNames,
+        logo: `/resources/mining-pools/${pool.slug}.svg`,
+      },
+    };
+    if (sample.minerProof) {
+      extras.minerProof = sample.minerProof;
+    }
     return {
       id: sample.hash,
       height: sample.height,
@@ -571,18 +604,17 @@ export class XmrMiningRoutes {
       size: sample.size,
       weight: sample.size,
       previousblockhash: '',
-      extras: {
-        reward: sample.reward,
-        totalFees: sample.totalFees,
-        pool: {
-          id: pool.id,
-          name: this.poolDisplayName(pool),
-          slug: pool.slug,
-          minerNames: pool.minerNames,
-          logo: `/resources/mining-pools/${pool.slug}.svg`,
-        },
-      },
+      extras,
     };
+  }
+
+  private proofStats(samples: BlockSample[]): MinerProofStats {
+    return samples.reduce<MinerProofStats>((stats, sample) => {
+      const status = sample.minerProof?.status ?? 'unknown';
+      stats[status] += 1;
+      stats.total += 1;
+      return stats;
+    }, { verified: 0, missing: 0, unavailable: 0, unknown: 0, total: 0 });
   }
 
   /** Bucket samples into ~TARGET_BUCKETS time bins and average a single field. */

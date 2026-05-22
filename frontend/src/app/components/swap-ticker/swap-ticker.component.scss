@@ -1,0 +1,266 @@
+.swap-ticker {
+  .card-header {
+    background: transparent;
+    border: 0;
+    color: var(--title-fg);
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+.swap-title-row,
+.section-heading,
+.atomic-panel,
+.swap-summary,
+.goggle-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.swap-title-row {
+  flex-wrap: wrap;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.swap-subtitle,
+.section-heading span,
+.summary-label,
+.goggle-heading span,
+.atomic-panel p,
+.atomic-meta span,
+.source-row {
+  color: var(--transparent-fg);
+}
+
+.swap-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  margin-top: 4px;
+}
+
+.swap-loading {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+}
+
+.swap-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 24px;
+  background: var(--bg);
+  border: 1px solid var(--secondary);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.summary-item {
+  min-width: 0;
+}
+
+.summary-label {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.summary-value {
+  color: var(--fg);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+
+  span {
+    color: var(--transparent-fg);
+    font-size: 12px;
+    font-weight: 400;
+  }
+}
+
+.atomic-panel,
+.swap-goggles,
+.swap-table-section {
+  background: var(--bg);
+  border: 1px solid var(--secondary);
+  border-radius: 6px;
+  margin-bottom: 24px;
+  padding: 18px;
+}
+
+.swap-goggles {
+  display: grid;
+  gap: 14px;
+
+  h2 {
+    color: var(--fg);
+    font-size: 18px;
+    margin: 0 0 3px;
+  }
+}
+
+.goggle-buttons {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.goggle-button {
+  align-items: center;
+  background: color-mix(in srgb, var(--bg) 78%, var(--secondary));
+  border: 1px solid var(--secondary);
+  border-radius: 6px;
+  color: var(--transparent-fg);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 38px;
+  min-width: 0;
+  padding: 8px 10px;
+
+  span {
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  &.active,
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--orange) 22%, var(--bg));
+    border-color: var(--orange);
+    color: var(--fg);
+  }
+}
+
+.atomic-panel {
+  align-items: flex-start;
+
+  h2 {
+    color: var(--fg);
+    font-size: 20px;
+    margin: 2px 0 8px;
+  }
+
+  p {
+    margin: 0;
+    max-width: 68ch;
+  }
+}
+
+.panel-eyebrow {
+  color: var(--orange);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.atomic-meta {
+  display: grid;
+  gap: 10px;
+  min-width: 220px;
+  text-align: right;
+
+  div {
+    display: grid;
+    gap: 2px;
+  }
+
+  strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+}
+
+.section-heading {
+  margin-bottom: 10px;
+
+  h2 {
+    color: var(--fg);
+    font-size: 18px;
+    margin: 0;
+  }
+}
+
+.swap-table {
+  margin-bottom: 0;
+
+  th {
+    color: var(--transparent-fg);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border: 0;
+  }
+
+  td {
+    border-top: 1px solid var(--secondary);
+    color: var(--fg);
+    vertical-align: middle;
+  }
+
+  td span {
+    color: var(--transparent-fg);
+    font-size: 12px;
+  }
+
+  td strong {
+    display: block;
+    color: var(--fg);
+    font-weight: 600;
+  }
+}
+
+.empty-state {
+  color: var(--transparent-fg) !important;
+  text-align: center;
+}
+
+.source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+}
+
+@media (max-width: 767.98px) {
+  .swap-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .goggle-buttons {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .atomic-panel {
+    display: grid;
+  }
+
+  .atomic-meta {
+    min-width: 0;
+    text-align: left;
+  }
+}
+
+@media (max-width: 420px) {
+  .swap-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .goggle-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-value {
+    font-size: 18px;
+  }
+}

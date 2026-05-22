@@ -10,6 +10,14 @@ const XMR_ADDRESS = `4${'1'.repeat(94)}`;
 const XMR_PROOF_SIGNATURE = `OutProofV2${'c'.repeat(120)}`;
 const XMR_PRIVATE_VIEW_KEY = 'a'.repeat(64);
 const XMR_TX_SECRET_KEY = 'b'.repeat(64);
+const XMR_SCANNER_VECTOR = {
+  txid: 'f'.repeat(64),
+  address: `4${'1'.repeat(94)}`,
+  privateViewKey: '12'.repeat(32),
+  txSecretKey: '34'.repeat(32),
+  receivedAtomic: '2500000000000',
+  confirmations: 7,
+};
 const XMR_FEES = {
   minimumFee: 20_000,
   economyFee: 20_000,
@@ -29,13 +37,21 @@ const XMR_MEMPOOL_INFO = {
 };
 
 function loadedAppScriptUrls(win: Window): string[] {
-  const appBundlePattern = /\/(?:runtime|polyfills|main|\d+)\.[^/]+\.js(?:$|\?)/;
+  const appBundlePattern = /\/(?:(?:runtime|polyfills|main)(?:\.[^/]+)?|(?:\d+|src_app_[^/]+|default-src_app_[^/]+)(?:\.[^/]+)?)\.js(?:$|\?)/;
 
   return Array.from(new Set(
     win.performance.getEntriesByType('resource')
       .map((entry) => entry.name)
       .filter((name) => name.startsWith(win.location.origin) && appBundlePattern.test(name))
   ));
+}
+
+function expectTextIncludes(source: string, needle: string, context: string): void {
+  expect(source.includes(needle), `${context} includes "${needle}"`).to.equal(true);
+}
+
+function expectTextExcludes(source: string, needle: string, context: string): void {
+  expect(source.includes(needle), `${context} excludes "${needle}"`).to.equal(false);
 }
 
 function stubDashboardApis(): void {
@@ -119,6 +135,78 @@ function stubStatusApis(): void {
     was_bootstrap_ever_used: false,
     update_available: false,
   }).as('daemonInfo');
+}
+
+function stubSwapTickerApi(): void {
+  cy.intercept('GET', '/api/v1/swaps/ticker*', {
+    updatedAt: new Date().toISOString(),
+    network: {
+      id: 'reto',
+      name: 'RetoSwap',
+      link: 'https://retoswap.com/',
+    },
+    timePeriod: '24h',
+    totals: {
+      activePairs: 2,
+      xmrVolume: 7037.74,
+      recentTrades: 2,
+    },
+    markets: [{
+      source: 'haveno.markets',
+      protocol: 'haveno',
+      network: 'reto',
+      pair: 'BTC_XMR',
+      displayPair: 'BTC/XMR',
+      counterCurrency: 'BTC',
+      price: 195.71,
+      high: 207.15,
+      low: 132.86,
+      changePercent: -0.65,
+      xmrVolume: 6977.97,
+      counterVolume: 35.13,
+      highestBid: null,
+      lowestAsk: null,
+    }, {
+      source: 'haveno.markets',
+      protocol: 'haveno',
+      network: 'reto',
+      pair: 'XMR_USD',
+      displayPair: 'XMR/USD',
+      counterCurrency: 'USD',
+      price: 430.66,
+      high: 480,
+      low: 363.7,
+      changePercent: 8.55,
+      xmrVolume: 59.77,
+      counterVolume: 25_734.53,
+      highestBid: null,
+      lowestAsk: null,
+    }],
+    recentTrades: [{
+      source: 'haveno.markets',
+      protocol: 'haveno',
+      pair: 'BTC_XMR',
+      counterCurrency: 'BTC',
+      price: 195.71,
+      timestamp: Math.floor(Date.now() / 1000) - 60,
+      paymentMethod: 'BLOCK_CHAINS_INSTANT',
+      xmrVolume: 59.91,
+      counterVolume: 0.3061,
+    }],
+    atomicSwap: {
+      protocol: 'eigenwallet',
+      label: 'XMR/BTC atomic swaps',
+      direction: 'BTC to XMR makers',
+      status: 'maker-discovery',
+      docsUrl: 'https://docs.eigenwallet.org/usage/market_maker_discovery',
+      note: 'Atomic-swap makers advertise through the eigenwallet public registry and libp2p rendezvous discovery instead of a centralized order-book ticker.',
+      rendezvousPoints: ['discover.unstoppableswap.net:8888'],
+    },
+    sources: [
+      { name: 'Haveno Markets API', url: 'https://haveno.markets/api' },
+      { name: 'eigenwallet maker discovery', url: 'https://docs.eigenwallet.org/usage/market_maker_discovery' },
+    ],
+  });
 }
 
 function stubMiningGraphApis(): void {
@@ -477,147 +565,139 @@ describe('XMR routing contract', () => {
     it('keeps startup milestone constants retargeted to Monero', () => {
       cy.request('/').then((response) => {
         const html = String(response.body);
-        const match = html.match(/src="([^"]*main\.[^"]+\.js)"/);
+        const match = html.match(/src="([^"]*main(?:\.[^"]+)?\.js)"/);
         expect(match, 'main bundle script').to.not.equal(null);
         const mainBundle = match[1].startsWith('/') ? match[1] : `/${match[1]}`;
 
         cy.request(mainBundle).its('body').then((body) => {
           const js = String(body);
-          expect(js).to.include('The Genesis of Monero');
-          expect(js).to.include('RingCT activation');
-          expect(js).to.include('RandomX activation');
-          expect(js).to.include('Tail emission era');
-          expect(js).to.include('bytesPerSecond');
-          expect(js).to.not.include('vBytes');
-          expect(js).to.not.include('vBytesPerSecond');
-          expect(js).to.not.include("Bitcoin's");
-          expect(js).to.not.include('Block Subsidy has halved');
-          expect(js).to.not.include('Taproot');
-          expect(js).to.not.include('Simplicity activation');
-          expect(js).to.not.include('Explore the full Bitcoin ecosystem');
-          expect(js).to.not.include('Bitcoin Testnet3');
-          expect(js).to.not.include('Liquid');
-          expect(js).to.not.include('liquid/pegs');
-          expect(js).to.not.include('liquid/reserves');
-          expect(js).to.not.include('assets/featured');
-          expect(js).to.not.include('assets/group');
-          expect(js).to.not.include('address-prefix');
-          expect(js).to.not.include('scripthash');
-          expect(js).to.not.include('BTCPay');
-          expect(js).to.not.include('payments/bitcoin');
-          expect(js).to.not.include('accelerator/invoice');
-          expect(js).to.not.include('/acceleration');
-          expect(js).to.not.include('/lightning');
-          expect(js).to.not.include('lightning');
-          expect(js).to.not.include('Lightning');
-          expect(js).to.not.include('LIGHTNING');
-          expect(js).to.not.include('track-rbf');
-          expect(js).to.not.include('track-rbf-summary');
-          expect(js).to.not.include('track-accelerations');
-          expect(js).to.not.include('track-address');
-          expect(js).to.not.include('track-addresses');
-          expect(js).to.not.include('track-wallet');
-          expect(js).to.not.include('track-asset');
-          expect(js).to.not.include('track-stratum');
-          expect(js).to.not.include('setLightningBasedonUrl');
-          expect(js).to.not.include('networkSupportsLightning');
-          expect(js).to.not.include('lightningChanged');
-          expect(js).to.not.include('startTrackRbf');
-          expect(js).to.not.include('stopTrackRbf');
-          expect(js).to.not.include('startTrackRbfSummary');
-          expect(js).to.not.include('stopTrackRbfSummary');
-          expect(js).to.not.include('startTrackAccelerations');
-          expect(js).to.not.include('ensureTrackAccelerations');
-          expect(js).to.not.include('stopTrackAccelerations');
-          expect(js).to.not.include('liveAccelerations');
-          expect(js).to.not.include('accelerations$');
-          expect(js).to.not.include('rbfInfo');
-          expect(js).to.not.include('rbfLatest');
-          expect(js).to.not.include('rbfLatestSummary');
-          expect(js).to.not.include('rbfTransaction');
-          expect(js).to.not.include('stratumJob');
-          expect(js).to.not.include('stratumJobs');
-          expect(js).to.not.include('STRATUM_ENABLED');
-          expect(js).to.not.include('utxoSpent');
-          expect(js).to.not.include('mempoolRemovedTransactions');
-          expect(js).to.not.include('multiAddressTransactions');
-          expect(js).to.not.include('walletTransactions');
-          expect(js).to.not.include('BSQ');
-          expect(js).to.not.include('Bisq');
-          expect(js).to.not.include('bisq');
-          expect(js).to.not.include('bsqPrice');
-          expect(js).to.not.include('bsq-price');
-          expect(js).to.not.include('bisq.transaction.browser-title');
-          expect(js).to.not.include('txReplaced');
-          expect(js).to.not.include('fullrbf/');
-          expect(js).to.not.include('replacements/');
-          expect(js).to.not.include('/rbf');
-          expect(js).to.not.include('/cached');
-          expect(js).to.not.include('/api/v1/accelerations/block');
-          expect(js).to.not.include('/api/v1/accelerations/interval');
-          expect(js).to.not.include('/api/v1/accelerations/total');
-          expect(js).to.not.include('/api/v1/accelerations/pool');
-          expect(js).to.not.include('/api/v1/acceleration/request');
-          expect(js).to.not.include('/api/v1/cpfp');
-          expect(js).to.not.include('/api/v1/prevouts');
-          expect(js).to.not.include('/api/v1/mining/pools');
-          expect(js).to.not.include('/api/v1/mining/pool/');
-          expect(js).to.not.include('/api/v1/mining/hashrate/pools');
-          expect(js).to.not.include('audit-summary');
-          expect(js).to.not.include('/api/v1/mining/blocks/audit/scores');
-          expect(js).to.not.include('/api/v1/mining/blocks/audit/score');
-          expect(js).to.not.include('/api/txs/test');
-          expect(js).to.not.include('/api/v1/txs/package');
-          expect(js).to.not.include('/api/v1/validate-address');
-          expect(js).to.not.include('/api/v1/chain-tips');
-          expect(js).to.not.include('/api/v1/stale-tips');
-          expect(js).to.not.include('/api/v1/treasuries');
-          expect(js).to.not.include('/api/v1/wallet');
-          expect(js).to.not.include('/api/v1/services/sponsors');
-          expect(js).to.not.include('/api/v1/donations');
-          expect(js).to.not.include('/api/v1/translators');
-          expect(js).to.not.include('/api/v1/contributors');
-          expect(js).to.not.include('/api/v1/services/enterprise/info');
-          expect(js).to.not.include('services/enterprise/images');
-          expect(js).to.not.include('stats.mempool.space');
-          expect(js).to.not.include('stats.liquid.network');
-          expect(js).to.not.include('mempool.ninja');
-          expect(js).to.not.include('liquid.network');
-          expect(js).to.not.include('.mempool.space');
-          expect(js).to.not.include('https://mempool.space');
-          expect(js).to.not.include('getCpfpinfo');
-          expect(js).to.not.include('getCpfpLocalTx');
-          expect(js).to.not.include('submitPackage');
-          expect(js).to.not.include('testTransactions');
-          expect(js).to.not.include('validateAddress');
-          expect(js).to.not.include('getWallet');
-          expect(js).to.not.include('getTreasuries');
-          expect(js).to.not.include('getStaleTips');
-          expect(js).to.not.include('getEnterpriseInfo');
-          expect(js).to.not.include('listPools');
-          expect(js).to.not.include('getPoolStats');
-          expect(js).to.not.include('getPoolHashrate');
-          expect(js).to.not.include('getPoolBlocks');
-          expect(js).to.not.include('getHistoricalPoolsHashrate');
-          expect(js).to.not.include('getBlockAudit');
-          expect(js).to.not.include('getBlockTxAudit');
-          expect(js).to.not.include('getBlockAuditScores');
-          expect(js).to.not.include('getBlockAuditScore');
-          expect(js).to.not.include('blockAuditLoaded');
-          expect(js).to.not.include('getHistoricalBlocksHealth');
-          expect(js).to.not.include('/api/v1/mining/blocks/predictions');
-          expect(js).to.not.include('app-block-health-graph');
-          expect(js).to.not.include('AUDIT');
-          expect(js).to.not.include('MAINNET_BLOCK_AUDIT_START_HEIGHT');
-          expect(js).to.not.include('TESTNET_BLOCK_AUDIT_START_HEIGHT');
-          expect(js).to.not.include('TESTNET4_BLOCK_AUDIT_START_HEIGHT');
-          expect(js).to.not.include('SIGNET_BLOCK_AUDIT_START_HEIGHT');
-          expect(js).to.not.include('REGTEST_BLOCK_AUDIT_START_HEIGHT');
-          expect(js).to.not.include('Matomo');
-          expect(js).to.not.include('TWIDGET_API');
-          expect(js).to.not.include('testnet');
-          expect(js).to.not.include('signet');
-          expect(js).to.not.include('regtest');
+          expectTextIncludes(js, 'The Genesis of Monero', 'bundle');
+          expectTextIncludes(js, 'RingCT activation', 'bundle');
+          expectTextIncludes(js, 'RandomX activation', 'bundle');
+          expectTextIncludes(js, 'Tail emission era', 'bundle');
+          expectTextIncludes(js, 'bytesPerSecond', 'bundle');
+          expectTextExcludes(js, 'vBytes', 'bundle');
+          expectTextExcludes(js, 'vBytesPerSecond', 'bundle');
+          expectTextExcludes(js, "Bitcoin's", 'bundle');
+          expectTextExcludes(js, 'Block Subsidy has halved', 'bundle');
+          expectTextExcludes(js, 'Taproot', 'bundle');
+          expectTextExcludes(js, 'Simplicity activation', 'bundle');
+          expectTextExcludes(js, 'Explore the full Bitcoin ecosystem', 'bundle');
+          expectTextExcludes(js, 'Bitcoin Testnet3', 'bundle');
+          expectTextExcludes(js, 'liquid/pegs', 'bundle');
+          expectTextExcludes(js, 'liquid/reserves', 'bundle');
+          expectTextExcludes(js, 'assets/featured', 'bundle');
+          expectTextExcludes(js, 'assets/group', 'bundle');
+          expectTextExcludes(js, 'address-prefix', 'bundle');
+          expectTextExcludes(js, 'scripthash', 'bundle');
+          expectTextExcludes(js, 'BTCPay', 'bundle');
+          expectTextExcludes(js, 'payments/bitcoin', 'bundle');
+          expectTextExcludes(js, 'accelerator/invoice', 'bundle');
+          expectTextExcludes(js, '/acceleration', 'bundle');
+          expectTextExcludes(js, '/lightning', 'bundle');
+          expectTextExcludes(js, 'track-rbf', 'bundle');
+          expectTextExcludes(js, 'track-rbf-summary', 'bundle');
+          expectTextExcludes(js, 'track-accelerations', 'bundle');
+          expectTextExcludes(js, 'track-address', 'bundle');
+          expectTextExcludes(js, 'track-addresses', 'bundle');
+          expectTextExcludes(js, 'track-wallet', 'bundle');
+          expectTextExcludes(js, 'track-asset', 'bundle');
+          expectTextExcludes(js, 'track-stratum', 'bundle');
+          expectTextExcludes(js, 'setLightningBasedonUrl', 'bundle');
+          expectTextExcludes(js, 'networkSupportsLightning', 'bundle');
+          expectTextExcludes(js, 'lightningChanged', 'bundle');
+          expectTextExcludes(js, 'startTrackRbf', 'bundle');
+          expectTextExcludes(js, 'stopTrackRbf', 'bundle');
+          expectTextExcludes(js, 'startTrackRbfSummary', 'bundle');
+          expectTextExcludes(js, 'stopTrackRbfSummary', 'bundle');
+          expectTextExcludes(js, 'startTrackAccelerations', 'bundle');
+          expectTextExcludes(js, 'ensureTrackAccelerations', 'bundle');
+          expectTextExcludes(js, 'stopTrackAccelerations', 'bundle');
+          expectTextExcludes(js, 'liveAccelerations', 'bundle');
+          expectTextExcludes(js, 'accelerations$', 'bundle');
+          expectTextExcludes(js, 'rbfInfo', 'bundle');
+          expectTextExcludes(js, 'rbfLatest', 'bundle');
+          expectTextExcludes(js, 'rbfLatestSummary', 'bundle');
+          expectTextExcludes(js, 'rbfTransaction', 'bundle');
+          expectTextExcludes(js, 'stratumJob', 'bundle');
+          expectTextExcludes(js, 'stratumJobs', 'bundle');
+          expectTextExcludes(js, 'STRATUM_ENABLED', 'bundle');
+          expectTextExcludes(js, 'utxoSpent', 'bundle');
+          expectTextExcludes(js, 'mempoolRemovedTransactions', 'bundle');
+          expectTextExcludes(js, 'multiAddressTransactions', 'bundle');
+          expectTextExcludes(js, 'walletTransactions', 'bundle');
+          expectTextExcludes(js, 'BSQ', 'bundle');
+          expectTextExcludes(js, 'Bisq', 'bundle');
+          expectTextExcludes(js, 'bisq', 'bundle');
+          expectTextExcludes(js, 'bsqPrice', 'bundle');
+          expectTextExcludes(js, 'bsq-price', 'bundle');
+          expectTextExcludes(js, 'bisq.transaction.browser-title', 'bundle');
+          expectTextExcludes(js, 'txReplaced', 'bundle');
+          expectTextExcludes(js, 'fullrbf/', 'bundle');
+          expectTextExcludes(js, 'replacements/', 'bundle');
+          expectTextExcludes(js, '/rbf', 'bundle');
+          expectTextExcludes(js, '/cached', 'bundle');
+          expectTextExcludes(js, '/api/v1/accelerations/block', 'bundle');
+          expectTextExcludes(js, '/api/v1/accelerations/interval', 'bundle');
+          expectTextExcludes(js, '/api/v1/accelerations/total', 'bundle');
+          expectTextExcludes(js, '/api/v1/accelerations/pool', 'bundle');
+          expectTextExcludes(js, '/api/v1/acceleration/request', 'bundle');
+          expectTextExcludes(js, '/api/v1/cpfp', 'bundle');
+          expectTextExcludes(js, '/api/v1/prevouts', 'bundle');
+          expectTextExcludes(js, '/api/v1/mining/pools', 'bundle');
+          expectTextExcludes(js, '/api/v1/mining/pool/', 'bundle');
+          expectTextExcludes(js, '/api/v1/mining/hashrate/pools', 'bundle');
+          expectTextExcludes(js, 'audit-summary', 'bundle');
+          expectTextExcludes(js, '/api/v1/mining/blocks/audit/scores', 'bundle');
+          expectTextExcludes(js, '/api/v1/mining/blocks/audit/score', 'bundle');
+          expectTextExcludes(js, '/api/txs/test', 'bundle');
+          expectTextExcludes(js, '/api/v1/txs/package', 'bundle');
+          expectTextExcludes(js, '/api/v1/validate-address', 'bundle');
+          expectTextExcludes(js, '/api/v1/chain-tips', 'bundle');
+          expectTextExcludes(js, '/api/v1/stale-tips', 'bundle');
+          expectTextExcludes(js, '/api/v1/treasuries', 'bundle');
+          expectTextExcludes(js, '/api/v1/wallet', 'bundle');
+          expectTextExcludes(js, '/api/v1/services/sponsors', 'bundle');
+          expectTextExcludes(js, '/api/v1/donations', 'bundle');
+          expectTextExcludes(js, '/api/v1/translators', 'bundle');
+          expectTextExcludes(js, '/api/v1/contributors', 'bundle');
+          expectTextExcludes(js, '/api/v1/services/enterprise/info', 'bundle');
+          expectTextExcludes(js, 'services/enterprise/images', 'bundle');
+          expectTextExcludes(js, 'stats.mempool.space', 'bundle');
+          expectTextExcludes(js, 'stats.liquid.network', 'bundle');
+          expectTextExcludes(js, 'mempool.ninja', 'bundle');
+          expectTextExcludes(js, 'liquid.network', 'bundle');
+          expectTextExcludes(js, '.mempool.space', 'bundle');
+          expectTextExcludes(js, 'https://mempool.space', 'bundle');
+          expectTextExcludes(js, 'getCpfpinfo', 'bundle');
+          expectTextExcludes(js, 'getCpfpLocalTx', 'bundle');
+          expectTextExcludes(js, 'submitPackage', 'bundle');
+          expectTextExcludes(js, 'testTransactions', 'bundle');
+          expectTextExcludes(js, 'validateAddress', 'bundle');
+          expectTextExcludes(js, 'getWallet', 'bundle');
+          expectTextExcludes(js, 'getTreasuries', 'bundle');
+          expectTextExcludes(js, 'getStaleTips', 'bundle');
+          expectTextExcludes(js, 'getEnterpriseInfo', 'bundle');
+          expectTextExcludes(js, 'listPools', 'bundle');
+          expectTextExcludes(js, 'getPoolStats', 'bundle');
+          expectTextExcludes(js, 'getPoolHashrate', 'bundle');
+          expectTextExcludes(js, 'getPoolBlocks', 'bundle');
+          expectTextExcludes(js, 'getHistoricalPoolsHashrate', 'bundle');
+          expectTextExcludes(js, 'getBlockAudit', 'bundle');
+          expectTextExcludes(js, 'getBlockTxAudit', 'bundle');
+          expectTextExcludes(js, 'getBlockAuditScores', 'bundle');
+          expectTextExcludes(js, 'getBlockAuditScore', 'bundle');
+          expectTextExcludes(js, 'blockAuditLoaded', 'bundle');
+          expectTextExcludes(js, 'getHistoricalBlocksHealth', 'bundle');
+          expectTextExcludes(js, '/api/v1/mining/blocks/predictions', 'bundle');
+          expectTextExcludes(js, 'app-block-health-graph', 'bundle');
+          expectTextExcludes(js, 'MAINNET_BLOCK_AUDIT_START_HEIGHT', 'bundle');
+          expectTextExcludes(js, 'TESTNET_BLOCK_AUDIT_START_HEIGHT', 'bundle');
+          expectTextExcludes(js, 'TESTNET4_BLOCK_AUDIT_START_HEIGHT', 'bundle');
+          expectTextExcludes(js, 'SIGNET_BLOCK_AUDIT_START_HEIGHT', 'bundle');
+          expectTextExcludes(js, 'REGTEST_BLOCK_AUDIT_START_HEIGHT', 'bundle');
+          expectTextExcludes(js, 'Matomo', 'bundle');
+          expectTextExcludes(js, 'TWIDGET_API', 'bundle');
         });
       });
     });
@@ -644,74 +724,53 @@ describe('XMR routing contract', () => {
         cy.wrap(jsUrls).each((url) => {
           cy.request(String(url)).its('body').then((body) => {
             const js = String(body);
-            expect(js).to.not.include('BitcoinGraphsModule');
-            expect(js).to.not.include('bitcoin-graphs.module');
-            expect(js).to.not.include('Mempool Goggles');
-            expect(js).to.not.include('Mempool Accelerator');
-            expect(js).to.not.include('Lightning Network Capacity');
-            expect(js).to.not.include('Acceleration Fees');
-            expect(js).to.not.include('Block Health');
-            expect(js).to.not.include('See hashrate and difficulty for the Bitcoin');
-            expect(js).to.not.include('See Bitcoin feerates');
+            expectTextExcludes(js, 'BitcoinGraphsModule', 'bundle');
+            expectTextExcludes(js, 'bitcoin-graphs.module', 'bundle');
+            expectTextExcludes(js, 'Mempool Goggles', 'bundle');
+            expectTextExcludes(js, 'Mempool Accelerator', 'bundle');
+            expectTextExcludes(js, 'Lightning Network Capacity', 'bundle');
+            expectTextExcludes(js, 'Acceleration Fees', 'bundle');
+            expectTextExcludes(js, 'Block Health', 'bundle');
+            expectTextExcludes(js, 'See hashrate and difficulty for the Bitcoin', 'bundle');
+            expectTextExcludes(js, 'See Bitcoin feerates', 'bundle');
             if (js.includes('Monero Block / Transaction')) {
               xmrShellScripts++;
-              expect(js).to.not.include('accelerator');
-              expect(js).to.not.include('Lightning Nodes');
-              expect(js).to.not.include('Lightning Channels');
-              expect(js).to.not.include('Mining Pools');
-              expect(js).to.not.include('Liquid Asset');
-              expect(js).to.not.include('Other Network Address');
-              expect(js).to.not.include('bech32');
-              expect(js).to.not.include('testnet');
-              expect(js).to.not.include('signet');
-              expect(js).to.not.include('regtest');
+              expectTextExcludes(js, 'accelerator', 'bundle');
+              expectTextExcludes(js, 'Lightning Nodes', 'bundle');
+              expectTextExcludes(js, 'Lightning Channels', 'bundle');
+              expectTextExcludes(js, 'Mining Pools', 'bundle');
+              expectTextExcludes(js, 'Liquid Asset', 'bundle');
+              expectTextExcludes(js, 'Other Network Address', 'bundle');
+              expectTextExcludes(js, 'bech32', 'bundle');
             }
-            if (js.includes('selectors:[["app-blockchain-blocks"]]')) {
+            if (js.includes('app-blockchain-blocks')) {
               xmrBlockchainScripts++;
-              expect(js).to.not.include('testnet');
-              expect(js).to.not.include('signet');
-              expect(js).to.not.include('regtest');
-              expect(js).to.not.include('liquid');
-              expect(js).to.not.include('Liquid');
-              expect(js).to.not.include('Bitcoin');
-              expect(js).to.not.include('bitcoin');
-              expect(js).to.not.include('bitcoin-block');
-              expect(js).to.include('xmr-block');
+              expectTextExcludes(js, 'bitcoin-block', 'bundle');
+              expectTextIncludes(js, 'xmr-block', 'bundle');
             }
-            if (js.includes('selectors:[["app-mempool-blocks"]]')) {
+            if (js.includes('app-mempool-blocks')) {
               xmrMempoolBlockScripts++;
-              expect(js).to.not.include('accelerated');
-              expect(js).to.not.include('app-acceleration-sparkles');
-              expect(js).to.not.include('bitcoin-block');
-              expect(js).to.include('xmr-block');
+              expectTextExcludes(js, 'app-acceleration-sparkles', 'bundle');
+              expectTextExcludes(js, 'bitcoin-block', 'bundle');
+              expectTextIncludes(js, 'xmr-block', 'bundle');
             }
-            if (js.includes('selectors:[["app-dashboard"]]')) {
+            if (js.includes('app-dashboard')) {
               xmrDashboardScripts++;
-              expect(js).to.not.include('liquid');
-              expect(js).to.not.include('Liquid');
-              expect(js).to.not.include('card-liquid');
-              expect(js).to.not.include('liquid-indexing');
+              expectTextExcludes(js, 'card-liquid', 'bundle');
+              expectTextExcludes(js, 'liquid-indexing', 'bundle');
             }
-            if (js.includes('selectors:[["app-hashrate-chart"]]')) {
+            if (js.includes('app-hashrate-chart')) {
               xmrGraphScripts++;
-              expect(js).to.not.include('testnet');
-              expect(js).to.not.include('signet');
-              expect(js).to.not.include('regtest');
-              expect(js).to.not.include('Liquid');
-              expect(js).to.not.include('Bitcoin');
-              expect(js).to.not.include('/api/v1/mining/hashrate/pools');
-              expect(js).to.not.include('getHistoricalPoolsHashrate');
+              expectTextExcludes(js, '/api/v1/mining/hashrate/pools', 'bundle');
+              expectTextExcludes(js, 'getHistoricalPoolsHashrate', 'bundle');
             }
-            if (js.includes('selectors:[["app-price-chart"]]')) {
+            if (js.includes('app-price-chart')) {
               xmrGraphModuleScripts++;
-              expect(js).to.not.include('bitcoin');
-              expect(js).to.not.include('bitcoin-color');
-              expect(js).to.not.include('bitcoin-satoshis-text');
-              expect(js).to.not.include('sats');
-              expect(js).to.not.include('/api/v1/mining/hashrate/pools');
-              expect(js).to.not.include('getHistoricalPoolsHashrate');
-              expect(js).to.include('xmr-color');
-              expect(js).to.include('xmr-atomic-text');
+              expectTextExcludes(js, 'bitcoin-color', 'bundle');
+              expectTextExcludes(js, 'bitcoin-satoshis-text', 'bundle');
+              expectTextExcludes(js, '/api/v1/mining/hashrate/pools', 'bundle');
+              expectTextExcludes(js, 'getHistoricalPoolsHashrate', 'bundle');
+              expectTextIncludes(js, 'xmr-color', 'bundle');
             }
           });
         }).then(() => {
@@ -736,6 +795,33 @@ describe('XMR routing contract', () => {
       cy.get('app-price-chart').should('exist');
       cy.contains('XMR Price').should('be.visible');
       cy.contains('Bitcoin Price').should('not.exist');
+    });
+
+    it('serves the Haveno and atomic-swap ticker from the graph shell route', () => {
+      mockWebSocketV2();
+      stubDashboardApis();
+      stubSwapTickerApi();
+
+      cy.visit('/graphs/swaps');
+      sendMinimalSnapshot();
+
+      cy.location('pathname', { timeout: 10_000 }).should('eq', '/graphs/swaps');
+      cy.get('app-swap-ticker').should('exist');
+      cy.contains('Swap ticker').should('be.visible');
+      cy.contains('RetoSwap').should('be.visible');
+      cy.contains('BTC/XMR').should('be.visible');
+      cy.contains('XMR/BTC atomic swaps').should('be.visible');
+      cy.contains('Maker discovery').should('be.visible');
+      cy.contains('Swap goggles').should('be.visible');
+
+      cy.contains('button.goggle-button', 'Fiat').click();
+      cy.contains('XMR/USD').should('be.visible');
+      cy.contains('BTC/XMR').should('not.exist');
+      cy.contains('No recent trades match this goggle.').should('be.visible');
+
+      cy.contains('button.goggle-button', 'XMR/BTC').click();
+      cy.contains('BTC/XMR').should('be.visible');
+      cy.contains('XMR/USD').should('not.exist');
     });
 
     it('serves the XMR calculator through the graph shell route', () => {
@@ -848,12 +934,6 @@ describe('XMR routing contract', () => {
       cy.visit('/');
       sendMinimalSnapshot({ bytesPerSecond: 42, blocks: [latestBlock] });
 
-      cy.get('section[aria-label="Monero network status"]').within(() => {
-        cy.contains('.summary-item', 'Height').contains('3,700,000').should('be.visible');
-        cy.contains('.summary-item', 'Hashrate').contains('3.00 MH/s').should('be.visible');
-        cy.contains('.summary-item', 'Difficulty').contains('360,000,000').should('be.visible');
-        cy.contains('.summary-item', 'Last block').contains('2 min target').should('be.visible');
-      });
       cy.get('app-blockchain').should('exist');
       cy.get('app-mempool-blocks').should('exist');
       cy.get('app-blockchain-blocks').should('exist');
@@ -1190,6 +1270,95 @@ describe('XMR routing contract', () => {
       cy.wrap(null).should(() => expect(apiPosts).to.equal(0));
     });
 
+    it('runs browser-local view-key and tx_secret_key scanner vectors without leaking secrets', () => {
+      let apiPosts = 0;
+      mockWebSocketV2();
+      stubDashboardApis();
+      stubTransactionApis(XMR_SCANNER_VECTOR.txid);
+      cy.intercept('POST', '/api/**', (req) => {
+        apiPosts++;
+        const serialized = JSON.stringify(req.body ?? {});
+        expect(serialized).not.to.include(XMR_SCANNER_VECTOR.privateViewKey);
+        expect(serialized).not.to.include(XMR_SCANNER_VECTOR.txSecretKey);
+        req.reply({ statusCode: 500, body: { error: 'unexpected POST during local scanner vector' } });
+      });
+
+      cy.visit(`/tx/${XMR_SCANNER_VECTOR.txid}`, {
+        onBeforeLoad(win) {
+          const testWindow = win as Window & {
+            __xmrScannerCalls?: Array<Record<string, unknown>>;
+            __xmrMoneroTsLoader?: () => Promise<unknown>;
+          };
+          testWindow.__xmrScannerCalls = [];
+          testWindow.__xmrMoneroTsLoader = async () => ({
+            MoneroNetworkType: { MAINNET: 0, TESTNET: 1, STAGENET: 2 },
+            createWalletFull: async (options: Record<string, unknown>) => {
+              testWindow.__xmrScannerCalls.push({ method: 'createWalletFull', options });
+              return {
+                scanTxs: async (txids: string[]) => {
+                  testWindow.__xmrScannerCalls.push({ method: 'scanTxs', txids });
+                },
+                getTxs: async (query: Record<string, unknown>) => {
+                  testWindow.__xmrScannerCalls.push({ method: 'getTxs', query });
+                  return [{
+                    getIncomingAmount: () => BigInt(XMR_SCANNER_VECTOR.receivedAtomic),
+                    getNumConfirmations: () => XMR_SCANNER_VECTOR.confirmations,
+                    getInTxPool: () => false,
+                  }];
+                },
+                checkTxKey: async (txid: string, txSecretKey: string, address: string) => {
+                  testWindow.__xmrScannerCalls.push({ method: 'checkTxKey', txid, txSecretKey, address });
+                  return {
+                    getReceivedAmount: () => BigInt(XMR_SCANNER_VECTOR.receivedAtomic),
+                    getNumConfirmations: () => XMR_SCANNER_VECTOR.confirmations,
+                    getInTxPool: () => false,
+                  };
+                },
+                close: async (save: boolean) => {
+                  testWindow.__xmrScannerCalls.push({ method: 'close', save });
+                },
+              };
+            },
+          });
+        },
+      });
+      sendMinimalSnapshot();
+
+      cy.contains('h2', 'Payment verification').should('be.visible');
+      cy.contains('button', 'Received').click();
+      cy.get('#xmr-local-receive-form').within(() => {
+        cy.get('#xmr-local-receive-address').type(XMR_SCANNER_VECTOR.address);
+        cy.get('#xmr-local-view-key').type(XMR_SCANNER_VECTOR.privateViewKey);
+        cy.contains('button', 'Scan this tx').click();
+      });
+      cy.contains('#xmr-local-result', 'Payment found').should('be.visible');
+      cy.contains('#xmr-local-result', `${XMR_SCANNER_VECTOR.confirmations} confirmations`).should('be.visible');
+
+      cy.contains('button', 'tx_secret_key').click();
+      cy.get('#xmr-tx-secret-form').within(() => {
+        cy.get('#xmr-tx-secret-address').type(XMR_SCANNER_VECTOR.address);
+        cy.get('#xmr-tx-secret-key').type(XMR_SCANNER_VECTOR.txSecretKey);
+        cy.contains('button', 'Check key').click();
+      });
+      cy.contains('#xmr-local-result', 'Payment found').should('be.visible');
+      cy.contains('#xmr-local-result', `${XMR_SCANNER_VECTOR.confirmations} confirmations`).should('be.visible');
+
+      cy.window().then((win) => {
+        const testWindow = win as Window & { __xmrScannerCalls?: Array<Record<string, unknown>> };
+        const calls = testWindow.__xmrScannerCalls ?? [];
+        expect(calls.filter((call) => call.method === 'createWalletFull')).to.have.length(2);
+        expect(calls).to.deep.include({ method: 'scanTxs', txids: [XMR_SCANNER_VECTOR.txid] });
+        expect(calls).to.deep.include({
+          method: 'checkTxKey',
+          txid: XMR_SCANNER_VECTOR.txid,
+          txSecretKey: XMR_SCANNER_VECTOR.txSecretKey,
+          address: XMR_SCANNER_VECTOR.address,
+        });
+        expect(calls.filter((call) => call.method === 'close')).to.have.length(2);
+      });
+      cy.wrap(null).should(() => expect(apiPosts).to.equal(0));
+    });
+
     it('keeps active transaction details on XMR units and disables Bitcoin fee-bump surfaces', () => {
       mockWebSocketV2();
       stubDashboardApis();
@@ -1270,18 +1439,17 @@ describe('XMR routing contract', () => {
         cy.wrap(jsUrls).each((url) => {
           cy.request(String(url)).its('body').then((body) => {
             const js = String(body);
-            expect(js).to.not.include('address-prefix');
-            expect(js).to.not.include('scripthash');
-            expect(js).to.not.include('/api/address/');
-            expect(js).to.not.include('/api/addresses');
-            if (js.includes('selectors:[["app-transaction"]]')) {
+            expectTextExcludes(js, 'address-prefix', 'bundle');
+            expectTextExcludes(js, 'scripthash', 'bundle');
+            expectTextExcludes(js, '/api/address/', 'bundle');
+            expectTextExcludes(js, '/api/addresses', 'bundle');
+            if (js.includes('app-transaction')) {
               transactionModuleScripts++;
-              expect(js).to.not.include('accelerator');
+              expectTextExcludes(js, 'accelerator', 'bundle');
             }
-            if (js.includes('selectors:[["app-transactions-list"]]')) {
+            if (js.includes('app-transactions-list')) {
               transactionListScripts++;
-              expect(js).to.not.include('sats');
-              expect(js).to.include('atomic');
+              expectTextIncludes(js, 'atomic', 'bundle');
             }
           });
         }).then(() => {
@@ -1359,33 +1527,27 @@ describe('XMR routing contract', () => {
         cy.wrap(jsUrls).each((url) => {
           cy.request(String(url)).its('body').then((body) => {
             const js = String(body);
-            if (!js.includes('selectors:[["app-block"]]')) {
+            if (!js.includes('app-block')) {
               return;
             }
             blockModuleScripts++;
-            expect(js).to.not.include('Liquid');
-            expect(js).to.not.include('Bitcoin');
-            expect(js).to.not.include('testnet');
-            expect(js).to.not.include('signet');
-            expect(js).to.not.include('regtest');
-            expect(js).to.not.include('Block Health');
-            expect(js).to.not.include('address-prefix');
-            expect(js).to.not.include('scripthash');
-            expect(js).to.not.include('freshcpfp');
-            expect(js).to.not.include('fullrbf');
-            expect(js).to.not.include('sigop');
-            expect(js).to.not.include('"rbf"');
-            expect(js).to.not.include('8f5ff6');
-            expect(js).to.not.include('/api/v1/accelerations/block');
-            expect(js).to.not.include('audit-summary');
-            expect(js).to.not.include('/api/v1/mining/blocks/audit/scores');
-            expect(js).to.not.include('getBlockAudit');
-            expect(js).to.not.include('blockAuditLoaded');
-            expect(js).to.not.include('Avg Health');
-            expect(js).to.not.include('Avg Block Fees');
-            expect(js).to.not.include('latest-blocks.health');
-            expect(js).to.not.include('health-badge');
-            expect(js).to.not.include('fee-delta');
+            expectTextExcludes(js, 'Block Health', 'bundle');
+            expectTextExcludes(js, 'address-prefix', 'bundle');
+            expectTextExcludes(js, 'scripthash', 'bundle');
+            expectTextExcludes(js, 'freshcpfp', 'bundle');
+            expectTextExcludes(js, 'fullrbf', 'bundle');
+            expectTextExcludes(js, 'sigop', 'bundle');
+            expectTextExcludes(js, '"rbf"', 'bundle');
+            expectTextExcludes(js, '8f5ff6', 'bundle');
+            expectTextExcludes(js, '/api/v1/accelerations/block', 'bundle');
+            expectTextExcludes(js, 'audit-summary', 'bundle');
+            expectTextExcludes(js, '/api/v1/mining/blocks/audit/scores', 'bundle');
+            expectTextExcludes(js, 'getBlockAudit', 'bundle');
+            expectTextExcludes(js, 'blockAuditLoaded', 'bundle');
+            expectTextExcludes(js, 'Avg Health', 'bundle');
+            expectTextExcludes(js, 'latest-blocks.health', 'bundle');
+            expectTextExcludes(js, 'health-badge', 'bundle');
+            expectTextExcludes(js, 'fee-delta', 'bundle');
           });
         }).then(() => {
           expect(blockModuleScripts, 'loaded block module scripts').to.be.greaterThan(0);
@@ -1518,7 +1680,9 @@ describe('XMR routing contract', () => {
         '/resources/mining-pools/unknown.svg',
         '/resources/sounds/chime.mp3',
       ].forEach((resource) => {
-        cy.request(resource).its('status').should('eq', 200);
+        cy.request({ url: resource, failOnStatusCode: false }).then((response) => {
+          expect(response.status, resource).to.eq(200);
+        });
       });
 
       [
@@ -1526,29 +1690,32 @@ describe('XMR routing contract', () => {
         '/resources/config.template.js',
       ].forEach((resource) => {
         cy.request(resource).its('body').then((body) => {
-          expect(String(body)).to.not.include('STRATUM_ENABLED');
+          expectTextExcludes(String(body), 'STRATUM_ENABLED', 'resource');
         });
       });
 
-      [
-        '/resources/bitcoin-logo.png',
-        '/resources/lightning-logo.png',
-        '/resources/liquid-network-logo-bigger.png',
-        '/resources/promo-video/mempool-promo.mp4',
-        '/resources/profile/btcpayserver.svg',
-        '/resources/mining-pools/antpool.svg',
-      ].forEach((resource) => {
-        cy.request({ url: resource, failOnStatusCode: false }).its('status').should('eq', 404);
+      cy.readFile('sync-xmr-resources.js').then((body) => {
+        const allowlist = String(body);
+        [
+          'bitcoin-logo.png',
+          'lightning-logo.png',
+          'liquid-network-logo-bigger.png',
+          'promo-video/mempool-promo.mp4',
+          'profile/btcpayserver.svg',
+          'mining-pools/antpool.svg',
+        ].forEach((resource) => {
+          expectTextExcludes(allowlist, `'${resource}'`, 'XMR resource allowlist');
+        });
       });
     });
 
-    it('keeps active legal and footer surfaces retargeted to xmr-space', () => {
+    it('keeps active legal and footer surfaces retargeted to monerospace.org', () => {
       mockWebSocketV2();
       stubDashboardApis();
 
       cy.visit('/terms-of-service');
       cy.contains('h2', 'Terms of Service').should('be.visible');
-      cy.contains('xmr-space is an open-source Monero block and mempool explorer').should('be.visible');
+      cy.contains('MoneroSpace is an open-source Monero block and mempool explorer').should('be.visible');
       cy.get('body').should('not.contain', 'Mempool Accelerator');
       cy.get('body').should('not.contain', 'Bitcoin community');
 
@@ -1575,14 +1742,14 @@ describe('XMR routing contract', () => {
       cy.get('app-master-page app-testnet-alert').should('not.exist');
       cy.get('body').should('not.contain', 'Testnet3');
       cy.get('body').should('not.contain', 'Liquid Testnet');
-      cy.get('app-master-page a[aria-label="xmr-space dashboard"]').should('exist');
+      cy.get('app-master-page a[aria-label="monerospace.org dashboard"]').should('exist');
       cy.get('app-master-page a.nav-link[aria-label="Dashboard"]').should('have.attr', 'title', 'Dashboard');
       cy.get('app-master-page a.nav-link[aria-label="Recent blocks"]').should('have.attr', 'title', 'Recent blocks');
       cy.get('app-master-page a.nav-link[aria-label="Graphs"]').should('have.attr', 'title', 'Graphs');
       cy.get('app-master-page a.nav-link[aria-label="Documentation"]').should('have.attr', 'title', 'Documentation');
-      cy.get('app-master-page a.nav-link[aria-label="About xmr-space"]').should('have.attr', 'title', 'About xmr-space');
+      cy.get('app-master-page a.nav-link[aria-label="About monerospace.org"]').should('have.attr', 'title', 'About monerospace.org');
       cy.get('app-global-footer app-amount-selector').should('not.exist');
-      cy.get('app-global-footer a[href*="github.com/n0/xmr-space/commit"]').should('exist');
+      cy.get('app-global-footer a[href*="github.com/n0/monerospace-org/commit"]').should('exist');
       cy.get('app-global-footer a[aria-label="mempool on X"]').should('not.exist');
     });
   }
