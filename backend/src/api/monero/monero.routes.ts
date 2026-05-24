@@ -9,7 +9,7 @@ import { MoneroWalletRpc } from './monero-wallet-rpc';
 import { shapeXmrDifficultyAdjustment } from './xmr-difficulty';
 import { attachResolvedRingMembers, buildRingLookupPlan, XmrRingMember } from './xmr-rings';
 import { identifyXmrMinerPool } from './xmr-miner-fingerprint';
-import { XmrMinerProof, XmrMinerProofRegistry, xmrMinerPoolFromProofName } from './xmr-miner-proof-registry';
+import { XmrBlockAttribution, XmrMinerProofRegistry } from './xmr-miner-proof-registry';
 
 const HEX64 = /^[a-f0-9]{64}$/i;
 const MONERO_MAINNET_ADDRESS = /^[48][0-9a-zA-Z]{94,105}$/;
@@ -918,15 +918,15 @@ export class MoneroRoutes {
         logger.warn(`xmr getBlocksFromHeight: ${failed}/${results.length} block fetches failed (transient daemon hiccup)`);
       }
       const shaped = await Promise.all(blocks.map(async (b) => {
-        const [fees, proof] = await Promise.all([
+        const [fees, attribution] = await Promise.all([
           b.tx_hashes?.length
             ? this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
             : Promise.resolve(null),
-          this.proofForBlock(b.block_header.hash),
+          this.attributionForBlock(b.block_header.hash),
         ]);
         return {
           ...this.shapeBlockHeader(b.block_header, b.tx_hashes?.length),
-          extras: this.shapeBlockExtras(b, fees, proof),
+          extras: this.shapeBlockExtras(b, fees, attribution),
         };
       }));
       res.json(shaped);
@@ -999,15 +999,15 @@ export class MoneroRoutes {
       // /blocks list page renders fee-tier color spans, total fees,
       // and median ɱ/B columns. Without this every row reads zeros.
       const shaped = await Promise.all(blocks.map(async (b) => {
-        const [fees, proof] = await Promise.all([
+        const [fees, attribution] = await Promise.all([
           b.tx_hashes?.length
             ? this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes).catch(() => null)
             : Promise.resolve(null),
-          this.proofForBlock(b.block_header.hash),
+          this.attributionForBlock(b.block_header.hash),
         ]);
         return {
           ...this.shapeBlockHeader(b.block_header, b.tx_hashes?.length),
-          extras: this.shapeBlockExtras(b, fees, proof),
+          extras: this.shapeBlockExtras(b, fees, attribution),
         };
       }));
       res.json(shaped);
@@ -1040,12 +1040,12 @@ export class MoneroRoutes {
           ? this.api.getBlockStrippedTxs(block.block_header.hash, txHashes, block.block_header.timestamp).catch(() => null)
           : Promise.resolve(null),
       ]);
-      const proof = await this.proofForBlock(block.block_header.hash);
+      const attribution = await this.attributionForBlock(block.block_header.hash);
       const payload: Record<string, unknown> = {
         ...this.shapeBlockHeader(block.block_header, txHashes.length),
         miner_tx_hash: block.miner_tx_hash,
         tx_hashes: txHashes,
-        miner_proof: proof,
+        miner_proof: attribution?.proof ?? null,
         // Snake-case fields kept for backwards compat with our
         // XmrBlockDetail; upstream BlockExtended reads from extras.
         total_fees: fees?.totalFees ?? 0,
@@ -1055,7 +1055,7 @@ export class MoneroRoutes {
         fee_range: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
         // The `extras` envelope is what mempool.space's BlockComponent
         // reads — block.extras.totalFees / medianFee / feeRange / pool.
-        extras: this.shapeBlockExtras(block, fees, proof),
+        extras: this.shapeBlockExtras(block, fees, attribution),
       };
       if (includeTxs) {
         payload.stripped_txs = stripped ?? [];
@@ -1165,12 +1165,12 @@ export class MoneroRoutes {
 
   // ---- shaping helpers ----
 
-  private async proofForBlock(hash: string): Promise<XmrMinerProof | null> {
+  private async attributionForBlock(hash: string): Promise<XmrBlockAttribution | null> {
     if (!this.proofRegistry) {
       return null;
     }
-    return this.proofRegistry.getProofForBlock(hash).catch((err) => {
-      logger.warn(`xmr miner proof lookup failed for ${hash}: ${err instanceof Error ? err.message : String(err)}`);
+    return this.proofRegistry.getAttributionForBlock(hash).catch((err) => {
+      logger.warn(`xmr pool attribution lookup failed for ${hash}: ${err instanceof Error ? err.message : String(err)}`);
       return null;
     });
   }
@@ -1178,7 +1178,7 @@ export class MoneroRoutes {
   private shapeBlockExtras(
     block: IMoneroApi.Block,
     fees: { totalFees: number; medianFee: number; minFee: number; maxFee: number; feeRange: number[] } | null,
-    proof: XmrMinerProof | null,
+    attribution: XmrBlockAttribution | null,
   ): Record<string, unknown> {
     const extras: Record<string, unknown> = {
       reward: block.block_header.reward,
@@ -1187,12 +1187,10 @@ export class MoneroRoutes {
       minFee: fees?.minFee ?? 0,
       maxFee: fees?.maxFee ?? 0,
       feeRange: fees?.feeRange ?? [0, 0, 0, 0, 0, 0, 0],
-      pool: proof?.status === 'verified' && proof.poolName
-        ? xmrMinerPoolFromProofName(proof.poolName)
-        : identifyXmrMinerPool(block),
+      pool: attribution?.pool ?? identifyXmrMinerPool(block),
     };
-    if (proof) {
-      extras.minerProof = proof;
+    if (attribution?.proof) {
+      extras.minerProof = attribution.proof;
     }
     return extras;
   }

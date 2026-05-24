@@ -6,7 +6,7 @@ import { MoneroEventBus } from './monero-event-bus';
 import { MoneroApi } from './monero-api';
 import { IMoneroApi } from './monero-api.interface';
 import { identifyXmrMinerPool, XmrMinerPool } from './xmr-miner-fingerprint';
-import { XmrMinerProof, XmrMinerProofRegistry, xmrMinerPoolFromProofName } from './xmr-miner-proof-registry';
+import { XmrBlockAttribution, XmrMinerProof, XmrMinerProofRegistry } from './xmr-miner-proof-registry';
 
 /**
  * XmrChainIndexer
@@ -75,9 +75,10 @@ export interface BlockSample {
   poolName?: string;
   poolSlug?: string;
   poolMinerNames?: string[];
-  poolFingerprinted?: boolean;
-  poolProofed?: boolean;
-  poolAttributionSource?: 'coinbase-fingerprint' | 'blocks.p2pool.observer';
+  poolFingerprinted?: boolean;   // pool resolved from coinbase tx_extra (P2Pool merge-mining tag only)
+  poolProofed?: boolean;         // pool resolved via cryptographic coinbase proof (P2Pool observer)
+  poolReported?: boolean;        // pool resolved by matching the pool's own found-blocks feed
+  poolAttributionSource?: string;
   minerProof?: XmrMinerProof;
 }
 
@@ -224,12 +225,12 @@ export class XmrChainIndexer {
     return out.sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  /** Attach cached miner-proof metadata to already-indexed samples. */
+  /** Attach pool attribution (and P2Pool proof) to already-indexed samples. */
   public async hydrateMinerProofs(samples: BlockSample[]): Promise<void> {
     if (!this.proofRegistry || !samples.length) return;
     for (const sample of samples) {
-      if (!sample.minerProof) {
-        await this.hydrateMinerProof(sample);
+      if (!sample.poolReported) {
+        await this.hydratePoolAttribution(sample);
       }
     }
   }
@@ -353,7 +354,7 @@ export class XmrChainIndexer {
       if (options.includePool === true && !hasPoolAttribution(existing)) {
         await this.hydratePoolFingerprint(height, existing);
       } else if (options.includePool === true) {
-        await this.hydrateMinerProof(existing);
+        await this.hydratePoolAttribution(existing);
       }
       return;
     }
@@ -420,7 +421,7 @@ export class XmrChainIndexer {
     if (pool) {
       attachPoolFingerprint(sample, pool);
     }
-    await this.hydrateMinerProof(sample);
+    await this.hydratePoolAttribution(sample);
 
     this.samples.set(height, sample);
     this.dirty = true;
@@ -443,19 +444,19 @@ export class XmrChainIndexer {
     if (!daemonBlock) return;
 
     attachPoolFingerprint(sample, identifyXmrMinerPool(daemonBlock));
-    await this.hydrateMinerProof(sample);
+    await this.hydratePoolAttribution(sample);
     this.samples.set(height, sample);
     this.dirty = true;
   }
 
-  private async hydrateMinerProof(sample: BlockSample): Promise<void> {
+  private async hydratePoolAttribution(sample: BlockSample): Promise<void> {
     if (!this.proofRegistry || !sample.hash) return;
-    const proof = await this.proofRegistry.getProofForBlock(sample.hash).catch((err) => {
-      logger.warn(`xmr-indexer: miner proof ${sample.height} failed: ${err instanceof Error ? err.message : err}`);
+    const attribution = await this.proofRegistry.getAttributionForBlock(sample.hash).catch((err) => {
+      logger.warn(`xmr-indexer: pool attribution ${sample.height} failed: ${err instanceof Error ? err.message : err}`);
       return null;
     });
-    if (!proof) return;
-    attachMinerProof(sample, proof);
+    if (!attribution) return;
+    attachAttribution(sample, attribution);
     this.samples.set(sample.height, sample);
     this.dirty = true;
   }
@@ -531,22 +532,22 @@ function attachPoolFingerprint(sample: BlockSample, pool: XmrMinerPool): void {
   sample.poolAttributionSource = 'coinbase-fingerprint';
 }
 
-function attachMinerProof(sample: BlockSample, proof: XmrMinerProof): void {
-  sample.minerProof = { ...proof };
-  if (proof.status !== 'verified' || !proof.poolName) {
-    return;
-  }
-  const pool = xmrMinerPoolFromProofName(proof.poolName);
+function attachAttribution(sample: BlockSample, attribution: XmrBlockAttribution): void {
+  const pool = attribution.pool;
   sample.poolId = pool.id;
   sample.poolName = pool.name;
   sample.poolSlug = pool.slug;
   sample.poolMinerNames = [...pool.minerNames];
-  sample.poolProofed = true;
-  sample.poolAttributionSource = 'blocks.p2pool.observer';
+  sample.poolReported = true;
+  sample.poolAttributionSource = attribution.source;
+  if (attribution.proof) {
+    sample.minerProof = { ...attribution.proof };
+    sample.poolProofed = true;
+  }
 }
 
 function hasPoolAttribution(sample: BlockSample): boolean {
-  return sample.poolFingerprinted === true || sample.poolProofed === true;
+  return sample.poolFingerprinted === true || sample.poolProofed === true || sample.poolReported === true;
 }
 
 /** Linear-interpolated percentile on a pre-sorted array. Returns 0 for empty. */

@@ -1,5 +1,26 @@
 import logger from '../../logger';
 import { knownXmrMinerPools, XmrMinerPool } from './xmr-miner-fingerprint';
+import { fetchAllPoolBlocks, PoolBlockRecord } from './xmr-pool-blocks';
+
+/**
+ * Pool attribution registry.
+ *
+ * Builds a `hash -> attribution` map by cross-referencing every major
+ * Monero pool's "found blocks" feed (see xmr-pool-blocks). A mainchain
+ * block is found by exactly one pool, so a hash match is authoritative.
+ *
+ * Two distinct signals come out of this:
+ *   - **attribution** (which pool mined the block) — available for ALL
+ *     pools that publish a found-blocks feed. Drives the pool pie /
+ *     per-pool block counts.
+ *   - **proof** (cryptographic coinbase proof) — only P2Pool, via the
+ *     observer's published coinbase private key. Drives the per-block
+ *     "miner proof" badge.
+ *
+ * The class name is retained for import stability across the indexer,
+ * ws adapter and REST routes; `getProofForBlock` stays as a thin
+ * back-compat shim over `getAttributionForBlock`.
+ */
 
 export type XmrMinerProofStatus = 'verified' | 'missing' | 'unavailable' | 'unknown';
 export type XmrMinerProofType = 'viewkey' | 'txkey' | 'txproof';
@@ -7,7 +28,7 @@ export type XmrMinerProofType = 'viewkey' | 'txkey' | 'txproof';
 export interface XmrMinerProof {
   status: XmrMinerProofStatus;
   type?: XmrMinerProofType;
-  source: 'blocks.p2pool.observer';
+  source: string;
   sourceName: string;
   sourceUrl: string;
   registryUrl: string;
@@ -18,125 +39,113 @@ export interface XmrMinerProof {
   poolId?: number;
 }
 
-const DEFAULT_REGISTRY_BASE_URL = 'https://blocks.p2pool.observer';
+/** Resolved pool attribution for a single Monero block. */
+export interface XmrBlockAttribution {
+  pool: XmrMinerPool;
+  /** Provenance — the API host the attribution came from. */
+  source: string;
+  /** Present only when the source supplies a cryptographic proof (P2Pool observer). */
+  proof?: XmrMinerProof;
+}
+
 const DEFAULT_TTL_MS = 60_000;
-const FETCH_TIMEOUT_MS = Math.max(500, Number(process.env.XMR_MINER_PROOF_REGISTRY_TIMEOUT_MS ?? 2_500));
 const HEX64 = /^[a-f0-9]{64}$/i;
 
 interface CacheEntry {
   expiresAt: number;
-  proofs: Map<string, XmrMinerProof>;
+  attributions: Map<string, XmrBlockAttribution>;
 }
 
 export class XmrMinerProofRegistry {
   private cache: CacheEntry | null = null;
-  private inFlight: Promise<Map<string, XmrMinerProof>> | null = null;
+  private inFlight: Promise<Map<string, XmrBlockAttribution>> | null = null;
 
   constructor(
-    private baseUrl = process.env.XMR_MINER_PROOF_REGISTRY_URL ?? DEFAULT_REGISTRY_BASE_URL,
     private ttlMs = Math.max(5_000, Number(process.env.XMR_MINER_PROOF_REGISTRY_TTL_MS ?? DEFAULT_TTL_MS)),
-  ) {
-    this.baseUrl = this.baseUrl.replace(/\/+$/, '');
-  }
+  ) {}
 
   public sourceName(): string {
-    return 'blocks.p2pool.observer';
+    return 'pool block feeds';
   }
 
   public proofsUrl(): string {
-    return `${this.baseUrl}/proofs`;
+    return 'p2pool.observer + supportxmr/hashvault/moneroocean/nanopool/herominers';
   }
 
-  public async getProofForBlock(hash: string): Promise<XmrMinerProof | null> {
+  public async getAttributionForBlock(hash: string): Promise<XmrBlockAttribution | null> {
     const normalized = hash.toLowerCase();
     if (!HEX64.test(normalized)) {
       return null;
     }
-    const proofs = await this.recentProofs();
-    return proofs.get(normalized) ?? null;
+    const attributions = await this.recentAttributions();
+    return attributions.get(normalized) ?? null;
   }
 
-  public async recentProofs(): Promise<Map<string, XmrMinerProof>> {
+  /** Back-compat: returns only the cryptographic proof (P2Pool), if any. */
+  public async getProofForBlock(hash: string): Promise<XmrMinerProof | null> {
+    return (await this.getAttributionForBlock(hash))?.proof ?? null;
+  }
+
+  public async recentAttributions(): Promise<Map<string, XmrBlockAttribution>> {
     const now = Date.now();
     if (this.cache && this.cache.expiresAt > now) {
-      return this.cache.proofs;
+      return this.cache.attributions;
     }
     if (!this.inFlight) {
-      this.inFlight = this.fetchProofs()
+      this.inFlight = this.build()
         .catch((err) => {
-          logger.warn(`xmr miner proofs: fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-          return this.cache?.proofs ?? new Map<string, XmrMinerProof>();
+          logger.warn(`xmr pool attribution: build failed: ${err instanceof Error ? err.message : String(err)}`);
+          return this.cache?.attributions ?? new Map<string, XmrBlockAttribution>();
         })
         .finally(() => {
           this.inFlight = null;
         });
     }
-    const proofs = await this.inFlight;
+    const attributions = await this.inFlight;
     this.cache = {
       expiresAt: now + this.ttlMs,
-      proofs,
+      attributions,
     };
-    return proofs;
+    return attributions;
   }
 
-  private async fetchProofs(): Promise<Map<string, XmrMinerProof>> {
-    const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-    try {
-      const res = await fetch(`${this.baseUrl}/plot.svg`, { signal: ctrl.signal });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      return parseMinerProofSvg(await res.text(), this.baseUrl);
-    } finally {
-      clearTimeout(timeout);
-    }
+  private async build(): Promise<Map<string, XmrBlockAttribution>> {
+    return buildAttributionMap(await fetchAllPoolBlocks());
   }
 }
 
-export function parseMinerProofSvg(svg: string, baseUrl = DEFAULT_REGISTRY_BASE_URL): Map<string, XmrMinerProof> {
-  const normalizedBase = baseUrl.replace(/\/+$/, '');
-  const proofs = new Map<string, XmrMinerProof>();
-  const blockSvgRegex = /<svg\b[^>]*class="block\s+([^"]*)"[^>]*>[\s\S]*?<\/svg>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = blockSvgRegex.exec(svg)) !== null) {
-    const fragment = match[0];
-    const classTokens = new Set(match[1].split(/\s+/).filter(Boolean));
-    const hash = fragment.match(/xlink:href="\/block\/([a-f0-9]{64})"/i)?.[1]?.toLowerCase();
-    if (!hash) {
+/**
+ * Collapse per-pool found-block records into a hash -> attribution map.
+ * When two sources claim the same hash (shouldn't happen for real
+ * found blocks), the proof-carrying source (P2Pool) wins.
+ */
+export function buildAttributionMap(records: PoolBlockRecord[]): Map<string, XmrBlockAttribution> {
+  const map = new Map<string, XmrBlockAttribution>();
+  for (const rec of records) {
+    const existing = map.get(rec.hash);
+    if (existing && existing.proof && !rec.hasProof) {
       continue;
     }
-
-    const title = decodeXmlEntities(fragment.match(/xlink:title="([^"]+)"/i)?.[1] ?? '');
-    const titleParts = title.match(/^(?:Orphan\s+)?Block\s+(\d+)\s+from\s+(.+)\s+\(([a-f0-9]{64})\)$/i);
-    const proofToken = fragment.match(/xlink:href="#block-(?:true|false)-([^"]+)"/i)?.[1]?.toLowerCase();
-    const type = proofType(proofToken);
-    const status = proofStatus(classTokens, proofToken, type);
-    const poolName = titleParts?.[2]?.trim();
-    const proof: XmrMinerProof = {
-      status,
-      ...(type ? { type } : {}),
-      source: 'blocks.p2pool.observer',
-      sourceName: 'blocks.p2pool.observer',
-      sourceUrl: `${normalizedBase}/block/${hash}`,
-      registryUrl: `${normalizedBase}/proofs`,
-      blockHash: hash,
-      ...(titleParts ? { height: Number(titleParts[1]) } : {}),
-      ...(poolName ? { poolName } : {}),
-    };
-
-    if (poolName) {
-      const pool = xmrMinerPoolFromProofName(poolName);
-      proof.poolName = pool.name;
-      proof.poolSlug = pool.slug;
-      proof.poolId = pool.id;
+    const pool = xmrMinerPoolFromProofName(rec.poolName);
+    const attribution: XmrBlockAttribution = { pool, source: rec.source };
+    if (rec.hasProof) {
+      attribution.proof = {
+        status: 'verified',
+        type: 'txproof',
+        source: rec.source,
+        sourceName: 'P2Pool Observer',
+        sourceUrl: `https://${rec.source}/block/${rec.hash}`,
+        registryUrl: `https://${rec.source}/api/found_blocks`,
+        blockHash: rec.hash,
+        ...(rec.height ? { height: rec.height } : {}),
+        poolName: pool.name,
+        poolSlug: pool.slug,
+        poolId: pool.id,
+      };
     }
-
-    proofs.set(hash, proof);
+    map.set(rec.hash, attribution);
   }
-
-  return proofs;
+  return map;
 }
 
 export function xmrMinerPoolFromProofName(poolName: string): XmrMinerPool {
@@ -153,40 +162,6 @@ export function xmrMinerPoolFromProofName(poolName: string): XmrMinerPool {
     slug: normalizedSlug || 'verified-miner',
     minerNames: [poolName.trim()],
   };
-}
-
-function proofType(token: string | undefined): XmrMinerProofType | undefined {
-  if (token === 'viewkey' || token === 'txkey' || token === 'txproof') {
-    return token;
-  }
-  return undefined;
-}
-
-function proofStatus(
-  classTokens: Set<string>,
-  proofToken: string | undefined,
-  type: XmrMinerProofType | undefined,
-): XmrMinerProofStatus {
-  if (type || classTokens.has('verified')) {
-    return 'verified';
-  }
-  if (proofToken === 'missing' || classTokens.has('unverified')) {
-    return 'missing';
-  }
-  if (proofToken === 'none' || classTokens.has('none')) {
-    return 'unavailable';
-  }
-  return 'unknown';
-}
-
-function decodeXmlEntities(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
 }
 
 function slugifyPoolName(name: string): string {

@@ -198,7 +198,7 @@ export type MinerProofType = 'viewkey' | 'txkey' | 'txproof';
 export interface MinerProof {
   status: MinerProofStatus;
   type?: MinerProofType;
-  source: 'blocks.p2pool.observer';
+  source: string;
   sourceName: string;
   sourceUrl: string;
   registryUrl: string;

@@ -6,7 +6,7 @@ import { IMoneroApi } from './monero-api.interface';
 import { getLatestXmrPrice, priceToConversions } from './xmr-price';
 import { shapeXmrDifficultyAdjustment } from './xmr-difficulty';
 import { identifyXmrMinerPool, unknownXmrMinerPool } from './xmr-miner-fingerprint';
-import { XmrMinerProof, XmrMinerProofRegistry, xmrMinerPoolFromProofName } from './xmr-miner-proof-registry';
+import { XmrBlockAttribution, XmrMinerProof, XmrMinerProofRegistry } from './xmr-miner-proof-registry';
 
 /**
  * Speaks the upstream mempool/mempool websocket protocol so the existing
@@ -399,13 +399,13 @@ export class MoneroWs {
       ...(block?.tx_hashes ?? []),
       block?.miner_tx_hash,
     ].filter((txid): txid is string => typeof txid === 'string').map((txid) => txid.toLowerCase()));
-    const [fees, proof] = await Promise.all([
+    const [fees, attribution] = await Promise.all([
       block?.tx_hashes?.length
         ? this.api.getBlockFeeStats(header.hash, block.tx_hashes).catch(() => null)
         : Promise.resolve(null),
-      this.proofForBlock(header.hash),
+      this.attributionForBlock(header.hash),
     ]);
-    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined, this.poolForBlock(block, proof), proof);
+    const shaped = this.shapeBlock(headerForShape, numTxes, fees ?? undefined, this.poolForBlock(block, attribution), attribution?.proof ?? null);
     this.lastBroadcastHeight = header.height;
     // Also push refreshed mempool info and difficulty state — confirming
     // a block drains the pool, and Monero retargets on every new block.
@@ -681,27 +681,24 @@ export class MoneroWs {
     // cached for 24h after first compute, so repeated snapshots after
     // boot are nearly free.
     const shapes = await Promise.all(blocks.map(async (b) => {
-      const [fees, proof] = await Promise.all([
+      const [fees, attribution] = await Promise.all([
         this.api.getBlockFeeStats(b.block_header.hash, b.tx_hashes ?? []).catch(() => null),
-        this.proofForBlock(b.block_header.hash),
+        this.attributionForBlock(b.block_header.hash),
       ]);
-      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined, this.poolForBlock(b, proof), proof);
+      return this.shapeBlock(b.block_header, b.tx_hashes?.length, fees ?? undefined, this.poolForBlock(b, attribution), attribution?.proof ?? null);
     }));
     return shapes;
   }
 
-  private async proofForBlock(hash: string): Promise<XmrMinerProof | null> {
+  private async attributionForBlock(hash: string): Promise<XmrBlockAttribution | null> {
     if (!this.proofRegistry) {
       return null;
     }
-    return this.proofRegistry.getProofForBlock(hash).catch(() => null);
+    return this.proofRegistry.getAttributionForBlock(hash).catch(() => null);
   }
 
-  private poolForBlock(block: IMoneroApi.Block | null | undefined, proof: XmrMinerProof | null) {
-    if (proof?.status === 'verified' && proof.poolName) {
-      return xmrMinerPoolFromProofName(proof.poolName);
-    }
-    return identifyXmrMinerPool(block);
+  private poolForBlock(block: IMoneroApi.Block | null | undefined, attribution: XmrBlockAttribution | null) {
+    return attribution?.pool ?? identifyXmrMinerPool(block);
   }
 
   private shapeBlock(
