@@ -63,7 +63,13 @@ src/resources/assets-testnet.json
 src/resources/assets-testnet.minimal.json
 src/resources/pools.json
 src/resources/mining-pools/*
+!src/resources/mining-pools/2miners.svg
+!src/resources/mining-pools/hashvault.svg
+!src/resources/mining-pools/herominers.svg
+!src/resources/mining-pools/moneroocean.svg
+!src/resources/mining-pools/nanopool.svg
 !src/resources/mining-pools/p2pool.svg
+!src/resources/mining-pools/supportxmr.svg
 src/resources/**/*.mp4
 src/resources/**/*.vtt
 src/resources/customize.js

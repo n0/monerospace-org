@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HeroMiners">
+  <path fill="#15181b" d="M9 25h46v29H9z"/>
+  <path fill="#f3b51b" d="m8 25 11 6 13-18 13 18 11-6-5 29H13L8 25Z"/>
+  <path fill="#ffe08a" d="m20 31 12-17 12 17-12-7-12 7Z" opacity=".7"/>
+  <path fill="#2a1c08" d="M20 34h7v6h10v-6h7v18h-7v-6H27v6h-7V34Z"/>
+  <path fill="#fff3c4" d="M13.5 28.3 19 31l13-18 13 18 5.5-2.7-2.7 15.5-4.4-8.7-7.4-4.3-4 5.4-4-5.4-7.4 4.3-4.4 8.7-2.7-15.5Z" opacity=".22"/>
+</svg>
