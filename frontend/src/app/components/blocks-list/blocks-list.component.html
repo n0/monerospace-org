@@ -13,7 +13,7 @@
     <table class="table table-borderless">
       <thead>
         <th class="height text-start" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}" i18n="latest-blocks.height">Height</th>
-        <th *ngIf="isMempoolModule" class="pool" [ngClass]="{'widget': widget}" i18n="latest-blocks.pool">Pool</th>
+        <th *ngIf="isMempoolModule" class="pool text-start" [ngClass]="{'widget': widget}" i18n="latest-blocks.pool">Pool</th>
         <th class="timestamp" i18n="latest-blocks.timestamp" *ngIf="!widget" [class]="isMempoolModule ? '' : 'legacy'">Timestamp</th>
         <th *ngIf="isMempoolModule" class="reward text-end" i18n="latest-blocks.reward" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
           i18n-ngbTooltip="latest-blocks.reward" ngbTooltip="Reward" placement="bottom" #reward [disableTooltip]="!isEllipsisActive(reward)">Reward</th>
@@ -28,16 +28,18 @@
           <td class="height text-start" [class]="widget ? 'widget' : ''">
             <a [routerLink]="['/block' | relativeUrl, block.id]" [state]="{ data: { block: block } }">{{ block.height }}</a>
           </td>
-          <td *ngIf="isMempoolModule" class="pool" [ngClass]="{'widget': widget}">
-            <img
-              width="18"
-              height="18"
-              class="me-2"
-              [src]="block.extras?.pool?.logo"
-              onError="this.src = '/resources/mining-pools/unknown.svg'"
-              [alt]="'Logo of ' + (block.extras?.pool?.name || 'unknown') + ' mining pool'"
-            >
-            <span>{{ block.extras?.pool?.name || 'unknown' }}</span>
+          <td *ngIf="isMempoolModule" class="pool text-start" [ngClass]="{'widget': widget}">
+            <ng-container *ngIf="block.extras?.pool as pool">
+              <div class="tooltip-custom">
+                <a *ngIf="indexingAvailable; else unlinkedPool" class="clear-link" [routerLink]="['/mining/pool' | relativeUrl, pool.slug]">
+                  <app-mining-pool [slug]="pool.slug" [name]="pool.name" [logoStyle]="'width:22px;height:22px;'" [textClass]="'truncate'"></app-mining-pool>
+                </a>
+                <ng-template #unlinkedPool>
+                  <app-mining-pool [slug]="pool.slug" [name]="pool.name" [logoStyle]="'width:22px;height:22px;'" [textClass]="'truncate'"></app-mining-pool>
+                </ng-template>
+                <span *ngIf="!widget && block.extras?.coinbaseRaw" class="tooltiptext badge bg-secondary scriptmessage">{{ block.extras.coinbaseRaw | hex2ascii }}</span>
+              </div>
+            </ng-container>
           </td>
           <td class="timestamp" *ngIf="!widget" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             <app-timestamp [customFormat]="'yyyy-MM-dd HH:mm:ss'" [unixTime]="block.timestamp" [hideTimeSince]="true"></app-timestamp>

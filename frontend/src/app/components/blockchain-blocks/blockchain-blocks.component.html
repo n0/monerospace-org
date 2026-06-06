@@ -79,9 +79,14 @@
           class="on-pool-container pool-container"
           [attr.data-cy]="'xmr-block-' + offset + '-index-' + i + '-miner'"
         >
-          <span class="badge on-pool">
-            <span class="on-pool-name-text">{{ block.extras.pool.name }}</span>
-          </span>
+          <a class="badge on-pool" [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
+            <app-mining-pool
+              [slug]="block.extras.pool.slug"
+              [name]="block.extras.pool.name"
+              [logoStyle]="'width:18px;height:18px;margin-right:4px;'"
+              [textClass]="'on-pool-name-text'">
+            </app-mining-pool>
+          </a>
         </div>
       </div>
     </ng-container>

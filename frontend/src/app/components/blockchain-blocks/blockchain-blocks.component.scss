@@ -23,6 +23,11 @@
   display: inline-block;
   padding-top: 2px;
   font-weight: normal;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
 }
 
 .timestamp-info {
@@ -40,10 +45,11 @@
 .on-pool {
   align-items: center;
   background-color: var(--bg);
-  display: inline-block;
+  display: inline-flex;
   margin-top: 4px;
   padding: .25em .4em;
   border-radius: .25rem;
+  text-decoration: none;
 }
 
 .on-pool-container {
