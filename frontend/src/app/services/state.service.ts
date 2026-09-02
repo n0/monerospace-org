@@ -272,7 +272,8 @@ export class StateService {
 
     this.signaturesMode$ = new BehaviorSubject<SignaturesMode>(this.storageService.getValue('signatures-mode') as SignaturesMode || null);
 
-    this.blockVSize = this.env.BLOCK_WEIGHT_UNITS / 4;
+    // Monero penalty-free block size is 300KB (300,000 bytes)
+    this.blockVSize = 300_000;
 
     this.blocks$ = this.blocksSubject$.pipe(filter(blocks => blocks != null && blocks.length > 0));
 
