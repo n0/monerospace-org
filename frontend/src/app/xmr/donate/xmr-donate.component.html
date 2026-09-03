@@ -1,0 +1,45 @@
+<div class="container-xl donate-page">
+  <section class="intro" aria-labelledby="donate-title">
+    <p class="eyebrow">Support MoneroSpace</p>
+    <h1 id="donate-title">Donate XMR</h1>
+    <p class="lead">
+      MoneroSpace is run as a public Monero explorer. Donations help cover hosting,
+      storage, bandwidth, and monerod costs.
+    </p>
+  </section>
+
+  <section class="donation-box" aria-labelledby="donation-address-title">
+    <div class="qr-wrap" aria-label="Monero donation QR code">
+      <app-qrcode [data]="donateUri" [size]="224" [border]="8"></app-qrcode>
+    </div>
+
+    <div class="donation-details">
+      <h2 id="donation-address-title">Donation address</h2>
+      <p>Send XMR to this address:</p>
+
+      <div class="address-row">
+        <code>{{ donateAddress }}</code>
+        <app-clipboard
+          [button]="true"
+          [text]="donateAddress"
+          [class]="'btn btn-secondary ms-2'"
+          [leftPadding]="false"
+          size="large"
+        ></app-clipboard>
+      </div>
+
+      <a
+        class="btn btn-primary wallet-link"
+        href="monero:83PcqHAZRciDzuwiKFwXJ7dgYbmudizgLNGJE6uvV1KoiDdGL8jfVz2FQoG32wFbgdCo4YQ3mGnDZ7buXL1zsqcgMzAVbYs"
+      >Open Monero wallet</a>
+    </div>
+  </section>
+
+  <section class="sponsor-note" aria-labelledby="sponsor-title">
+    <h2 id="sponsor-title">Sponsorship</h2>
+    <p>
+      For larger sponsorships or recurring support, contact me on Telegram at
+      <a [href]="telegramUrl" target="_blank" rel="noopener noreferrer">t.me/hiss</a>.
+    </p>
+  </section>
+</div>

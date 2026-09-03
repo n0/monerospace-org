@@ -76,6 +76,11 @@
           <div class="svg-wrapper"><app-svg-images name="nav-book" width="21.59" height="100%"></app-svg-images></div>
         </a>
       </li>
+      <li class="nav-item" routerLinkActive="active" ariaCurrentWhenActive="page" id="btn-donate">
+        <a class="nav-link" [routerLink]="['/donate']" (click)="collapse()" aria-label="Donate XMR" title="Donate XMR">
+          <div class="svg-wrapper"><app-svg-images name="nav-heart" width="21.59" height="100%"></app-svg-images></div>
+        </a>
+      </li>
       <li class="nav-item" routerLinkActive="active" ariaCurrentWhenActive="page" id="btn-about">
         <a class="nav-link" [routerLink]="['/about']" (click)="collapse()" aria-label="About monerospace.org" title="About monerospace.org">
           <div class="svg-wrapper"><app-svg-images name="nav-info-circle" width="21.59" height="100%"></app-svg-images></div>

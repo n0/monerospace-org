@@ -46,6 +46,10 @@ const routes: Routes = [
         path: 'status',
         loadChildren: () => import('@app/xmr/status/xmr-status.module').then(m => m.XmrStatusModule),
       },
+      {
+        path: 'donate',
+        loadChildren: () => import('@app/xmr/donate/xmr-donate.module').then(m => m.XmrDonateModule),
+      },
       // xmr-space: route /blocks back to upstream BlocksList. Our
       // /api/v1/blocks endpoint now returns the upstream `extras`
       // envelope with totalFees / medianFee / feeRange / pool, so the

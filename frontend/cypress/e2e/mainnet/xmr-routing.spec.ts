@@ -10,6 +10,7 @@ const XMR_ADDRESS = `4${'1'.repeat(94)}`;
 const XMR_PROOF_SIGNATURE = `OutProofV2${'c'.repeat(120)}`;
 const XMR_PRIVATE_VIEW_KEY = 'a'.repeat(64);
 const XMR_TX_SECRET_KEY = 'b'.repeat(64);
+const XMR_DONATE_ADDRESS = '83PcqHAZRciDzuwiKFwXJ7dgYbmudizgLNGJE6uvV1KoiDdGL8jfVz2FQoG32wFbgdCo4YQ3mGnDZ7buXL1zsqcgMzAVbYs';
 const XMR_SCANNER_VECTOR = {
   txid: 'f'.repeat(64),
   address: `4${'1'.repeat(94)}`,
@@ -1748,10 +1749,21 @@ describe('XMR routing contract', () => {
       cy.get('app-master-page a.nav-link[aria-label="Recent blocks"]').should('have.attr', 'title', 'Recent blocks');
       cy.get('app-master-page a.nav-link[aria-label="Graphs"]').should('have.attr', 'title', 'Graphs');
       cy.get('app-master-page a.nav-link[aria-label="Documentation"]').should('have.attr', 'title', 'Documentation');
+      cy.get('app-master-page a.nav-link[aria-label="Donate XMR"]').should('have.attr', 'title', 'Donate XMR');
       cy.get('app-master-page a.nav-link[aria-label="About monerospace.org"]').should('have.attr', 'title', 'About monerospace.org');
       cy.get('app-global-footer app-amount-selector').should('not.exist');
+      cy.get('app-global-footer a[href="/donate"]').should('contain', 'Donate XMR');
       cy.get('app-global-footer a[href*="github.com/n0/monerospace-org/commit"]').should('exist');
       cy.get('app-global-footer a[aria-label="mempool on X"]').should('not.exist');
+
+      cy.visit('/donate');
+      cy.contains('h1', 'Donate XMR').should('be.visible');
+      cy.contains('hosting, storage, bandwidth, and monerod costs').should('be.visible');
+      cy.contains('code', XMR_DONATE_ADDRESS).should('be.visible');
+      cy.get('app-qrcode canvas').should('be.visible');
+      cy.get('app-clipboard button[aria-label="Copy to clipboard"]').should('exist');
+      cy.get(`a[href="monero:${XMR_DONATE_ADDRESS}"]`).should('contain', 'Open Monero wallet');
+      cy.get('a[href="https://t.me/hiss"]').should('contain', 't.me/hiss');
     });
   }
 });
