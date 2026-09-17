@@ -1753,7 +1753,9 @@ describe('XMR routing contract', () => {
       cy.get('app-master-page a.nav-link[aria-label="About monerospace.org"]').should('have.attr', 'title', 'About monerospace.org');
       cy.get('app-global-footer app-amount-selector').should('not.exist');
       cy.get('app-global-footer a[href="/donate"]').should('contain', 'Donate XMR');
-      cy.get('app-global-footer a[href*="github.com/n0/monerospace-org/commit"]').should('exist');
+      cy.contains('app-global-footer .footer-credit', 'Made with').should('be.visible');
+      cy.get('app-global-footer .footer-credit-link[href="https://u.software"]').should('contain', 'u.software');
+      cy.get('app-global-footer a[href*="github.com/n0/monerospace-org/commit"]').should('not.exist');
       cy.get('app-global-footer a[aria-label="mempool on X"]').should('not.exist');
 
       cy.visit('/donate');
