@@ -2,21 +2,21 @@ import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { SharedModule } from '@app/shared/shared.module';
-import { XmrDonateComponent } from './xmr-donate.component';
+import { XmrUswapComponent } from './xmr-uswap.component';
 
 const routes: Routes = [
   {
     path: '',
-    component: XmrDonateComponent,
+    component: XmrUswapComponent,
   },
 ];
 
 @NgModule({
-  declarations: [XmrDonateComponent],
+  declarations: [XmrUswapComponent],
   imports: [
     CommonModule,
     RouterModule.forChild(routes),
     SharedModule,
   ],
 })
-export class XmrDonateModule {}
+export class XmrUswapModule {}

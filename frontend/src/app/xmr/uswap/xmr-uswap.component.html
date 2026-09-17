@@ -1,0 +1,121 @@
+<div class="container-xl uswap-page">
+  <section class="uswap-hero" aria-labelledby="uswap-title">
+    <div class="hero-copy">
+      <p class="eyebrow">MoneroSpace + uSwap</p>
+      <h1 id="uswap-title">Buy, sell, and swap XMR without stitching routes together.</h1>
+      <p class="lead">
+        uSwap turns XMR into a starting point: onramp into Monero, off-ramp out of it,
+        or convert it into crypto, cards, Telegram, Discord, VPN time, gift cards, and
+        other supported destinations from one routing flow.
+      </p>
+
+      <div class="hero-actions" aria-label="uSwap actions">
+        <a class="btn btn-primary hero-button" [href]="uswapAppUrl" target="_blank" rel="noopener noreferrer">
+          Open uSwap
+          <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true"></fa-icon>
+        </a>
+        <a class="btn btn-secondary hero-button" [href]="telegramUrl" target="_blank" rel="noopener noreferrer">
+          Contact Us
+          <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true"></fa-icon>
+        </a>
+      </div>
+
+      <p class="route-note">
+        Quotes show route details before you send. Provider availability, timing,
+        verification, and costs vary by asset, destination, and jurisdiction.
+      </p>
+    </div>
+
+    <div class="route-visual" aria-label="uSwap XMR route examples">
+      <div class="route-node source-node">
+        <span>You have</span>
+        <strong>XMR</strong>
+        <small>Monero</small>
+      </div>
+
+      <div class="engine-node">
+        <fa-icon [icon]="['fas', 'arrow-right-arrow-left']" [fixedWidth]="true" aria-hidden="true"></fa-icon>
+        <span>uSwap route engine</span>
+      </div>
+
+      <div class="destination-grid" aria-label="Example uSwap destinations">
+        <span>BTC</span>
+        <span>ETH</span>
+        <span>SOL</span>
+        <span>Stablecoins</span>
+        <span>Fiat routes</span>
+        <span>Prepaid Visa</span>
+        <span>Telegram</span>
+        <span>VPN</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="conversion-section" aria-labelledby="conversion-title">
+    <div class="section-heading">
+      <p class="eyebrow">Start with the route you need</p>
+      <h2 id="conversion-title">Three XMR jobs, one uSwap app.</h2>
+    </div>
+
+    <div class="conversion-grid">
+      <article class="conversion-card">
+        <fa-icon [icon]="['fas', 'wallet']" [fixedWidth]="true" aria-hidden="true"></fa-icon>
+        <h3>Onramp into XMR</h3>
+        <p>Start from a supported asset or fiat route and let uSwap coordinate the path into Monero.</p>
+        <a [href]="uswapAppUrl" target="_blank" rel="noopener noreferrer">Buy XMR with uSwap</a>
+      </article>
+
+      <article class="conversion-card">
+        <fa-icon [icon]="['fas', 'credit-card']" [fixedWidth]="true" aria-hidden="true"></fa-icon>
+        <h3>Off-ramp from XMR</h3>
+        <p>Turn Monero into supported fiat routes, prepaid cards, gift cards, or other spendable outputs.</p>
+        <a [href]="uswapAppUrl" target="_blank" rel="noopener noreferrer">Sell XMR with uSwap</a>
+      </article>
+
+      <article class="conversion-card">
+        <fa-icon [icon]="['fas', 'exchange-alt']" [fixedWidth]="true" aria-hidden="true"></fa-icon>
+        <h3>Convert XMR anywhere</h3>
+        <p>Swap XMR across supported chains and destinations without jumping between separate services.</p>
+        <a [href]="uswapAppUrl" target="_blank" rel="noopener noreferrer">Swap XMR with uSwap</a>
+      </article>
+    </div>
+  </section>
+
+  <section class="proof-section" aria-labelledby="why-uswap-title">
+    <div class="section-heading">
+      <p class="eyebrow">Why send users there</p>
+      <h2 id="why-uswap-title">Built for messy routes.</h2>
+    </div>
+
+    <div class="proof-grid">
+      <div class="proof-item">
+        <span>01</span>
+        <h3>Anything in, anything out</h3>
+        <p>uSwap treats the selected output as the destination and coordinates eligible direct or multi-hop routes behind one flow.</p>
+      </div>
+
+      <div class="proof-item">
+        <span>02</span>
+        <h3>Route details before deposit</h3>
+        <p>Users can review the provider, expected timing, network costs, and modeled route before sending funds.</p>
+      </div>
+
+      <div class="proof-item">
+        <span>03</span>
+        <h3>Recovery on the same screen</h3>
+        <p>Common underpayment, late deposit, re-quote, hold, and refund paths are handled in the transaction flow when supported.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="bottom-cta" aria-label="Open uSwap">
+    <div>
+      <h2>Ready to move XMR?</h2>
+      <p>Open uSwap, choose what you have, choose what you want, and confirm the route before you send.</p>
+    </div>
+    <a class="btn btn-primary hero-button" [href]="uswapAppUrl" target="_blank" rel="noopener noreferrer">
+      Open uSwap
+      <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true"></fa-icon>
+    </a>
+  </section>
+</div>
