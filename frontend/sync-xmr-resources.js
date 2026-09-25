@@ -15,6 +15,7 @@ const targetRoot = path.resolve(frontendRoot, targetArg);
 
 const allowedResources = [
   '.gitkeep',
+  'monerospace-migration.js',
   'config.js',
   'config.template.js',
   'customize.js',

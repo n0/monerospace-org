@@ -64,6 +64,7 @@ ENV MEMPOOL_CONFIG_FILE=/app/backend/mempool-config.json
 ENV XMR_HOST=127.0.0.1
 ENV XMR_PORT=8999
 ENV XMR_INDEX_DIR=/data/xmr
+ENV XMR_MIGRATION_METRICS_DIR=/data/migration
 ENV XMR_DATABASE_ENABLED=false
 ENV DATABASE_ENABLED=false
 ENV MONEROD_RPC_URL=https://xmr-node.cakewallet.com:18081

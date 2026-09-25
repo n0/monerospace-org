@@ -14,6 +14,7 @@
  * this file gives the frontend something to talk to.
  */
 import express, { Request, Response } from 'express';
+import { mountMigrationMetrics } from './xmr-migration-metrics';
 import { createServer } from 'http';
 import { MoneroApi, moneroDaemonConfigFromEnv } from './monero-api';
 import { MoneroRoutes } from './monero.routes';
@@ -30,6 +31,7 @@ import { XmrMinerProofRegistry } from './xmr-miner-proof-registry';
 
 function main(): void {
   const app = express();
+  mountMigrationMetrics(app, 'https://monerospace.org');
   const port = Number(process.env.XMR_PORT ?? 8999);
   const host = process.env.XMR_HOST ?? '127.0.0.1';
 

@@ -39,7 +39,9 @@ const customBuildName = (customConfigContent && customConfigContent.enterprise) 
 const indexFilePath = 'src/index.' + baseModuleName + customBuildName + '.html';
 
 try {
-  fs.copyFileSync(indexFilePath, 'src/index.html');
+  const migrationScript = fs.readFileSync('src/resources/monerospace-migration.js', 'utf8');
+  const indexTemplate = fs.readFileSync(indexFilePath, 'utf8');
+  fs.writeFileSync('src/index.html', indexTemplate.replace(/(<script data-migration="(?:source|target)">)[\s\S]*?<\/script>/, (_, opening) => opening + migrationScript + '</script>'));
   console.log('Copied ' + indexFilePath + ' to src/index.html');
 } catch (e) {
   console.log('Error copying the index file');
