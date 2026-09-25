@@ -17,6 +17,7 @@
     fetch('/api/v1/migration-events', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({event}), credentials:'omit', referrerPolicy:'no-referrer', keepalive:true }).catch(() => {});
   };
   function supported(path) {
+    if (!path.startsWith('/') || path.includes('//') || path.includes('\\')) return false;
     const parts = path.split('/').filter(Boolean);
     if (languages.has(parts[0])) parts.shift();
     const route = parts.join('/');
@@ -37,6 +38,7 @@
   function link(origin, data) {
     const path = supported(location.pathname) ? location.pathname : '/';
     const url = new URL(path + (supported(location.pathname) ? location.search : ''), origin);
+    if (url.origin !== origin) return new URL('/', origin).href;
     url.hash = prefix + encodeURIComponent(JSON.stringify({...data,t:Date.now(),h:location.hash.slice(0,2048)}));
     return url.href;
   }
